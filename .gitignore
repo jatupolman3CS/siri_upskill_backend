@@ -1,0 +1,31 @@
+# Build output
+**/bin/
+**/obj/
+**/dist/
+**/.angular/
+**/node_modules/
+**/coverage/
+**/TestResults/
+
+# IDE
+.vs/
+.vscode/*
+!.vscode/extensions.json
+*.user
+*.suo
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets — never commit real values
+appsettings.Local.json
+appsettings.*.local.json
+.env
+.env.*
+*.pfx
+*.key
+
+# Logs
+*.log

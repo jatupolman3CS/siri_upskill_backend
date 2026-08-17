@@ -1,0 +1,13 @@
+{
+  "common": {
+    "appName": "SIRI UpSkill",
+    "loading": "Loading...",
+    "error": "Something went wrong. Please try again."
+  },
+  "nav": {
+    "home": "Home"
+  },
+  "home": {
+    "placeholder": "This is a scaffolding placeholder page. Real content lands in a later task."
+  }
+}

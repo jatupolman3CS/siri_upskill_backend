@@ -1,0 +1,11 @@
+@import 'tailwindcss';
+@import './app/styles/tokens.css';
+
+/* Global element defaults — component-level styling stays in Tailwind
+   utilities per frontend.md; this file is only for the few things that
+   must apply document-wide. */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}

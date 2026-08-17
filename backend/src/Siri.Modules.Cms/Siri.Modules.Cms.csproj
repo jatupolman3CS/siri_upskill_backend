@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed for IEndpointRouteBuilder/IServiceCollection endpoint-mapping extension points in
+         {Module}Module.cs. Modules stay class libraries (not Sdk.Web) — this only pulls in the
+         ASP.NET Core types, not a web host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

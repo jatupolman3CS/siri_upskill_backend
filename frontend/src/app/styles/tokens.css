@@ -1,0 +1,81 @@
+/*
+ * Design tokens — SIRI UpSkill
+ * ============================================================================
+ * TODO(design-system): PLACEHOLDER PALETTE. This is a neutral slate/blue
+ * scale chosen only so the app is usable and every component has a token
+ * to point at. It is NOT the real brand identity.
+ *
+ * The real palette/typography decision is deferred to a later task once
+ * Python is installed and the `ui-ux-pro-max` design skill's search tool
+ * can run (see .claude/rules/ui-design.md). When that task lands, the
+ * values below get replaced — the token *names* should stay stable so
+ * components that already reference var(--color-*) etc. keep working.
+ *
+ * Convention (ui-design.md): full palette defined on :root (light is the
+ * default/fallback), only the tokens that actually differ are overridden
+ * inside the prefers-color-scheme: dark block. Components must reference
+ * these variables (directly or via Tailwind arbitrary-value syntax, e.g.
+ * `text-[color:var(--color-text)]`) — never raw hex codes.
+ * ============================================================================
+ */
+
+:root {
+  /* Surfaces */
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc;
+  --color-surface-muted: #f1f5f9;
+  --color-border: #e2e8f0;
+
+  /* Text */
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-text-inverse: #f8fafc;
+
+  /* Brand / accent — TODO(design-system): replace with real brand color */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-foreground: #ffffff;
+
+  /* Semantic feedback */
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+
+  /* Focus ring — must stay visible; see ui-design.md a11y rules */
+  --color-focus-ring: #2563eb;
+
+  /* Radius scale — only these sizes, no ad-hoc values per page */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-full: 9999px;
+
+  /* Shadow scale */
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(15 23 42 / 0.1), 0 2px 4px -2px rgb(15 23 42 / 0.06);
+  --shadow-lg: 0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.06);
+
+  /* Typography — TODO(design-system): swap for a paired display/body font
+     that covers Thai (e.g. IBM Plex Sans Thai / Noto Sans Thai / LINE Seed
+     Sans TH) and verify Thai vowel/tone-mark line-height at real sizes. */
+  --font-sans:
+    'Segoe UI', system-ui, -apple-system, 'Noto Sans Thai', 'Leelawadee UI', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0f172a;
+    --color-surface: #1e293b;
+    --color-surface-muted: #334155;
+    --color-border: #334155;
+
+    --color-text: #f1f5f9;
+    --color-text-muted: #94a3b8;
+    --color-text-inverse: #0f172a;
+
+    --color-primary-hover: #3b82f6;
+
+    /* focus ring must stay ≥3:1 against dark surfaces too */
+    --color-focus-ring: #60a5fa;
+  }
+}
