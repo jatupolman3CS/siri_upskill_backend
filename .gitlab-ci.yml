@@ -1,0 +1,67 @@
+# GitLab CI pipeline (task P0-07) — functional mirror of .github/workflows/ci.yml, because the
+# actual remote for this repo is GitLab (owner decision 2026-08-18; the GitHub workflow file stays
+# for a possible future mirror). Same three verification jobs, same gates:
+# build → unit → architecture → integration (Testcontainers) → dependency scans → secret scan.
+# Assumes gitlab.com shared runners (docker executor with docker:dind allowed); on a self-managed
+# GitLab the runner must permit privileged/dind for the backend job's Testcontainers to work.
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+stages:
+  - verify
+
+backend:
+  stage: verify
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+  timeout: 45m
+  # Docker-in-Docker so Testcontainers can start real MSSQL/Redis — the documented Testcontainers
+  # pattern for GitLab CI (DOCKER_HOST to the dind service, TLS off, host override to the service
+  # alias so mapped container ports resolve).
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    TESTCONTAINERS_HOST_OVERRIDE: docker
+  script:
+    - dotnet restore backend/SiriUpSkill.sln
+    - dotnet build backend/SiriUpSkill.sln --no-restore --configuration Release
+    - dotnet test backend/tests/Siri.UnitTests/Siri.UnitTests.csproj --no-build --configuration Release
+    - dotnet test backend/tests/Siri.ArchitectureTests/Siri.ArchitectureTests.csproj --no-build --configuration Release
+    - dotnet test backend/tests/Siri.IntegrationTests/Siri.IntegrationTests.csproj --no-build --configuration Release
+    # security.md §5: dependency scanning fails the build on high+ severity.
+    - |
+      output=$(dotnet list backend/SiriUpSkill.sln package --vulnerable --include-transitive)
+      echo "$output"
+      if echo "$output" | grep -Eq '\b(High|Critical)\b'; then
+        echo "Vulnerable NuGet dependencies of High/Critical severity found." >&2
+        exit 1
+      fi
+
+frontend:
+  stage: verify
+  image: node:22
+  timeout: 30m
+  script:
+    - cd frontend
+    - npm ci
+    - npm run lint
+    - npm run test
+    - npm run build
+    # security.md §5: same high+ gate as the NuGet scan above.
+    - npm audit --audit-level=high
+
+secret-scan:
+  stage: verify
+  image:
+    name: zricethezav/gitleaks:v8.18.4
+    entrypoint: [""]
+  timeout: 15m
+  variables:
+    # Full clone — a secret committed then deleted is still leaked, so scan every commit.
+    GIT_DEPTH: "0"
+  script:
+    - gitleaks detect --source . --config .gitleaks.toml --no-banner --redact --verbose
