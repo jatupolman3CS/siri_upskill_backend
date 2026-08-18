@@ -1,6 +1,6 @@
 # SIRI UpSkill — Work Breakdown (Build Backlog)
 
-อัปเดต 2026-08-17 · สอดคล้องกับ D-13 Bunny Stream · D-14 EasySlip · D-15 Contabo
+อัปเดต 2026-08-18 · สอดคล้องกับ D-13 Bunny Stream · D-14 Stripe (แก้ไขจาก EasySlip) · D-15 Contabo
 
 **วิธีใช้:** หยิบทีละ task ตามลำดับ dependency สั่ง Claude Code ได้ตรง ๆ ว่า `ทำ P0-11`
 ทุก task ต้องผ่าน Definition of Done ใน `.claude/rules/workflow.md` ก่อนปิด
@@ -12,12 +12,12 @@
 | P0 | Foundation & Infrastructure | 1–3 | ~62 |
 | P1 | Catalog, Search & SEO | 4–7 | ~66 |
 | P2 | Media & Secure Player (Bunny) | 8–11 | ~64 |
-| P3 | Commerce & EasySlip Payment | 12–14 | ~52 |
+| P3 | Commerce & Stripe Payment | 12–14 | ~38 |
 | P4 | Instructor Studio | 15–18 | ~62 |
 | P5 | Interactive Learning | 19–21 | ~48 |
 | P6 | Admin, CMS & Revenue | 22–25 | ~62 |
 | P7 | Hardening & Launch | 26–28 | ~44 |
-| | | **28 สัปดาห์** | **~460** |
+| | | **28 สัปดาห์** | **~446** |
 
 ---
 
@@ -112,29 +112,31 @@
 
 ---
 
-## P3 — Commerce & EasySlip Payment (สัปดาห์ 12–14)
+## P3 — Commerce & Stripe Payment (สัปดาห์ 12–14)
 
-**Exit criteria:** ซื้อ→สแกน QR→โอน→อัปสลิป→เข้าเรียนได้อัตโนมัติ · อัปสลิปเดิมซ้ำถูกปฏิเสธ 100% · ออร์เดอร์ไม่มีสถานะค้าง
+> แก้ไข 2026-08-18: เปลี่ยนจาก EasySlip เป็น **Stripe** ทั้ง phase (D-14/Q2 ฉบับแก้ไข — สเปคเต็ม `PAYMENT.md`) ไม่มี flow อัปสลิปอีกต่อไป
+
+**Exit criteria:** ซื้อ→สแกน QR→จ่ายในแอปธนาคาร→เข้าเรียนได้อัตโนมัติผ่าน webhook · webhook ยิงซ้ำ/ปลอมไม่มีผลใด ๆ 100% · ออร์เดอร์ไม่มีสถานะค้าง
 
 | ID | Task | รายละเอียด / acceptance | Dep | Est | Track |
 |----|------|------------------------|-----|-----|-------|
-| P3-01 | PromptPay QR generator | EMVCo payload + CRC16 · unit test เทียบกับ QR จริงที่สแกนแอปธนาคารได้ · รองรับทั้งเบอร์และเลขผู้เสียภาษี | — | 2 | BE |
+| P3-01 | Stripe PaymentIntent integration | Stripe.net adapter หลัง `IPaymentMethod` + สร้าง PaymentIntent (thb, promptpay, amount หน่วยสตางค์) + Options+ValidateOnStart + key อยู่ใน user-secrets/env เท่านั้น + retry/backoff ตอนเรียก Stripe | — | 2 | BE |
 | P3-02 | Cart + Order domain | ตาราง + pricing engine ที่ server (ราคา, ส่วนลด, ยอดรวม) + กันซื้อคอร์สที่ซื้อแล้วซ้ำ | P1-02 | 3 | BE |
-| P3-03 | Order lifecycle | AwaitingPayment 30 นาที + job หมดอายุ + เปิดออร์เดอร์ใหม่อัตโนมัติถ้าอัปสลิปช้าแต่ตรวจผ่าน | P3-02 | 2 | BE |
-| P3-04 | EasySlip client | `IPaymentVerifier` + adapter + retry/backoff + timeout + job เช็คโควตา + alert ที่ 80% | — | 2.5 | BE |
-| P3-05 | Slip upload endpoint | magic bytes, ≤5MB, rate limit 5 ครั้ง/ออร์เดอร์, เก็บ private storage, ไม่มี public URL | P3-03 | 2 | BE |
-| P3-06 | **Verification rules** | transRef ไม่ซ้ำ (**unique index**) + amount เป๊ะ + receiver ตรง + ช่วงเวลา + order ยัง valid · ทุกอย่างใน transaction เดียว · เก็บ raw response | P3-05, P3-04 | 3 | BE |
-| P3-07 | Manual review queue | เข้าคิวเมื่อไม่ผ่าน/provider ล่ม/โควตาหมด + admin approve/reject + audit + แจ้งผู้ซื้อ | P3-06 | 2.5 | BE |
+| P3-03 | Order lifecycle | AwaitingPayment 30 นาที + job หมดอายุ + cancel PaymentIntent ที่ Stripe + จ่ายสำเร็จหลังหมดอายุต้องเปิดออร์เดอร์ให้ใหม่หรือ refund (ห้ามกลืนเงิน) | P3-02, P3-01 | 2 | BE |
+| P3-04 | **Stripe webhook endpoint** | ตรวจ `Stripe-Signature` ทุก request + idempotent (**unique index** บน StripeEventId) + เก็บ raw event JSON + จัดการ succeeded/payment_failed/canceled ใน transaction เดียวกับ order state + rate limit | P3-01, P3-03 | 2.5 | BE |
+| P3-05 | Refund flow | Stripe refund API + track สถานะ async (Stripe ขอเลขบัญชีจากผู้ซื้อเอง — refund ค้างได้) + audit ทุกรายการ | P3-04 | 2 | BE |
+| P3-06 | Payment state machine | Pending→Processing→Succeeded/Failed/Expired/Refunded ใน transaction เดียว · กัน race ระหว่าง webhook กับ expiry job · audit ทุกการเปลี่ยนสถานะ | P3-04 | 2 | BE |
+| P3-07 | Payment ops queue | คิวกรณีผิดปกติ (จ่ายซ้ำ/จ่ายหลังหมดอายุ/refund ค้าง) + admin resolve + audit + แจ้งผู้ซื้อ | P3-06 | 1.5 | BE |
 | P3-08 | Auto-enroll + ใบเสร็จ | outbox event → สร้าง enrollment (คิด `ExpiresAtUtc` จาก `AccessDurationDays`) + อีเมลใบเสร็จ + in-app notification | P3-06 | 2 | BE |
 | P3-09 | Promo code | สร้าง/ตรวจ/ใช้ + redemption แบบ atomic ที่ระดับ SQL + จำกัดต่อผู้ใช้ | P3-02 | 2.5 | BE |
-| P3-10 | Reconcile job | เทียบออร์เดอร์ Paid กับ statement/สลิปรายวัน + รายงานรายการที่ไม่แมตช์ | P3-08 | 2 | BE |
+| P3-10 | Reconcile job | list PaymentIntents จาก Stripe API รายวันเทียบกับ Orders + จับ webhook ที่หลุด + รายงานรายการที่ไม่แมตช์ | P3-08 | 2 | BE |
 | P3-20 | ตะกร้า | เพิ่ม/ลบ, สรุปยอด, ใส่โค้ดส่วนลด, persist ข้ามอุปกรณ์ | P3-02 | 2 | FE |
-| P3-21 | หน้า checkout + QR | QR ใหญ่ชัดบนมือถือ + ปุ่มบันทึกรูป + นับถอยหลัง + วิธีจ่ายทีละขั้นเป็นภาษาไทย | P3-01 | 3 | FE |
-| P3-22 | อัปสลิป + สถานะ | อัปโหลด/ถ่ายรูป + preview + สถานะแบบ real-time (polling) + ข้อความแต่ละสถานะชัดเจน (กำลังตรวจ/ผ่าน/ต้องตรวจมือ) | P3-05 | 3 | FE |
-| P3-23 | ประวัติคำสั่งซื้อ | รายการ + รายละเอียด + สลิปที่อัป + ดาวน์โหลดใบเสร็จ | P3-08 | 2 | FE |
+| P3-21 | หน้า checkout + QR | แสดง QR จาก `next_action.promptpay_display_qr_code` ใหญ่ชัดบนมือถือ + นับถอยหลัง + วิธีจ่ายทีละขั้นเป็นภาษาไทย + แจ้งว่า statement ขึ้นชื่อ Stripe | P3-01 | 3 | FE |
+| P3-22 | สถานะการจ่ายแบบ real-time | polling สถานะผ่าน backend (ห้ามตัดสินจาก client) + ข้อความแต่ละสถานะชัดเจน (รอจ่าย/สำเร็จ/หมดเวลา/คืนเงิน) | P3-04 | 2 | FE |
+| P3-23 | ประวัติคำสั่งซื้อ | รายการ + รายละเอียด + สถานะจ่าย/คืนเงิน + ดาวน์โหลดใบเสร็จ | P3-08 | 2 | FE |
 | P3-24 | คอร์สของฉัน | เรียงตามล่าสุด + ความคืบหน้า + ปุ่มเรียนต่อ + วันหมดอายุ | P3-08 | 2 | FE |
-| P3-30 | หน้า admin ตรวจสลิป | คิวงาน + ดูภาพสลิป + ข้อมูลที่ EasySlip อ่านได้ + เหตุผลที่ไม่ผ่าน + approve/reject พร้อมหมายเหตุ | P3-07 | 2.5 | FE |
-| P3-31 | เทสต์ P3 | e2e ซื้อ→อัปสลิป→เข้าเรียน · เทสต์สลิปซ้ำ · สลิปยอดผิด · provider ล่ม · อัปพร้อมกัน 2 หน้าจอ | P3-30 | 3 | QA |
+| P3-30 | หน้า admin payment ops | รายการจ่ายทั้งหมด + สถานะจาก Stripe + ops queue + สั่ง refund + audit trail | P3-07 | 2 | FE |
+| P3-31 | เทสต์ P3 | e2e ซื้อ→จ่าย (Stripe test mode)→เข้าเรียน · webhook ยิงซ้ำ · signature ปลอม · จ่ายแข่งกับ expiry · refund flow | P3-30 | 3 | QA |
 
 ---
 
@@ -231,7 +233,7 @@ P2-01 (ต้องเริ่มเช็คกับ Bunny ตั้งแต
 **งานที่ควรเริ่มขนานล่วงหน้า (ไม่ต้องรอถึง phase ของตัวเอง):**
 - **P2-01** — ถามเรื่อง DRM/FairPlay กับ Bunny ตั้งแต่สัปดาห์ 4 คำตอบอาจเปลี่ยนแผน P2 ทั้งก้อน
 - **P0-31** — design system ต้องนิ่งก่อน P1 เริ่มทำหน้าจอ ไม่งั้นต้องรื้อ
-- **P3-04** — สมัคร EasySlip + ทดสอบ API ด้วยสลิปจริง ตั้งแต่ P1
+- **P3-01** — สมัครบัญชี Stripe Thailand (KYC ใช้เวลา) + เปิด PromptPay ใน dashboard + ทดสอบ test mode ตั้งแต่ P1
 - **P0-03** — ตัดสิน MSSQL edition ให้จบตั้งแต่สัปดาห์แรก
 
 ## หมายเหตุ

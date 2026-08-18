@@ -1,21 +1,35 @@
-# Payment Design — PromptPay QR + EasySlip Verification
+# Payment Design — Stripe (PromptPay QR)
 
-> **ตัดสินใจแล้ว (Q2):** เริ่มด้วย **PromptPay QR + ตรวจสลิปอัตโนมัติผ่าน EasySlip** ยังไม่ใช้ payment gateway
+> **ตัดสินใจแล้ว (Q2 — แก้ไข 2026-08-18):** ใช้ **Stripe** เป็น payment provider เพียงเจ้าเดียว
+> (เดิม Q2 ตัดสินเป็น PromptPay QR + ตรวจสลิปผ่าน EasySlip — เจ้าของโปรเจ็คสั่งเปลี่ยนเป็น Stripe และตัด EasySlip ออกทั้งหมด)
+> v1 เปิดรับเฉพาะ **PromptPay QR** ผ่าน Stripe; บัตรเครดิต/เดบิต (Visa/Mastercard) เปิดเพิ่มได้ภายหลังจาก Stripe Dashboard โดยไม่ต้องเปลี่ยนสถาปัตยกรรม
+
+## ข้อเท็จจริงของ Stripe ประเทศไทย (ตรวจสอบจาก docs จริง 2026-08-18)
+
+- Stripe เปิดให้ธุรกิจไทยสมัครใช้งานได้จริง (Stripe Payments (Thailand) Ltd.) และรองรับ PromptPay เป็น payment method
+- PromptPay ผ่าน Stripe: รับได้เฉพาะ **THB**, บัญชี merchant ต้องเป็นประเทศไทย, เพดาน **2 ล้านบาท/รายการ**, ใช้ได้เฉพาะ **non-recurring** (ตรงกับ use case ซื้อคอร์สครั้งเดียวพอดี)
+- เงินเข้าบัญชีได้เฉพาะ THB; รับบัตรได้ Visa/Mastercard (ไม่มี Amex/JCB/UnionPay) — **ไม่มีผ่อนชำระ 0%**
+- ชื่อบน statement ของผู้ซื้อจะขึ้นเป็น `STRIPE PAYMENTS (THAILAND) LTD` เสมอ (custom statement descriptor ใช้ไม่ได้กับ PromptPay) — ต้องสื่อสารบนหน้า checkout ให้ชัด
+- อ้างอิง: [PromptPay payments](https://docs.stripe.com/payments/promptpay) · [Stripe TH supported methods](https://support.stripe.com/questions/supported-payment-methods-currencies-and-businesses-for-stripe-accounts-in-thailand)
 
 ## ⚠️ ผลกระทบต่อ requirement — ต้องรับรู้ร่วมกัน
 
 Requirement **LX-06** (Must-Have) ระบุว่าต้องรองรับ **QR PromptPay + บัตรเครดิต/เดบิต + ผ่อนชำระ**
-EasySlip เป็นบริการ *ตรวจสอบสลิปโอนเงิน* ไม่ใช่ payment gateway จึงทำได้แค่ส่วน PromptPay
 
-| วิธีจ่าย | v1 (EasySlip) | ต้องรอ |
-|---------|---------------|--------|
+| วิธีจ่าย | v1 (Stripe) | ต้องรอ |
+|---------|-------------|--------|
 | PromptPay QR | ✅ | — |
-| บัตรเครดิต/เดบิต | ❌ | เปิด gateway จริง (Opn/2C2P/GBPrime) |
-| ผ่อนชำระ 0% | ❌ | เปิด gateway + ข้อตกลงกับธนาคาร |
+| บัตรเครดิต/เดบิต | ⏸ ทำได้ทันทีทางเทคนิค (เปิดใน Stripe Dashboard) แต่ scope v1 เปิดเฉพาะ QR | ตัดสินใจเปิดเมื่อพร้อม |
+| ผ่อนชำระ 0% | ❌ Stripe ไทยไม่รองรับ | ต้องเพิ่ม gateway ไทย (Opn/2C2P/GBPrime) + ข้อตกลงธนาคาร |
 
-**ผลที่ตามมา:** คอร์สราคาสูง (>5,000 บาท) จะขายยากขึ้นเพราะไม่มีผ่อน — เป็นการลด scope ของ Must-Have ที่เจ้าของโปรเจ็คเลือกเอง
-**การรับมือ:** ออกแบบ `IPaymentMethod` แบบ pluggable ตั้งแต่ v1 → เสียบ gateway ทีหลังได้โดยไม่ต้องรื้อ Order/Enrollment
-**เกณฑ์ที่ควรย้ายไป gateway จริง:** ยอดขาย > 300 ออร์เดอร์/เดือน หรือมีคอร์ส > 5,000 บาท ขึ้นขาย หรือ manual review > 10% ของออร์เดอร์
+**การรับมือ:** ออกแบบ `IPaymentMethod` แบบ pluggable ตั้งแต่ v1 → เสียบ gateway อื่นเพิ่มทีหลังได้โดยไม่ต้องรื้อ Order/Enrollment
+
+## สิ่งที่ต้องทำก่อนเริ่ม P3 (เจ้าของโปรเจ็คทำเอง — ควรเริ่มตั้งแต่ P1)
+
+1. สมัครบัญชี Stripe Thailand (มี KYC/ข้อมูลธุรกิจ ใช้เวลา)
+2. เปิดใช้ PromptPay ใน Stripe Dashboard (Settings → Payment methods)
+3. เก็บ 3 ค่า: **secret key**, **publishable key**, **webhook signing secret** — ใส่ `dotnet user-secrets` (dev) / env (prod) เท่านั้น
+4. ใช้ test mode ทดสอบให้ครบก่อนสลับ live key
 
 ---
 
@@ -25,81 +39,72 @@ EasySlip เป็นบริการ *ตรวจสอบสลิปโอ
 1. ผู้ซื้อกด "ชำระเงิน"
    → server คำนวณราคาเอง (ห้ามเชื่อราคาจาก client)
    → สร้าง Order  status = AwaitingPayment, ExpiresAtUtc = now + 30 นาที
+   → server สร้าง Stripe PaymentIntent (currency=thb, payment_method_types=['promptpay'],
+     amount เป็นหน่วยสตางค์) แล้วเก็บ PaymentIntentId ผูกกับ Payment row
 
-2. server สร้าง PromptPay QR payload (EMVCo + CRC16) จาก PromptPay ID ของร้าน + ยอดเงิน
-   → ส่ง QR เป็น SVG/PNG กลับไป  (ไม่ต้องเรียก API ภายนอก — คำนวณเองได้)
+2. Frontend confirm PaymentIntent → Stripe คืน next_action.promptpay_display_qr_code
+   → แสดง QR ที่ Stripe สร้างให้ (ห้ามสร้าง QR payload เอง — Stripe เป็นผู้รับเงิน)
 
-3. ผู้ซื้อโอนผ่านแอปธนาคาร → บันทึกภาพสลิป
+3. ผู้ซื้อสแกน QR จ่ายในแอปธนาคาร → Stripe รู้ผลทันที (real-time payment)
 
-4. ผู้ซื้ออัปโหลดสลิปที่หน้า order นั้น
-   → ตรวจ magic bytes, ขนาด ≤ 5MB, rate limit 5 ครั้ง/ออร์เดอร์
-   → เก็บไฟล์ (private, ไม่ public URL)
+4. Stripe ยิง webhook มาที่ endpoint ของเรา (payment_intent.succeeded / .payment_failed / .canceled)
+   → ตรวจ Stripe-Signature header ด้วย webhook signing secret ก่อนเชื่อ payload เสมอ
+   → idempotent: unique index บน StripeEventId — event ยิงซ้ำต้องไม่ enroll ซ้ำ/ไม่เปลี่ยนสถานะซ้ำ
+   → mark Payment = Succeeded → Order = Paid ใน transaction เดียว
+   → outbox event → auto-enroll + ส่งอีเมลใบเสร็จ + แจ้งเตือนในระบบ
 
-5. server เรียก EasySlip verify (ส่งภาพ หรือส่ง payload ที่อ่านจาก QR บนสลิป)
-   → ได้ transRef, amount, sender, receiver, date
+5. ไม่จ่ายภายใน 30 นาที → job ปิด Order (Expired) + cancel PaymentIntent ที่ Stripe
+   (กัน race: ถ้า webhook succeeded มาถึงพร้อม/หลัง expiry ให้ยึดผลจาก Stripe เป็นหลัก
+    — เงินออกจากบัญชีผู้ซื้อแล้ว ต้อง enroll ให้หรือ refund ไม่ใช่เงียบ)
 
-6. ตรวจ 5 ข้อ (ทุกข้อต้องผ่าน):
-   ✓ transRef ยังไม่เคยถูกใช้    ← unique index กันสลิปซ้ำ (สำคัญที่สุด)
-   ✓ amount == Order.TotalAmount แบบเป๊ะ
-   ✓ receiver ตรงกับบัญชีร้าน (เทียบเลขบัญชี 4 ตัวท้าย + ชื่อบัญชี)
-   ✓ date อยู่ระหว่าง Order.CreatedAtUtc - 10 นาที ถึง now + 5 นาที
-   ✓ Order ยังไม่หมดอายุ / ยังไม่จ่าย
-
-7a. ผ่านทุกข้อ → Payment.Status = Succeeded → Order = Paid
-    → outbox event → auto-enroll + ส่งอีเมลใบเสร็จ + แจ้งเตือนในระบบ
-7b. ไม่ผ่านข้อใดข้อหนึ่ง หรือ EasySlip ล่ม/โควตาหมด
-    → Order = UnderReview → เข้าคิว admin ตรวจมือ (ไม่ปฏิเสธทันที)
-    → แจ้งผู้ซื้อว่า "กำลังตรวจสอบ ภายใน 24 ชม."
+6. Reconcile job รายวัน: list PaymentIntents จาก Stripe API เทียบกับ Orders
+   → จับ webhook ที่หลุด/รายการไม่แมตช์ → รายงาน + แก้สถานะ
 ```
 
 ## ความเสี่ยงและการรับมือ
 
 | ความเสี่ยง | การรับมือ |
 |-----------|----------|
-| **สลิปปลอม / ตัดต่อ** | EasySlip อ่านจาก QR บนสลิปซึ่งเป็นข้อมูลจากธนาคาร ไม่ใช่ OCR ภาพ — ปลอมยากกว่ามาก แต่ยังต้องเทียบยอด+ผู้รับ+เวลาเสมอ |
-| **ใช้สลิปเดิมซ้ำหลายออร์เดอร์** | `UQ(Provider, TransRef)` ที่ระดับ DB — ป้องกันแน่นอนที่สุด ไม่ใช่แค่เช็คใน memory |
-| **สลิปคนอื่น** | ยอมรับได้ (คนอื่นโอนให้ได้) แต่ log ผู้โอนไว้ทุกครั้ง; ถ้ามีการ dispute ใช้ข้อมูลนี้ |
-| **โควตา EasySlip หมด** | monitor โควตาผ่าน job + alert ที่ 80%; หมดแล้ว → fallback เข้า manual review อัตโนมัติ ห้ามปฏิเสธออร์เดอร์ |
-| **EasySlip API ล่ม** | retry แบบ exponential backoff 3 ครั้ง → ไม่สำเร็จให้เข้า manual review |
-| **ผู้ซื้อโอนแล้วไม่อัปสลิป** | job แจ้งเตือนอีเมลที่ 15 นาที + ปิดออร์เดอร์ที่ 30 นาที; ถ้าอัปสลิปหลังหมดอายุ ระบบเปิดออร์เดอร์ให้ใหม่อัตโนมัติถ้าตรวจผ่าน |
-| **โอนยอดผิด (ขาด/เกิน)** | ขาด → manual review + แจ้งให้โอนเพิ่ม; เกิน → manual review + คืนส่วนต่าง (บันทึกเป็น Refund) |
-| **ไม่มี webhook** | ต่างจาก gateway ตรงไม่มีการยืนยันแบบ push — ต้องมี **reconcile job รายวัน** เทียบ Order ที่ Paid กับ statement ธนาคารเพื่อจับรายการหลุด |
+| **Webhook หลุด/มาช้า** | Stripe retry อัตโนมัติอยู่แล้ว + reconcile job รายวันเทียบกับ Stripe API เป็น safety net |
+| **Webhook ยิงซ้ำ / replay** | unique index บน `StripeEventId` ที่ระดับ DB — ไม่ใช่แค่เช็คใน memory |
+| **Webhook ปลอม** | ตรวจ `Stripe-Signature` ด้วย signing secret ทุก request — ไม่ผ่านตอบ 400 ทันที ห้าม process |
+| **ผู้ซื้อสแกน QR เดิมซ้ำหลังจ่ายแล้ว** | Stripe คืนเงินส่วนเกินเข้า balance เราพร้อมแจ้งเตือน — ต้อง refund คืนผู้ซื้อ (มี ops queue รองรับ) |
+| **จ่ายหลัง order หมดอายุ** | ยึดผลจาก Stripe: ถ้าเงินเข้าจริง เปิด order ให้ใหม่อัตโนมัติหรือ refund — ห้ามกลืนเงินเงียบ ๆ |
+| **Refund ล้มเหลว** | refund ของ PromptPay เป็น async — Stripe ติดต่อขอเลขบัญชีจากผู้ซื้อเอง ถ้าผู้ซื้อไม่ตอบ refund ค้าง → track สถานะ + ops queue ตามงาน |
+| **Stripe API ล่มตอนสร้าง PaymentIntent** | retry แบบ exponential backoff → ไม่สำเร็จแจ้งผู้ซื้อให้ลองใหม่ (ยังไม่มีเงินออกจากกระเป๋าใคร) |
+| **บัญชี Stripe ถูก freeze/review** | ความเสี่ยงของ provider เดียว — monitor payout เข้าบัญชีจริงสม่ำเสมอ; สถาปัตยกรรม `IPaymentMethod` เผื่อเสียบเจ้าอื่นไว้แล้ว |
 
 ## ข้อบังคับด้าน implementation
 
 - ราคาคำนวณที่ server เท่านั้น — request รับได้แค่ course/bundle id + promo code
-- ตรวจสลิปต้องอยู่ใน transaction เดียวกับการเปลี่ยนสถานะ order (กัน race จากการอัปสลิปพร้อมกัน 2 หน้าจอ)
-- `PaymentSlips.TransRef` ต้องมี unique index — **ไม่ใช่แค่ `if (exists)` ในโค้ด**
-- API key ของ EasySlip อยู่ใน env/secret เท่านั้น
+- **ยืนยันการจ่ายจาก webhook + signature เท่านั้น** — ห้ามเชื่อ redirect/return_url/สถานะจาก frontend (ใช้ได้แค่แสดงผลชั่วคราวระหว่างรอ webhook)
+- การเปลี่ยนสถานะ Payment/Order จาก webhook ต้องอยู่ใน transaction เดียว (กัน race กับ expiry job และ webhook ซ้ำ)
+- `StripeWebhookEvents.StripeEventId` ต้องมี unique index — **ไม่ใช่แค่ `if (exists)` ในโค้ด**
+- Secret key / webhook signing secret อยู่ใน user-secrets (dev) / env (prod) เท่านั้น; frontend เห็นได้แค่ publishable key
 - ทุกการเปลี่ยนสถานะเงิน + ทุกการตัดสินของ admin ต้องเขียน audit ที่แก้ย้อนหลังไม่ได้
-- เก็บ response ดิบจาก EasySlip (json) ไว้ในตาราง เพื่อใช้ตรวจสอบย้อนหลังและ dispute
-- เตรียม `IPaymentMethod` + `IPaymentVerifier` ตั้งแต่ต้น เพื่อเสียบ gateway ในอนาคต
+- เก็บ raw event JSON จาก Stripe ไว้ในตาราง เพื่อใช้ตรวจสอบย้อนหลังและ dispute
+- ใช้ SDK ทางการ **Stripe.net** — auth ผ่าน `StripeClient` ด้วย secret key (ห้าม hardcode, ห้าม log)
+- เตรียม `IPaymentMethod` ตั้งแต่ต้น เพื่อเสียบ gateway อื่น (ผ่อนชำระ) ในอนาคต
 
 ## ตารางที่เพิ่ม/เปลี่ยนจาก `DATABASE.md`
 
 ```
-commerce.Payments(Id PK, OrderId FK, Method,          -- PromptPaySlip | (อนาคต) Card | Installment
-                  Amount, Status,                      -- Pending|UnderReview|Succeeded|Rejected|Expired
-                  VerifiedAtUtc, VerifiedBy,           -- 'system:easyslip' หรือ userId ของ admin
-                  RejectReason, CreatedAtUtc)
+commerce.Payments(Id PK, OrderId FK, Method,          -- PromptPay | (อนาคต) Card
+                  Provider,                            -- 'Stripe'
+                  ProviderPaymentIntentId,             -- UQ ← ผูก 1:1 กับ Stripe PaymentIntent
+                  Amount, Status,                      -- Pending|Processing|Succeeded|Failed|Expired|Refunded
+                  SucceededAtUtc, FailureReason, CreatedAtUtc)
 
-commerce.PaymentSlips(Id PK, PaymentId FK, OrderId FK,
-                      StorageKey,                      -- ไฟล์ภาพสลิป (private)
-                      Provider,                        -- 'EasySlip'
-                      TransRef,                        -- UQ(Provider, TransRef) ← กันสลิปซ้ำ
-                      SlipAmount decimal(18,2), SlipDateUtc,
-                      SenderBank, SenderAccountMasked, SenderName,
-                      ReceiverBank, ReceiverAccountMasked, ReceiverName,
-                      RawResponse nvarchar(max),        -- เก็บ json ดิบไว้ dispute
-                      VerifyResult,                    -- Passed|Failed|ProviderError
-                      FailedRules nvarchar(400),       -- ข้อที่ไม่ผ่าน เช่น 'amount,receiver'
-                      UploadedByUserId, UploadedAtUtc, ClientIp)
+commerce.StripeWebhookEvents(Id PK,
+                  StripeEventId,                       -- UQ ← กัน replay/ยิงซ้ำ (สำคัญที่สุด)
+                  EventType, PayloadJson nvarchar(max),-- เก็บ raw ไว้ dispute/ตรวจย้อนหลัง
+                  ReceivedAtUtc, ProcessedAtUtc, ProcessResult)
 
-commerce.MerchantAccounts(Id PK, PromptPayId, AccountName, BankCode,
-                          AccountNoLast4, IsActive)     -- ใช้เทียบผู้รับ + สร้าง QR
+commerce.PaymentOpsQueue(Id PK, PaymentId FK, Reason, Status,   -- จ่ายซ้ำ/จ่ายหลังหมดอายุ/refund ค้าง
+                  AssignedToUserId, ResolvedByUserId, ResolvedAtUtc, Note)
 
-commerce.PaymentReviewQueue(Id PK, PaymentId FK, Reason, Status,
-                            AssignedToUserId, ResolvedByUserId, ResolvedAtUtc, Note)
+-- ❌ ตัดออกจากดีไซน์เดิม (ยังไม่เคยสร้างจริง ไม่ต้อง migrate):
+--    PaymentSlips, MerchantAccounts, PaymentReviewQueue — เป็นของ flow อัปสลิป/EasySlip ทั้งหมด
 ```
 
-> **ก่อน implement:** เปิด doc ของ EasySlip เช็คชื่อ field และ endpoint จริงอีกครั้ง (ชื่อ field ข้างบนอิงจากรูปแบบทั่วไป — ต้องยืนยันกับสเปคปัจจุบัน) รวมถึงเช็คโควตาของแพ็กเกจที่ซื้อว่าพอกับปริมาณออร์เดอร์ที่คาดไว้
+> **ก่อน implement (P3):** เปิด doc Stripe เช็ค API version ปัจจุบัน + ชื่อ field ของ `next_action.promptpay_display_qr_code` อีกครั้ง และยืนยันเรตค่าธรรมเนียม PromptPay/บัตรของ Stripe Thailand จาก dashboard จริง — **ตัวเลขค่าธรรมเนียมต้องเข้าไปอยู่ในสูตร revenue split (Q4) ด้วย**

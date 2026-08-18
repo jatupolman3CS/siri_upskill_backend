@@ -104,7 +104,7 @@ push → GitHub Actions:
 - Netdata หรือ Prometheus+Grafana: CPU / RAM / disk / IO
 - Seq: log + alert เมื่อ error rate พุ่ง
 - Alert เข้า LINE Notify หรือ Discord webhook
-- ต้อง alert เป็นพิเศษ: disk > 80%, DB > 7 GB (ถ้าใช้ Express), โควตา EasySlip > 80%, ออร์เดอร์ค้าง UnderReview > 20 รายการ
+- ต้อง alert เป็นพิเศษ: disk > 80%, DB > 7 GB (ถ้าใช้ Express), Stripe webhook ล้มเหลว/ตอบไม่ทันติดต่อกัน, ออร์เดอร์ค้างสถานะผิดปกติ (ops queue) > 20 รายการ
 
 ## สิ่งที่ต้องยอมรับเมื่อ self-host
 

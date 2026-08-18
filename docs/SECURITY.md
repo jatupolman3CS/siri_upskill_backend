@@ -18,10 +18,10 @@ Requirement SE-01/02/03 ถูกระบุเป็น **CRITICAL INFRASTRUCT
 **ต้องสื่อสารให้ชัดกับ stakeholder:** DRM กันการถ่ายด้วยกล้องมือถือไม่ได้ — ไม่มีระบบไหนกันได้ watermark คือมาตรการที่ทำให้การปล่อยไฟล์ *มีต้นทุน* กับคนปล่อย
 
 ## 2. Concurrent login (SE-03)
-- default `MaxConcurrentSessions = 2` (ตั้งค่าได้ระดับ system และ override รายบัญชีได้)
-- เกิน limit → revoke session เก่าสุด + แจ้งเตือน + เขียน `SecurityAudits`
-- ผู้ใช้ดู/ถอดอุปกรณ์เองได้ที่หน้า "อุปกรณ์ที่เข้าสู่ระบบ"
-- Redis เป็น source of truth ตอน runtime, mirror ลง MSSQL เพื่อ audit; Redis ล่ม → **fail closed** สำหรับ playback (ปฏิเสธ) แต่ **fail open** สำหรับหน้า browse
+- default `MaxConcurrentSessions = 2` (ตั้งค่าระดับ `Identity:Security:MaxConcurrentSessions`, override รายบัญชีได้ผ่าน `Users.MaxConcurrentSessionsOverride`)
+- เกิน limit ตอน login → revoke session เก่าสุด (เรียง `CreatedAtUtc`) + revoke refresh token ของ session นั้น + แจ้งเตือนทางอีเมล + เขียน `SecurityAudits` — ทั้งหมด atomic กับ transaction login เดียวกัน
+- ผู้ใช้ดู/ถอดอุปกรณ์เองได้ที่หน้า "อุปกรณ์ที่เข้าสู่ระบบ" (P0-18)
+- **MSSQL เป็น source of truth ของการตัดสิน evict** (ตัดสินใจเปลี่ยนจากแผนเดิมตอนทำ P0-17 — ดูเหตุผลและแผนสำหรับ Phase 2 ใน `docs/ARCHITECTURE.md` §5) Redis เป็นแค่ mirror เขียนตามหลังหลัง commit สำเร็จ, fail-open ถ้า Redis ล่ม (ไม่ block login) — ยังไม่มี fail-closed สำหรับ playback เพราะ feature นั้นยังไม่ถูกสร้าง ต้องออกแบบใหม่ตอน Phase 2
 
 ## 3. AuthN / AuthZ
 - Access token JWT 15 นาที, refresh token 30 วัน แบบ rotation + reuse detection (ถ้าเจอ token เก่าถูกใช้ซ้ำ = revoke ทั้ง family)

@@ -46,7 +46,7 @@ ProjectSiriUpSkill/
 │   ├── SECURITY.md         ← baseline ความปลอดภัย + checklist ก่อน launch
 │   ├── ROADMAP.md          ← 8 phase, timeline, exit criteria, ความเสี่ยง
 │   ├── TASKS.md            ← ★ backlog ระดับปฏิบัติ ~120 task พร้อม ID/dependency
-│   ├── PAYMENT.md          ← PromptPay QR + EasySlip flow และความเสี่ยง
+│   ├── PAYMENT.md          ← Stripe (PromptPay QR) flow และความเสี่ยง
 │   ├── DEPLOYMENT.md       ← Contabo, docker, backup, license MSSQL
 │   ├── DECISIONS.md        ← ตัดสินแล้ว / ยังต้องตัดสิน (Q1–Q5)
 │   └── adr/                ← บันทึกการตัดสินใจสถาปัตยกรรมรายเรื่อง
@@ -87,7 +87,7 @@ P0 Foundation+Identity (wk1-3)  →  P1 Catalog+SEO (4-7)  →  P2 Media+DRM (8-
 
 ## 6. สถานะการตัดสินใจ
 
-✅ **ปิดแล้ว** — Q1 Bunny Stream · Q2 PromptPay+EasySlip · Q3 Contabo VPS
+✅ **ปิดแล้ว** — Q1 Bunny Stream · Q2 Stripe (แก้ไข 2026-08-18 จาก EasySlip) · Q3 Contabo VPS
 🔴 **ยังค้าง** — SQL Server edition (P0-03) · Q4 สูตร revenue split (ก่อน P6) · Q5 ขนาดทีมจริง
 รายละเอียดใน `docs/DECISIONS.md`
 
@@ -96,4 +96,4 @@ P0 Foundation+Identity (wk1-3)  →  P1 Catalog+SEO (4-7)  →  P2 Media+DRM (8-
 1. ตัดสิน SQL Server edition (Express มีเพดาน 10 GB/database — ดู `DEPLOYMENT.md`)
 2. เริ่ม `P0-01` (เตรียม Contabo VPS) และ `P0-10` (scaffold solution) — ทำขนานกันได้
 3. ลง Python เพื่อให้ skill `ui-ux-pro-max` ใช้ search ได้ แล้วทำ `P0-31` design system ให้นิ่งก่อนเริ่มหน้าจอ
-4. เริ่ม `P2-01` (ถาม Bunny เรื่อง DRM/FairPlay) และ `P3-04` (สมัคร EasySlip + ทดสอบด้วยสลิปจริง) ล่วงหน้าตั้งแต่ตอนนี้ — คำตอบมีผลกับแผน
+4. เริ่ม `P2-01` (ถาม Bunny เรื่อง DRM/FairPlay) และ `P3-01` (สมัครบัญชี Stripe Thailand + เปิด PromptPay + ทดสอบ test mode) ล่วงหน้าตั้งแต่ตอนนี้ — คำตอบมีผลกับแผน

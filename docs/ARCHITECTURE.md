@@ -24,7 +24,7 @@
    ┌────▼─────┐   ┌──────▼────┐ ┌────▼────┐ ┌─────▼──────┐  ┌────────▼────────┐
    │  MSSQL   │   │   Redis   │ │Hangfire │ │Blob/S3+CDN │  │ External: Video │
    │ (schema  │   │ cache/    │ │ workers │ │  storage   │  │ Bunny Stream,   │
-   │ per mod) │   │ sessions  │ │         │ │            │  │ EasySlip, Email │
+   │ per mod) │   │ sessions  │ │         │ │            │  │ Stripe, Email   │
    └──────────┘   └───────────┘ └─────────┘ └────────────┘  └─────────────────┘
 ```
 
@@ -56,7 +56,7 @@ backend/
     Siri.Modules.Notification/
     Siri.Modules.Analytics/
     Siri.Integrations.Video/         # IVideoProvider + adapters (Bunny/Mux/Cloudflare)
-    Siri.Integrations.Payment/       # IPaymentVerifier - v1 ตรวจสลิป PromptPay ผ่าน EasySlip (ดู PAYMENT.md), ไม่ใช่ gateway ทั่วไป
+    Siri.Integrations.Payment/       # IPaymentMethod + Stripe adapter — v1 PromptPay QR ผ่าน Stripe PaymentIntent + webhook (ดู PAYMENT.md)
     Siri.Integrations.Storage/       # IFileStorage (Blob/S3)
     Siri.Integrations.Email/
   tests/
@@ -156,13 +156,25 @@ Instructor → API ขอ direct-upload URL → อัปโหลดตรง�
 
 ## 5. Concurrent login control (SE-03)
 
+> **อัปเดต 2026-08-17 (P0-17):** สลับ source of truth จากแผนเดิม — ดูเหตุผลด้านล่าง
+
 ```
-login สำเร็จ → สร้าง SessionId, บันทึก Redis key  session:{userId}:{sessionId} (TTL = refresh token)
-             → นับ session ที่ active: ถ้าเกิน limit (default 2)
-               → revoke session เก่าสุด + เขียน SecurityAudit + แจ้งผู้ใช้ที่ถูกเตะ
-ทุก request ที่ต้องมีสิทธิ์ → validate ว่า sessionId ยังอยู่ใน Redis (ถ้าไม่ = 401 force re-login)
+login สำเร็จ → นับ UserSessions ที่ active (RevokedAtUtc IS NULL) ใน MSSQL รวมตัวที่เพิ่งสร้าง
+             → เกิน limit (default 2, override รายบัญชีได้ผ่าน Users.MaxConcurrentSessionsOverride)
+               → revoke session เก่าสุด (เรียงตาม CreatedAtUtc) + revoke refresh token ของ session นั้น
+               → เขียน SecurityAudit + คิวอีเมลแจ้งผู้ใช้ที่ถูกเตะ
+             → ทั้งหมดอยู่ใน SaveChangesAsync เดียวกับ login (atomic)
+             → หลัง save สำเร็จแล้วค่อย mirror ลง Redis key session:{userId}:{sessionId} (TTL = refresh token)
+               — Redis ล่มตอนนี้ = แค่ log warning ไม่ block login (fail-open)
 ```
-เก็บ mirror ลง `identity.UserSessions` ใน MSSQL เพื่อ audit และกู้คืนเมื่อ Redis ล่ม
+
+**MSSQL เป็น source of truth ของการตัดสิน evict** ไม่ใช่ Redis ตามที่ร่างไว้เดิม — ตัดสินใจเปลี่ยนตอนทำ P0-17 เพราะ:
+- ยังไม่มีอะไรอ่าน Redis กลับมาใช้ตัดสินสิทธิ์จริง (playback ยังไม่มี ต้องรอ Phase 2 media module)
+- ทำให้ authentication เองไม่ต้องพึ่ง Redis ถึงจะทำงานได้ — Redis ล่มไม่ควร block การ login
+- ง่ายกว่าและ atomic กับ transaction ของ login เองได้ทันที
+
+**เมื่อ Phase 2 (playback) เริ่มสร้างจริง ต้องตัดสินใจใหม่:** ตอนนั้น Redis จะต้องถูกอ่านบ่อยมาก (ทุก playback token request) ซึ่งเป็นเหตุผลเดิมที่อยากให้ Redis เป็น source of truth (เร็วกว่า query MSSQL ทุกครั้ง) — ตอนนั้นต้องตัดสินใจว่าจะ (ก) ยอมรับ Redis mirror ที่อาจ lag เล็กน้อยจาก MSSQL หรือ (ข) สร้างกลไกให้ Redis authoritative จริงพร้อม fail-closed สำหรับ playback ตามที่ SECURITY.md เขียนไว้ ดู `P2-04` ใน `docs/TASKS.md`
+**ข้อจำกัดที่รู้อยู่แล้ว:** TTL ของ Redis key ตั้งครั้งเดียวตอน login ไม่ได้ refresh ตอน token rotation (Refresh) — ไม่กระทบอะไรตอนนี้เพราะยังไม่มีใครอ่าน แต่ต้องแก้ก่อน Phase 2 พึ่งพา key freshness จริง
 
 ---
 

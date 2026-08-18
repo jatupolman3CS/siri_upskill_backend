@@ -9,13 +9,13 @@ task ระดับปฏิบัติทั้งหมดอยู่ที
 | P0 | Foundation & Infrastructure | 1–3 | SE-03 |
 | P1 | Catalog, Search, SEO | 4–7 | LX-01, LX-02 |
 | P2 | Media Pipeline & Secure Player | 8–11 | LX-03, SE-01, SE-02 |
-| P3 | Commerce & EasySlip Payment | 12–14 | LX-06 (บางส่วน), AD-02 (บางส่วน) |
+| P3 | Commerce & Stripe Payment | 12–14 | LX-06 (บางส่วน), AD-02 (บางส่วน) |
 | P4 | Instructor Studio | 15–18 | IN-01, IN-02 |
 | P5 | Interactive Learning | 19–21 | LX-04, LX-05, LX-07 |
 | P6 | Admin, CMS, Revenue | 22–25 | AD-01, AD-02, AD-03, IN-03 |
 | P7 | Hardening & Launch | 26–28 | — |
 
-> P3 สั้นลง 1 สัปดาห์เพราะ EasySlip ไม่ต้องรอ onboarding gateway — แต่แลกกับการที่ v1 **ยังไม่มีบัตรเครดิตและผ่อนชำระ**
+> P3 ใช้ **Stripe** (แก้ไข 2026-08-18 จาก EasySlip) — ต้องสมัครบัญชี Stripe Thailand ล่วงหน้าตั้งแต่ P1 (KYC ใช้เวลา); v1 เปิดเฉพาะ PromptPay QR — บัตรเปิดเพิ่มทีหลังได้จาก dashboard แต่**ผ่อนชำระยังไม่มี** (Stripe ไทยไม่รองรับ)
 > P0 หนักขึ้นเพราะ self-host บน Contabo (ต้องทำ infra, backup, CI/CD เอง)
 
 ---
@@ -48,15 +48,15 @@ task ระดับปฏิบัติทั้งหมดอยู่ที
 - Progress heartbeat → `EpisodeProgress` + `WatchEvents`
 - **Exit criteria:** ผ่าน pen-test เบื้องต้น — IDM / video downloader extension / `curl` manifest ดึงไฟล์ไม่ได้; ทดสอบครบ Chrome / Edge / Safari(macOS+iOS) / Firefox / Android
 
-## P3 — Commerce & EasySlip Payment (สัปดาห์ 12–14)
-> สเปคเต็ม: `PAYMENT.md` — v1 ใช้ **PromptPay QR + ตรวจสลิปอัตโนมัติ** ยังไม่มีบัตร/ผ่อน
+## P3 — Commerce & Stripe Payment (สัปดาห์ 12–14)
+> สเปคเต็ม: `PAYMENT.md` — v1 ใช้ **PromptPay QR ผ่าน Stripe** (PaymentIntent + webhook) ยังไม่เปิดบัตร/ไม่มีผ่อน
 
-- Cart / Order / pricing engine ที่ server + `IPaymentMethod` (เผื่อเสียบ gateway ทีหลัง)
-- สร้าง PromptPay QR เอง (EMVCo + CRC16) — ไม่ต้องพึ่ง API ภายนอก
-- อัปสลิป → EasySlip verify → ตรวจ 5 กฎ → auto-enroll
-- Manual review queue เมื่อไม่ผ่าน / provider ล่ม / โควตาหมด
-- Promo code (**AD-02** ส่วนแรก) + reconcile job รายวัน + หน้า my-courses
-- **Exit criteria:** ซื้อ→โอน→อัปสลิป→เข้าเรียนอัตโนมัติสำเร็จ, อัปสลิปเดิมซ้ำถูกปฏิเสธ 100%, ไม่มีออร์เดอร์ค้างสถานะ
+- Cart / Order / pricing engine ที่ server + `IPaymentMethod` (เผื่อเสียบ provider อื่นทีหลัง)
+- Stripe PaymentIntent (thb, promptpay) → แสดง QR ที่ Stripe สร้างให้ → จ่ายในแอปธนาคาร
+- Webhook (ตรวจ signature + idempotent ด้วย unique index บน event id) → auto-enroll
+- Refund flow ผ่าน Stripe + ops queue กรณีผิดปกติ (จ่ายซ้ำ/จ่ายหลังหมดอายุ/refund ค้าง)
+- Promo code (**AD-02** ส่วนแรก) + reconcile job รายวันเทียบ Stripe API + หน้า my-courses
+- **Exit criteria:** ซื้อ→สแกน QR→จ่าย→เข้าเรียนอัตโนมัติสำเร็จ, webhook ยิงซ้ำ/ปลอมไม่มีผล 100%, ไม่มีออร์เดอร์ค้างสถานะ
 
 ## P4 — Instructor Studio (สัปดาห์ 16–19)
 - **IN-01** drag-and-drop course builder (Angular CDK DragDrop), reorder section/episode, ตั้ง free preview, บันทึกแบบ optimistic + autosave

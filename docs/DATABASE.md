@@ -20,7 +20,10 @@
 ## identity
 ```
 Users(Id PK, Email, NormalizedEmail UQ, PasswordHash, DisplayName, AvatarUrl, PhoneNumber,
-      Status, EmailConfirmedAt, TwoFactorEnabled, LastLoginAtUtc, ...audit)
+      Status, EmailConfirmedAt, TwoFactorEnabled, LastLoginAtUtc,
+      MaxConcurrentSessionsOverride int NULL,   -- SE-03 per-account override; NULL = ใช้ system default
+                                                 -- (Identity:Security:MaxConcurrentSessions, default 2)
+      ...audit)
 Roles(Id, Name UQ)                         -- Learner, Instructor, Admin, SuperAdmin
 UserRoles(UserId, RoleId) PK(UserId,RoleId)
 UserSessions(Id PK, UserId FK, DeviceId, DeviceName, UserAgent, IpAddress,
@@ -29,6 +32,14 @@ UserSessions(Id PK, UserId FK, DeviceId, DeviceName, UserAgent, IpAddress,
 RefreshTokens(Id PK, UserId FK, SessionId FK, TokenHash UQ, ExpiresAtUtc,
               RevokedAtUtc, ReplacedByTokenId)
 SecurityAudits(Id, UserId, EventType, Detail(json), IpAddress, OccurredAtUtc)
+UserSecurityTokens(Id PK, UserId FK, TokenHash UQ, Purpose, ExpiresAtUtc, ConsumedAtUtc)
+                   -- generic one-time token: Purpose = EmailConfirmation (P0-15, ใช้จริง, หมดอายุ 24 ชม.) |
+                   -- PasswordReset (P0-21, ใช้จริงแล้ว — /forgot-password ออก token, /reset-password
+                   -- ใช้ token, หมดอายุ 1 ชม. คำขอใหม่ invalidate token เก่าที่ยังไม่หมดอายุของ user เดียวกัน
+                   -- เสมอ, reset สำเร็จ revoke session/refresh token ทั้งหมดของ user) — เหมือน RefreshTokens
+                   -- เก็บแค่ TokenHash ไม่เก็บ raw token, hash ด้วย SHA-256 (ไม่ใช่ PBKDF2 เพราะ raw
+                   -- token สุ่มจาก RandomNumberGenerator อยู่แล้ว ไม่ใช่รหัสผ่านที่มนุษย์เดาได้)
+                   IX(UserId, Purpose) WHERE ConsumedAtUtc IS NULL   -- filtered, หาโทเคนที่ยังใช้ได้ของผู้ใช้+purpose
 ```
 
 ## catalog
@@ -102,19 +113,17 @@ Orders(Id PK, OrderNo UQ, UserId FK, SubtotalAmount, DiscountAmount, TaxAmount,
 OrderItems(Id PK, OrderId FK, ItemType, CourseId FK NULL, BundleId FK NULL,
            TitleSnapshot, UnitPrice, DiscountAmount, LineTotal,
            InstructorId, RevenueSharePercentSnapshot)   -- snapshot กันเรตเปลี่ยนย้อนหลัง
--- ⚠️ v1 ใช้ PromptPay QR + ตรวจสลิปผ่าน EasySlip (ไม่มี gateway) — สเปคเต็มอยู่ใน PAYMENT.md
-Payments(Id PK, OrderId FK, Method,               -- PromptPaySlip | (อนาคต) Card | Installment
-         Amount, Status,                          -- Pending|UnderReview|Succeeded|Rejected|Expired
-         VerifiedAtUtc, VerifiedBy, RejectReason, CreatedAtUtc, ExpiresAtUtc)
-PaymentSlips(Id PK, PaymentId FK, OrderId FK, StorageKey, Provider, TransRef,
-             SlipAmount, SlipDateUtc, SenderBank, SenderAccountMasked, SenderName,
-             ReceiverBank, ReceiverAccountMasked, ReceiverName, RawResponse,
-             VerifyResult, FailedRules, UploadedByUserId, UploadedAtUtc, ClientIp)
-             UQ(Provider, TransRef)   -- ← กันใช้สลิปเดิมซ้ำ ต้องอยู่ที่ระดับ DB เท่านั้น
-MerchantAccounts(Id PK, PromptPayId, AccountName, BankCode, AccountNoLast4, IsActive)
-PaymentReviewQueue(Id PK, PaymentId FK, Reason, Status, AssignedToUserId,
-                   ResolvedByUserId, ResolvedAtUtc, Note)
--- PaymentWebhookEvents: เตรียมไว้สำหรับตอนเปิด gateway จริง ยังไม่ใช้ใน v1
+-- ⚠️ v1 ใช้ Stripe — PromptPay QR ผ่าน PaymentIntent + webhook (แก้ไข 2026-08-18 จาก EasySlip) — สเปคเต็มอยู่ใน PAYMENT.md
+Payments(Id PK, OrderId FK, Method,               -- PromptPay | (อนาคต) Card
+         Provider,                                -- 'Stripe'
+         ProviderPaymentIntentId UQ,              -- ← ผูก 1:1 กับ Stripe PaymentIntent
+         Amount, Status,                          -- Pending|Processing|Succeeded|Failed|Expired|Refunded
+         SucceededAtUtc, FailureReason, CreatedAtUtc)
+StripeWebhookEvents(Id PK, StripeEventId UQ,      -- ← กัน replay/ยิงซ้ำ ต้องอยู่ที่ระดับ DB เท่านั้น
+                    EventType, PayloadJson,       -- raw JSON ไว้ dispute/ตรวจย้อนหลัง
+                    ReceivedAtUtc, ProcessedAtUtc, ProcessResult)
+PaymentOpsQueue(Id PK, PaymentId FK, Reason, Status,   -- จ่ายซ้ำ/จ่ายหลังหมดอายุ/refund ค้าง
+                AssignedToUserId, ResolvedByUserId, ResolvedAtUtc, Note)
 Refunds(Id PK, PaymentId FK, Amount, Reason, Status, RequestedByUserId, CreatedAtUtc, CompletedAtUtc)
 PromoCodes(Id PK, Code UQ, DiscountType, DiscountValue, MaxRedemptions, RedeemedCount,
            MaxPerUser, MinOrderAmount, StartsAtUtc, EndsAtUtc, Scope, ScopeRefId, IsActive, RowVersion)

@@ -17,7 +17,7 @@
 | D-11 | Money type | `decimal(18,2)` + `Currency char(3)` เก็บ THB | กันปัญหา floating point |
 | D-12 | Time | เก็บ UTC ทั้งหมด (`datetime2(3)`), แปลงเป็น Asia/Bangkok ที่ UI | มาตรฐาน |
 | **D-13** | **Video / DRM** | **Bunny Stream** (Q1 — ตัดสินแล้ว) | ถูกที่สุด, มี DRM + token auth + CDN ครบในตัว, ย้าย bandwidth ออกจาก VPS |
-| **D-14** | **Payment** | **PromptPay QR + ตรวจสลิปผ่าน EasySlip** (Q2 — ตัดสินแล้ว) | เริ่มได้ทันทีไม่ต้องรอ onboarding gateway — **แลกกับการยังไม่มีบัตรเครดิตและผ่อนชำระ** ดู `PAYMENT.md` |
+| **D-14** | **Payment** | **Stripe** (PromptPay QR ผ่าน PaymentIntent + webhook) — Q2 ตัดสินใหม่ 2026-08-18 แทน EasySlip | เจ้าของโปรเจ็คสั่งเปลี่ยน; Stripe รองรับ merchant ไทย + PromptPay จริง ยืนยันจาก webhook ได้ (ไม่ต้องตรวจสลิปเอง) — **แลกกับ onboarding/KYC ที่ต้องรอ และยังไม่มีผ่อนชำระ** ดู `PAYMENT.md` |
 | **D-15** | **Hosting** | **Contabo VPS + Docker Compose** (Q3 — ตัดสินแล้ว) | มีเครื่องอยู่แล้ว, ต้นทุนคงที่ — แลกกับงาน ops ที่ต้องดูแลเอง ดู `DEPLOYMENT.md` |
 
 ## B. ปิดแล้ว — Q1 / Q2 / Q3 (2026-08-17)
@@ -30,10 +30,13 @@ implement หลัง `IVideoProvider` → สลับเจ้าได้ถ
   → fallback: token-authenticated HLS + watermark + จำกัด session สำหรับ iOS แล้วสื่อสารความเสี่ยงนี้ให้ชัด
 - Token authentication key, allowed referrer, geo-blocking, direct-play ปิดหรือยัง
 
-### ✅ Q2 — Payment = **PromptPay QR + EasySlip** (ไปก่อน)
-ดูรายละเอียดเต็มที่ `PAYMENT.md`
-⚠️ **ผลกระทบที่ต้องรับรู้:** LX-06 ระบุว่าต้องมีบัตรเครดิต + ผ่อนชำระด้วย — v1 จะยังไม่มีทั้งสองอย่าง
-ออกแบบ `IPaymentMethod` ให้เสียบ gateway ทีหลังได้ **เกณฑ์ย้าย:** ออร์เดอร์ > 300/เดือน หรือขายคอร์ส > 5,000 บาท หรือ manual review > 10%
+### ✅ Q2 — Payment = **Stripe** (แก้ไข 2026-08-18 — เดิม PromptPay QR + EasySlip)
+เจ้าของโปรเจ็คสั่งเปลี่ยนเป็น **Stripe เพียงเจ้าเดียว ตัด EasySlip ออกทั้งหมด** ก่อนเริ่มงาน P3 (ยังไม่มีโค้ด payment จริง จึงไม่ต้อง migrate อะไร)
+ดูรายละเอียดเต็มที่ `PAYMENT.md` — ยืนยันแล้วว่า Stripe รองรับ merchant ไทย + PromptPay (THB เท่านั้น, เพดาน 2 ล้านบาท/รายการ, non-recurring)
+⚠️ **ผลกระทบที่ต้องรับรู้:** LX-06 ระบุว่าต้องมีบัตรเครดิต + ผ่อนชำระด้วย — บัตร (Visa/MC) เปิดเพิ่มจาก Stripe Dashboard ได้ภายหลัง แต่ scope v1 เปิดเฉพาะ PromptPay QR; **ผ่อนชำระ Stripe ไทยไม่รองรับ** ต้องเพิ่ม gateway ไทย (Opn/2C2P) ในอนาคต
+ออกแบบ `IPaymentMethod` ให้เสียบ provider อื่นเพิ่มทีหลังได้
+**ต้องทำก่อน P3 (เจ้าของโปรเจ็คทำเอง เริ่มได้ตั้งแต่ P1):** สมัครบัญชี Stripe Thailand (KYC ใช้เวลา) + เปิด PromptPay ใน dashboard + เก็บ key ทั้ง 3 ตัวเข้า user-secrets/env
+**Q4 (revenue split) ต้องรวมค่าธรรมเนียม Stripe เข้าไปในสูตรด้วย** — เช็คเรตจริงจาก dashboard ตอนเปิดบัญชี
 
 ### ✅ Q3 — Hosting = **Contabo VPS (self-host, Docker Compose)**
 ดูรายละเอียดเต็มที่ `DEPLOYMENT.md`
