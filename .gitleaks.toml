@@ -1,0 +1,20 @@
+# Gitleaks config for CI's secret scan (task P0-07 — .github/workflows/ci.yml).
+# Extends the default ruleset; the allowlist below exists ONLY for values that are placeholders by
+# convention (.claude/rules/security.md: "appsettings.*.json ที่ commit ให้ใส่แค่ placeholder").
+# Never allowlist a real secret to make CI pass — rotate it instead.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Committed placeholder values, deliberately fake by convention"
+regexes = [
+  # appsettings.json placeholders: ConnectionStrings "CHANGE_ME", Identity:Jwt:SigningKey
+  # "CHANGE_ME_DEV_ONLY_<random>" (high-entropy on purpose, so it would otherwise trip the
+  # generic-api-key rule), Identity:Seed passwords "CHANGE_ME".
+  '''CHANGE_ME''',
+  # The integration-test suite's shared known-fake password (LoginAndRefreshTests, TestUserBuilder,
+  # etc.) — an XKCD-936 reference, never a real credential. Deliberately allowlisted by exact string
+  # rather than by test-file path, so a REAL secret pasted into a test file still gets caught.
+  '''Correct-Horse-Battery-Staple''',
+]

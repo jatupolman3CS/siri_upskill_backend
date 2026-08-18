@@ -1,0 +1,110 @@
+# CI pipeline (task P0-07). Scope is verification only — CD (image build/GHCR/deploy) is P0-08.
+# Steps mirror docs/ARCHITECTURE.md §7's pipeline: build → unit → integration (Testcontainers) →
+# architecture → scans. Integration tests genuinely run here (ubuntu runners have Docker), unlike
+# local dev machines without Docker where the whole suite fails fast on container startup.
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend build + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore backend/SiriUpSkill.sln
+
+      - name: Build
+        run: dotnet build backend/SiriUpSkill.sln --no-restore --configuration Release
+
+      - name: Unit tests
+        run: dotnet test backend/tests/Siri.UnitTests/Siri.UnitTests.csproj --no-build --configuration Release
+
+      - name: Architecture tests
+        run: dotnet test backend/tests/Siri.ArchitectureTests/Siri.ArchitectureTests.csproj --no-build --configuration Release
+
+      - name: Integration tests (Testcontainers MSSQL + Redis)
+        run: dotnet test backend/tests/Siri.IntegrationTests/Siri.IntegrationTests.csproj --no-build --configuration Release
+
+      # security.md §5: dependency scanning fails the build on high+ severity.
+      - name: Vulnerable NuGet packages (fail on High/Critical)
+        run: |
+          output=$(dotnet list backend/SiriUpSkill.sln package --vulnerable --include-transitive)
+          echo "$output"
+          if echo "$output" | grep -Eq '\b(High|Critical)\b'; then
+            echo "::error::Vulnerable NuGet dependencies of High/Critical severity found."
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend lint + tests + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build (SSR)
+        run: npm run build
+
+      # security.md §5: same high+ gate as the NuGet scan above.
+      - name: npm audit (fail on high+)
+        run: npm audit --audit-level=high
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history — a secret committed then deleted is still leaked (security.md: "ถ้าเผลอ
+          # เห็น secret จริงในไฟล์ที่ commit แล้ว → ... rotate"), so scan every commit, not just HEAD.
+          fetch-depth: 0
+
+      # Pinned CLI binary instead of gitleaks-action: the action requires a license key for
+      # organization-owned repos, the CLI never does — one less secret for CI itself to depend on.
+      - name: Run gitleaks over full git history
+        run: |
+          GITLEAKS_VERSION=8.18.4
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks detect --source . --config .gitleaks.toml --no-banner --redact --verbose
