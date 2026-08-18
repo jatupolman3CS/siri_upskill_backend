@@ -3,13 +3,54 @@
   <ItemGroup>
     <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
     <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <!-- P0-15: Register reuses the Notification module's outbox/email-layout machinery instead of
+         building a second one (task instruction). Only Siri.Modules.Notification.Contracts is ever
+         referenced from here (IEmailOutbox, EmailTemplateRenderer) — never .Domain/.Infrastructure
+         of that module, per the module-boundary rule (backend.md/ArchitectureTests.LayeringTests).
+         Notification does not reference Identity back, so this does not create a project cycle. -->
+    <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Needed for IEndpointRouteBuilder/IServiceCollection endpoint-mapping extension points in
-         {Module}Module.cs. Modules stay class libraries (not Sdk.Web) — this only pulls in the
-         ASP.NET Core types, not a web host. -->
+         {Module}Module.cs, and for Microsoft.AspNetCore.Identity.PasswordHasher<TUser> (ships in
+         the shared framework, not a separate NuGet package). Modules stay class libraries (not
+         Sdk.Web) — this only pulls in the ASP.NET Core types, not a web host. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-agnostic EF Core only (no .SqlServer here) — per ARCHITECTURE.md §2, a module's
+         Infrastructure/ owns its own IEntityTypeConfiguration<T> classes, but only Siri.Persistence
+         decides the actual provider. AppDbContext picks these up by scanning loaded module
+         assemblies (see AppDbContext.GetModuleAssemblies), never by referencing the module directly. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- P0-15: Register/ConfirmEmail command validation (password policy, token shape, ...) —
+         FluentValidation was not referenced anywhere in the solution before this task (checked
+         Directory.Packages.props); version resolved via `dotnet add package`, not guessed. -->
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- P0-16: AccessTokenGenerator (Infrastructure/) builds the JWT access token issued by Login/
+         Refresh — needs JwtSecurityToken/JwtSecurityTokenHandler + the SymmetricSecurityKey/
+         SigningCredentials types that ride along as its dependencies. Only the token-*creation* side
+         lives here; Siri.Api references Microsoft.AspNetCore.Authentication.JwtBearer separately for
+         *validating* incoming tokens (AddJwtBearer) — this module doesn't need that heavier package
+         just to mint a token. Version resolved via `dotnet add package`, not guessed. -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- P0-17: RedisSessionRegistry (Infrastructure/) mirrors active UserSessions into Redis per
+         ARCHITECTURE.md §5 (session:{userId}:{sessionId}, TTL = refresh token lifetime). Version was
+         already pinned centrally in Directory.Packages.props (StackExchange.Redis 3.1.13) before this
+         task, but no project actually referenced it yet — this is the first real usage. -->
+    <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
 
   <PropertyGroup>

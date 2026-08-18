@@ -3,15 +3,17 @@ using Siri.SharedKernel;
 namespace Siri.Integrations.Payment;
 
 /// <summary>
-/// Verifies PromptPay payment slips via EasySlip (see docs/PAYMENT.md). SIRI UpSkill v1 has no
-/// card/installment support, so this is deliberately scoped to slip verification rather than a
-/// generic payment-gateway abstraction — do not widen it into one.
-/// The real EasySlip adapter ships in a later phase; this is the interface stub only.
+/// SUPERSEDED STUB (Q2/D-14 revised 2026-08-18): the payment decision changed from EasySlip slip
+/// verification to Stripe (PromptPay QR via PaymentIntent + webhook — see docs/PAYMENT.md). This
+/// slip-shaped interface no longer matches the design: with Stripe there is no slip upload at all;
+/// payment confirmation comes from signature-verified Stripe webhooks. It is kept only as the
+/// assembly anchor for ArchitectureTests until P3 replaces it with the Stripe-shaped
+/// IPaymentMethod/adapter contracts. Do not build new code against it.
 /// </summary>
 public interface IPaymentVerifier
 {
-    /// <param name="slipReference">The payload/reference decoded from the uploaded PromptPay slip
-    /// (QR payload or provider transaction ref) that EasySlip verifies against the bank.</param>
+    /// <param name="slipReference">Slip-era parameter, meaningless under the Stripe design — see
+    /// the interface summary.</param>
     Task<Result<SlipVerificationResult>> VerifySlipAsync(string slipReference, CancellationToken cancellationToken);
 }
 

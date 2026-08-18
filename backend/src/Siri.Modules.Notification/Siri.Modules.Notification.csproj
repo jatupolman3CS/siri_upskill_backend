@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
     <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <ProjectReference Include="..\Siri.Integrations.Email\Siri.Integrations.Email.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -10,6 +11,17 @@
          {Module}Module.cs. Modules stay class libraries (not Sdk.Web) — this only pulls in the
          ASP.NET Core types, not a web host. -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-agnostic EF Core only (no .SqlServer here) — same reasoning as
+         Siri.Modules.Identity.csproj: Infrastructure/ owns this module's IEntityTypeConfiguration<T>
+         classes, but only Siri.Persistence decides the actual provider. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <!-- Infrastructure/EmailOutboxSenderJob.cs uses Hangfire's [DisableConcurrentExecution] job
+         filter attribute directly. -->
+    <PackageReference Include="Hangfire.Core" />
   </ItemGroup>
 
   <PropertyGroup>

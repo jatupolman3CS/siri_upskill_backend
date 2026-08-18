@@ -4,7 +4,10 @@ namespace Siri.Integrations.Email;
 
 /// <summary>
 /// Abstraction over transactional email delivery (enrollment receipts, payout notices, security
-/// alerts, ...). The real provider adapter ships in a later phase — this is the interface stub only.
+/// alerts, ...). Two implementations exist — <see cref="SmtpEmailSender"/> (real SMTP delivery via
+/// MailKit) and <see cref="LoggingEmailSender"/> (no-op fallback) — selected at startup by
+/// <see cref="EmailServiceCollectionExtensions.AddEmailIntegration"/>. Callers depend only on this
+/// interface, never on a concrete sender.
 /// </summary>
 public interface IEmailSender
 {

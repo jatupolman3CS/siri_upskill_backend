@@ -13,6 +13,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Persistence\Siri.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Integrations.Email\Siri.Integrations.Email.csproj" />
+    <!-- P0-22: AuthorizationPolicyTests exercises Siri.Api.Authorization.AuthorizationPolicyExtensions
+         (the AdminOnly/InstructorOnly policy definitions) directly — referencing the host project from
+         its test project is the same pattern Program.cs's own trailing `public partial class Program;`
+         comment anticipates for WebApplicationFactory<Program>-style testing. -->
+    <ProjectReference Include="..\..\src\Siri.Api\Siri.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -20,6 +29,10 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!-- Only for SmtpEmailSenderOptionsTests.cs, to build a real IConfiguration from an in-memory
+         collection and exercise the same GetSection(...).Get<T>() binding path production code uses. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">

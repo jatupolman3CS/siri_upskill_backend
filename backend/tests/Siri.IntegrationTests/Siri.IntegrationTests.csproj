@@ -15,6 +15,18 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Siri.Persistence\Siri.Persistence.csproj" />
     <ProjectReference Include="..\..\src\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <!-- P0-15: RegisterAndConfirmEmailTests exercises the real Register/ConfirmEmail handlers (and
+         the Notification module's outbox they queue into) against the Testcontainers MSSQL instance
+         — database.md forbids the EF Core InMemory provider in tests, so this is the only way to
+         prove the anti-enumeration/duplicate-registration property with a real database. -->
+    <ProjectReference Include="..\..\src\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
+    <!-- P0-22: AuthorizationPolicyHttpTests exercises Siri.Api.Authorization.AuthorizationPolicyExtensions
+         (AdminOnly/InstructorOnly) over real HTTP — same host-project-reference pattern Program.cs's
+         trailing `public partial class Program;` comment anticipates for WebApplicationFactory-style
+         testing, though this file builds its own minimal WebApplication rather than using Program.cs
+         directly (see its own doc comment for why). -->
+    <ProjectReference Include="..\..\src\Siri.Api\Siri.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,7 +34,14 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!-- P0-20: SiriApiFactory boots the real Siri.Api host (Program.cs) via WebApplicationFactory.
+         See SiriApiFactory's own doc comment for how its configuration overrides are guaranteed to
+         land before Program.cs's top-level configuration reads — the exact timing concern that made
+         AuthorizationPolicyHttpTests build its own minimal WebApplication instead. -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="StackExchange.Redis" />
     <PackageReference Include="Testcontainers.MsSql" />

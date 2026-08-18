@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
     <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\Siri.Workers\Siri.Workers.csproj" />
     <ProjectReference Include="..\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
     <ProjectReference Include="..\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
     <ProjectReference Include="..\Siri.Modules.Media\Siri.Modules.Media.csproj" />
@@ -16,6 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- P0-16: AddAuthentication().AddJwtBearer(...) in Program.cs validates the access tokens Login/
+         Refresh issue (Siri.Modules.Identity's AccessTokenGenerator). Version resolved via
+         `dotnet add package`, not guessed. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.Console" />

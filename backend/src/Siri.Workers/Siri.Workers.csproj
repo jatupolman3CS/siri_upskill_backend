@@ -2,6 +2,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <!-- Siri.Workers is the composition root for recurring jobs across modules (same role
+         Siri.Api plays for endpoints) — RecurringJobsRegistration.cs references each module's job
+         type directly to register it. -->
+    <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
   </ItemGroup>
 
   <ItemGroup>
