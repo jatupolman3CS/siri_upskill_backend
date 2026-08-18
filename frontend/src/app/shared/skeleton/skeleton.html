@@ -1,0 +1,19 @@
+@if (variant() === 'text') {
+  <div class="flex flex-col gap-2">
+    @for (line of lineNumbers(); track line) {
+      <div
+        class="app-skeleton-shimmer relative overflow-hidden bg-[var(--color-surface-muted)]"
+        [style.width]="line === lineNumbers().length - 1 && lineNumbers().length > 1 ? '70%' : width()"
+        [style.height]="resolvedHeight()"
+        [style.border-radius]="radiusVar()"
+      ></div>
+    }
+  </div>
+} @else {
+  <div
+    class="app-skeleton-shimmer relative overflow-hidden bg-[var(--color-surface-muted)]"
+    [style.width]="width()"
+    [style.height]="resolvedHeight()"
+    [style.border-radius]="radiusVar()"
+  ></div>
+}

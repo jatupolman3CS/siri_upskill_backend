@@ -1,0 +1,21 @@
+<a
+  href="#main-content"
+  class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-[var(--radius-md)]
+    focus:bg-[var(--color-primary)] focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-[var(--color-primary-foreground)]
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:ring-offset-2"
+>
+  {{ 'nav.skipToContent' | translate }}
+</a>
+
+<app-site-header />
+
+<main
+  #mainContent
+  id="main-content"
+  tabindex="-1"
+  class="min-h-[60vh] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:ring-offset-2"
+>
+  <router-outlet />
+</main>
+
+<app-site-footer />

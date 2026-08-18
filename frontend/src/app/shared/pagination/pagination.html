@@ -1,0 +1,60 @@
+<nav [attr.aria-label]="'shared.pagination.navLabel' | translate">
+  <ul class="flex items-center gap-2">
+    <li>
+      <button
+        type="button"
+        [disabled]="isFirstPage()"
+        (click)="goToPrevious()"
+        [attr.aria-label]="'shared.pagination.previous' | translate"
+        class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text)]
+          transition-colors duration-200 ease-out
+          hover:bg-[var(--color-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+      >
+        <ng-icon name="phosphorCaretLeft" aria-hidden="true" />
+      </button>
+    </li>
+
+    @for (item of items(); track item === 'ellipsis' ? 'ellipsis-' + $index : item) {
+      <li>
+        @if (item === 'ellipsis') {
+          <span aria-hidden="true" class="flex h-11 w-11 items-center justify-center text-[var(--color-text-muted)]"
+            >&hellip;</span
+          >
+        } @else {
+          <button
+            type="button"
+            (click)="goToPage(item)"
+            [attr.aria-label]="'shared.pagination.goToPage' | translate: { page: item }"
+            [attr.aria-current]="item === currentPage() ? 'page' : null"
+            class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-[var(--radius-md)] text-sm font-medium
+              transition-colors duration-200 ease-out
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+            [class]="
+              item === currentPage()
+                ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)]'
+                : 'text-[var(--color-text)] hover:bg-[var(--color-surface-muted)]'
+            "
+          >
+            {{ item }}
+          </button>
+        }
+      </li>
+    }
+
+    <li>
+      <button
+        type="button"
+        [disabled]="isLastPage()"
+        (click)="goToNext()"
+        [attr.aria-label]="'shared.pagination.next' | translate"
+        class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-[var(--radius-md)] text-[var(--color-text)]
+          transition-colors duration-200 ease-out
+          hover:bg-[var(--color-surface-muted)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+      >
+        <ng-icon name="phosphorCaretRight" aria-hidden="true" />
+      </button>
+    </li>
+  </ul>
+</nav>

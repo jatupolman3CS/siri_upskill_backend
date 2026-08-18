@@ -1,0 +1,25 @@
+/* Shimmer sweep implemented with `transform: translateX()` on a
+   pseudo-element (not `background-position`/`left`, per ui-design.md's
+   "animate transform/opacity only" rule). */
+.app-skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.35), transparent);
+  animation: app-skeleton-sweep 1.6s ease-in-out infinite;
+}
+
+@keyframes app-skeleton-sweep {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* A static muted block still clearly reads as "loading placeholder" without motion. */
+@media (prefers-reduced-motion: reduce) {
+  .app-skeleton-shimmer::after {
+    animation: none;
+    display: none;
+  }
+}

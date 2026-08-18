@@ -15,7 +15,14 @@ export interface ApiError {
 interface ProblemDetailsLike {
   readonly title?: string;
   readonly detail?: string;
-  readonly code?: string;
+  /**
+   * Matches `DomainErrorHttpResults.ToProblemHttpResult`'s actual extension key
+   * (`Siri.Modules.Identity/Infrastructure/Endpoints/DomainErrorHttpResults.cs`):
+   * `extensions["errorCode"]`, not `"code"`. Getting this key wrong means
+   * `ApiError.code` silently stays `undefined` for every real backend error — verified
+   * by reading that file directly rather than assumed (CLAUDE.md rule 2).
+   */
+  readonly errorCode?: string;
 }
 
 function isProblemDetailsLike(value: unknown): value is ProblemDetailsLike {
@@ -43,7 +50,7 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) =>
       const apiError: ApiError = {
         status: error.status,
         message: problemDetails?.detail ?? problemDetails?.title ?? 'common.error',
-        code: problemDetails?.code,
+        code: problemDetails?.errorCode,
         details: problemDetails,
       };
 

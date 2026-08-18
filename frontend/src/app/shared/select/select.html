@@ -1,0 +1,53 @@
+<label [for]="fieldId" class="mb-1.5 block text-sm font-medium text-[var(--color-text)]">
+  {{ label() }}
+  @if (required()) {
+    <span aria-hidden="true" class="text-[var(--color-danger)]">*</span>
+    <span class="sr-only">({{ 'shared.field.required' | translate }})</span>
+  }
+</label>
+
+<div class="relative">
+  <select
+    [id]="fieldId"
+    [value]="value()"
+    [disabled]="isDisabled()"
+    [attr.aria-required]="required() ? 'true' : null"
+    [attr.aria-invalid]="hasError() ? 'true' : null"
+    [attr.aria-describedby]="describedBy()"
+    (change)="handleChange($event)"
+    (blur)="handleBlur()"
+    class="block h-12 w-full appearance-none rounded-[var(--radius-md)] border bg-[var(--color-bg)] px-3.5 pr-10 text-base text-[var(--color-text)]
+      transition-colors duration-200 ease-out
+      disabled:cursor-not-allowed disabled:bg-[var(--color-surface-muted)] disabled:text-[var(--color-text-muted)]
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+    [class]="
+      hasError()
+        ? 'border-[var(--color-danger)]'
+        : 'border-[var(--color-border)] focus-visible:border-[var(--color-primary)]'
+    "
+  >
+    @if (placeholder()) {
+      <option value="" disabled [selected]="value() === ''">{{ placeholder() }}</option>
+    }
+    @for (option of options(); track option.value) {
+      <option [value]="option.value" [disabled]="option.disabled ?? false">
+        {{ option.label }}
+      </option>
+    }
+  </select>
+  <ng-icon
+    name="phosphorCaretDown"
+    aria-hidden="true"
+    class="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+  />
+</div>
+
+@if (hasError()) {
+  <p [id]="errorId" role="alert" class="mt-1.5 text-sm text-[var(--color-danger)]">
+    {{ errorMessage() }}
+  </p>
+} @else if (helperText()) {
+  <p [id]="helperId" class="mt-1.5 text-sm text-[var(--color-text-muted)]">
+    {{ helperText() }}
+  </p>
+}

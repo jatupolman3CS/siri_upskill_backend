@@ -9,3 +9,10 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
 }
+
+/* Keeps scroll-to/focus targets (skip link, focus-on-route-change, browser
+   "find in page") from landing underneath the sticky site header (h-16 =
+   4rem) — WCAG 2.2 focus-not-obscured. */
+html {
+  scroll-padding-top: 4rem;
+}

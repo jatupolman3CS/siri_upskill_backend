@@ -1,0 +1,102 @@
+<header class="sticky top-0 z-30 h-16 border-b border-[var(--color-border)] bg-[var(--color-bg)]">
+  <div class="mx-auto flex h-full max-w-6xl items-center justify-between gap-4 px-4">
+    <a
+      routerLink="/"
+      class="rounded-[var(--radius-sm)] text-lg font-bold text-[var(--color-primary)]
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+    >
+      {{ 'common.appName' | translate }}
+    </a>
+
+    <nav [attr.aria-label]="'nav.mainNavLabel' | translate" class="hidden md:flex md:items-center md:gap-6">
+      <a
+        routerLink="/"
+        routerLinkActive="text-[var(--color-primary)]"
+        [routerLinkActiveOptions]="{ exact: true }"
+        class="flex min-h-11 items-center rounded-[var(--radius-sm)] text-sm font-medium text-[var(--color-text)]
+          hover:text-[var(--color-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+      >
+        {{ 'nav.home' | translate }}
+      </a>
+    </nav>
+
+    <div class="hidden items-center gap-3 md:flex">
+      <div class="flex items-center gap-1 border-r border-[var(--color-border)] pr-3">
+        <button
+          type="button"
+          (click)="setLocale('th')"
+          [attr.aria-current]="translation.locale() === 'th' ? 'true' : null"
+          [class.font-semibold]="translation.locale() === 'th'"
+          class="flex min-h-11 items-center rounded-[var(--radius-md)] px-2 text-sm text-[var(--color-text)]
+            hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+        >
+          {{ 'nav.languageThai' | translate }}
+        </button>
+        <button
+          type="button"
+          (click)="setLocale('en')"
+          [attr.aria-current]="translation.locale() === 'en' ? 'true' : null"
+          [class.font-semibold]="translation.locale() === 'en'"
+          class="flex min-h-11 items-center rounded-[var(--radius-md)] px-2 text-sm text-[var(--color-text)]
+            hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+        >
+          {{ 'nav.languageEnglish' | translate }}
+        </button>
+      </div>
+
+      @if (authService.isAuthenticated()) {
+        <a
+          routerLink="/account/devices"
+          class="flex min-h-11 items-center rounded-[var(--radius-sm)] text-sm font-medium text-[var(--color-text)]
+            hover:text-[var(--color-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+        >
+          {{ 'nav.devices' | translate }}
+        </a>
+        <button
+          type="button"
+          (click)="signOut()"
+          class="flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-sm font-medium text-[var(--color-text)]
+            hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+        >
+          {{ 'nav.signOut' | translate }}
+        </button>
+      } @else {
+        <a
+          routerLink="/login"
+          class="inline-flex h-11 select-none items-center justify-center gap-1.5 rounded-[var(--radius-md)] px-3
+            text-sm font-medium text-[var(--color-primary)] transition-colors duration-200 ease-out
+            hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2
+            focus-visible:ring-[var(--color-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]"
+        >
+          {{ 'nav.login' | translate }}
+        </a>
+        <a
+          routerLink="/register"
+          class="inline-flex h-11 select-none items-center justify-center gap-1.5 rounded-[var(--radius-md)] px-3
+            text-sm font-medium text-[var(--color-primary-foreground)] bg-[var(--color-primary)]
+            transition-colors duration-200 ease-out hover:bg-[var(--color-primary-hover)]
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]
+            focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]"
+        >
+          {{ 'nav.register' | translate }}
+        </a>
+      }
+    </div>
+
+    <button
+      type="button"
+      (click)="mobileNavOpen.set(true)"
+      [attr.aria-expanded]="mobileNavOpen()"
+      [attr.aria-controls]="mobileNavPanelId"
+      aria-haspopup="dialog"
+      [attr.aria-label]="'nav.openMenu' | translate"
+      class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-md)]
+        text-[var(--color-text)] hover:bg-[var(--color-surface-muted)]
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] md:hidden"
+    >
+      <ng-icon name="phosphorList" aria-hidden="true" />
+    </button>
+  </div>
+
+  <app-mobile-nav [(open)]="mobileNavOpen" />
+</header>

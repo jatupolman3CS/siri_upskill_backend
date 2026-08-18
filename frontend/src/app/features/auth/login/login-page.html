@@ -1,0 +1,58 @@
+<div class="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center gap-6 px-4 py-12">
+  <header class="text-center">
+    <h1 class="text-2xl font-semibold text-[var(--color-text)]">{{ 'auth.login.heading' | translate }}</h1>
+    <p class="mt-1 text-[var(--color-text-muted)]">{{ 'auth.login.subheading' | translate }}</p>
+  </header>
+
+  @if (showClientErrorSummary() || apiError()) {
+    <div
+      #errorSummary
+      tabindex="-1"
+      role="alert"
+      class="rounded-[var(--radius-md)] border border-[var(--color-danger)] bg-[var(--color-surface)] p-4 focus-visible:outline-none focus:outline-none"
+    >
+      <p class="font-semibold text-[var(--color-danger)]">{{ 'auth.common.errorSummaryHeading' | translate }}</p>
+      @if (formLevelError(); as message) {
+        <p class="mt-1 text-sm text-[var(--color-text)]">{{ message }}</p>
+      }
+    </div>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="flex flex-col gap-5">
+    <app-input
+      formControlName="email"
+      type="email"
+      [label]="'auth.fields.email' | translate"
+      autocomplete="email"
+      [required]="true"
+      [errorMessage]="emailError()"
+    />
+
+    <app-input
+      formControlName="password"
+      type="password"
+      [label]="'auth.fields.password' | translate"
+      autocomplete="current-password"
+      [required]="true"
+      [errorMessage]="passwordError()"
+    />
+
+    <a
+      routerLink="/forgot-password"
+      class="-mt-2 self-end text-sm font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]"
+    >
+      {{ 'auth.login.forgotPasswordLink' | translate }}
+    </a>
+
+    <app-button type="submit" [loading]="submitting()" [disabled]="submitting()" [fullWidth]="true">
+      {{ (submitting() ? 'auth.login.submitting' : 'auth.login.submit') | translate }}
+    </app-button>
+  </form>
+
+  <p class="text-center text-sm text-[var(--color-text-muted)]">
+    {{ 'auth.login.registerPrompt' | translate }}
+    <a routerLink="/register" class="font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]">
+      {{ 'auth.login.registerLink' | translate }}
+    </a>
+  </p>
+</div>

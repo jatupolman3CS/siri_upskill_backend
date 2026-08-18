@@ -5,9 +5,151 @@
     "error": "Something went wrong. Please try again."
   },
   "nav": {
-    "home": "Home"
+    "home": "Home",
+    "mainNavLabel": "Main navigation",
+    "login": "Log in",
+    "register": "Sign up",
+    "devices": "Signed-in devices",
+    "signOut": "Sign out",
+    "openMenu": "Open navigation menu",
+    "closeMenu": "Close navigation menu",
+    "menuTitle": "Navigation menu",
+    "skipToContent": "Skip to main content",
+    "languageThai": "ไทย",
+    "languageEnglish": "English"
+  },
+  "footer": {
+    "tagline": "An online learning platform for building practical, work-ready skills.",
+    "copyright": "© {{year}} SIRI UpSkill. All rights reserved."
   },
   "home": {
-    "placeholder": "This is a scaffolding placeholder page. Real content lands in a later task."
+    "pageDescription": "SIRI UpSkill is an online learning platform — learn new skills from real instructors.",
+    "hero": {
+      "heading": "Learn new skills. Grow your career.",
+      "subheading": "Quality online courses from real instructors — learn anytime, anywhere.",
+      "ctaRegister": "Get started",
+      "ctaLogin": "Log in"
+    }
+  },
+  "shared": {
+    "modal": {
+      "close": "Close"
+    },
+    "toast": {
+      "dismiss": "Dismiss this notification",
+      "typeSuccess": "Success",
+      "typeError": "Error",
+      "typeInfo": "Notice",
+      "typeWarning": "Warning"
+    },
+    "pagination": {
+      "navLabel": "Pagination",
+      "previous": "Previous page",
+      "next": "Next page",
+      "goToPage": "Go to page {{page}}"
+    },
+    "breadcrumb": {
+      "navLabel": "Breadcrumb"
+    },
+    "field": {
+      "required": "required"
+    }
+  },
+  "auth": {
+    "validation": {
+      "required": "This field is required.",
+      "email": "Enter a valid email address.",
+      "minLength": "Must be at least {{min}} characters.",
+      "maxLength": "Must be no more than {{max}} characters."
+    },
+    "fields": {
+      "email": "Email",
+      "password": "Password",
+      "newPassword": "New password",
+      "displayName": "Display name",
+      "passwordHelper": "At least {{min}} characters."
+    },
+    "common": {
+      "errorSummaryHeading": "There's a problem with this form",
+      "successHeading": "Success",
+      "goToLogin": "Go to login"
+    },
+    "register": {
+      "pageTitle": "Sign up",
+      "pageDescription": "Create a SIRI UpSkill account to start learning.",
+      "heading": "Create your account",
+      "subheading": "Learn new skills from real instructors.",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "loginPrompt": "Already have an account?",
+      "loginLink": "Log in"
+    },
+    "confirmEmail": {
+      "pageTitle": "Confirm email",
+      "pageDescription": "Confirm your SIRI UpSkill account email address.",
+      "confirming": "Confirming your email…",
+      "missingTokenHeading": "Invalid confirmation link",
+      "missingTokenBody": "This link is missing its confirmation token. Please use the link from your confirmation email, or sign up again.",
+      "backToRegister": "Back to sign up"
+    },
+    "login": {
+      "pageTitle": "Log in",
+      "pageDescription": "Log in to your SIRI UpSkill account.",
+      "heading": "Log in",
+      "subheading": "Welcome back.",
+      "submit": "Log in",
+      "submitting": "Logging in…",
+      "forgotPasswordLink": "Forgot your password?",
+      "registerPrompt": "Don't have an account?",
+      "registerLink": "Sign up"
+    },
+    "forgotPassword": {
+      "pageTitle": "Forgot password",
+      "pageDescription": "Request a link to reset your SIRI UpSkill password.",
+      "heading": "Forgot your password?",
+      "subheading": "Enter your email and we'll send you a reset link if an account exists.",
+      "submit": "Send reset link",
+      "submitting": "Sending…",
+      "backToLogin": "Back to login"
+    },
+    "resetPassword": {
+      "pageTitle": "Reset password",
+      "pageDescription": "Set a new password for your SIRI UpSkill account.",
+      "heading": "Set a new password",
+      "submit": "Set new password",
+      "submitting": "Setting new password…",
+      "missingTokenHeading": "Invalid reset link",
+      "missingTokenBody": "This link is missing its reset token. Please request a new password-reset link.",
+      "requestNewLink": "Request a new link"
+    },
+    "devices": {
+      "pageTitle": "Signed-in devices",
+      "pageDescription": "Manage the devices signed in to your SIRI UpSkill account.",
+      "heading": "Signed-in devices",
+      "subheading": "Devices currently or recently signed in to your account.",
+      "thisDevice": "This device",
+      "revokedLabel": "Signed out",
+      "revokedOnLabel": "Signed out on {{date}}",
+      "lastSeenLabel": "Last active {{date}}",
+      "ipLabel": "IP address",
+      "unknownDevice": "Unknown device",
+      "revokeButton": "Sign out",
+      "revokeOthersButton": "Sign out other devices",
+      "revokeAllButton": "Sign out everywhere",
+      "emptyHeading": "No signed-in devices",
+      "emptyDescription": "You have no active or recently signed-out devices.",
+      "errorHeading": "Couldn't load your devices",
+      "retryButton": "Try again",
+      "confirmRevokeTitle": "Sign out this device?",
+      "confirmRevokeBody": "This will sign out \"{{device}}\". You'll need to log in again on that device.",
+      "confirmRevokeConfirm": "Sign out device",
+      "confirmOthersTitle": "Sign out other devices?",
+      "confirmOthersBody": "This signs out every device except this one. This device stays signed in.",
+      "confirmOthersConfirm": "Sign out other devices",
+      "confirmAllTitle": "Sign out everywhere?",
+      "confirmAllBody": "This signs out every device, including this one. You'll need to log in again here too.",
+      "confirmAllConfirm": "Sign out everywhere",
+      "confirmCancel": "Cancel"
+    }
   }
 }

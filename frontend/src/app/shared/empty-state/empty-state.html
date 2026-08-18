@@ -1,0 +1,20 @@
+<div class="flex flex-col items-center gap-3 px-6 py-12 text-center">
+  <div
+    class="flex h-16 w-16 items-center justify-center rounded-[var(--radius-full)] bg-[var(--color-surface-muted)] text-[var(--color-text-muted)]"
+  >
+    @if (icon() === 'default') {
+      <ng-icon name="phosphorEmpty" aria-hidden="true" class="h-8 w-8" />
+    }
+    <ng-content select="[emptyStateIcon]" />
+  </div>
+
+  <h3 class="text-lg font-semibold text-[var(--color-text)]">{{ heading() }}</h3>
+
+  @if (description()) {
+    <p class="max-w-sm text-sm text-[var(--color-text-muted)]">{{ description() }}</p>
+  }
+
+  <div class="mt-2 empty:mt-0">
+    <ng-content select="[emptyStateAction]" />
+  </div>
+</div>

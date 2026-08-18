@@ -5,9 +5,151 @@
     "error": "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
   },
   "nav": {
-    "home": "หน้าแรก"
+    "home": "หน้าแรก",
+    "mainNavLabel": "เมนูหลัก",
+    "login": "เข้าสู่ระบบ",
+    "register": "สมัครสมาชิก",
+    "devices": "อุปกรณ์ที่เข้าสู่ระบบ",
+    "signOut": "ออกจากระบบ",
+    "openMenu": "เปิดเมนูนำทาง",
+    "closeMenu": "ปิดเมนูนำทาง",
+    "menuTitle": "เมนูนำทาง",
+    "skipToContent": "ข้ามไปยังเนื้อหาหลัก",
+    "languageThai": "ไทย",
+    "languageEnglish": "English"
+  },
+  "footer": {
+    "tagline": "แพลตฟอร์มเรียนออนไลน์เพื่อสร้างทักษะที่ใช้ได้จริงในการทำงาน",
+    "copyright": "© {{year}} SIRI UpSkill สงวนลิขสิทธิ์"
   },
   "home": {
-    "placeholder": "นี่คือหน้าตัวอย่างจากการวางโครงระบบ เนื้อหาจริงจะเพิ่มในงานถัดไป"
+    "pageDescription": "SIRI UpSkill แพลตฟอร์มเรียนออนไลน์ เรียนรู้ทักษะใหม่จากผู้สอนตัวจริง",
+    "hero": {
+      "heading": "เรียนรู้ทักษะใหม่ ต่อยอดสายอาชีพของคุณ",
+      "subheading": "คอร์สออนไลน์คุณภาพจากผู้สอนตัวจริง เรียนได้ทุกที่ทุกเวลา",
+      "ctaRegister": "เริ่มต้นใช้งาน",
+      "ctaLogin": "เข้าสู่ระบบ"
+    }
+  },
+  "shared": {
+    "modal": {
+      "close": "ปิด"
+    },
+    "toast": {
+      "dismiss": "ปิดการแจ้งเตือนนี้",
+      "typeSuccess": "สำเร็จ",
+      "typeError": "ข้อผิดพลาด",
+      "typeInfo": "แจ้งให้ทราบ",
+      "typeWarning": "คำเตือน"
+    },
+    "pagination": {
+      "navLabel": "การแบ่งหน้า",
+      "previous": "หน้าก่อนหน้า",
+      "next": "หน้าถัดไป",
+      "goToPage": "ไปที่หน้า {{page}}"
+    },
+    "breadcrumb": {
+      "navLabel": "เส้นทางนำทาง"
+    },
+    "field": {
+      "required": "จำเป็นต้องกรอก"
+    }
+  },
+  "auth": {
+    "validation": {
+      "required": "กรุณากรอกข้อมูลนี้",
+      "email": "กรุณากรอกอีเมลให้ถูกต้อง",
+      "minLength": "ต้องมีความยาวอย่างน้อย {{min}} ตัวอักษร",
+      "maxLength": "ต้องมีความยาวไม่เกิน {{max}} ตัวอักษร"
+    },
+    "fields": {
+      "email": "อีเมล",
+      "password": "รหัสผ่าน",
+      "newPassword": "รหัสผ่านใหม่",
+      "displayName": "ชื่อที่แสดง",
+      "passwordHelper": "อย่างน้อย {{min}} ตัวอักษร"
+    },
+    "common": {
+      "errorSummaryHeading": "แบบฟอร์มนี้มีข้อผิดพลาด",
+      "successHeading": "สำเร็จ",
+      "goToLogin": "ไปที่หน้าเข้าสู่ระบบ"
+    },
+    "register": {
+      "pageTitle": "สมัครสมาชิก",
+      "pageDescription": "สร้างบัญชี SIRI UpSkill เพื่อเริ่มเรียนรู้",
+      "heading": "สร้างบัญชีของคุณ",
+      "subheading": "เรียนรู้ทักษะใหม่จากผู้สอนตัวจริง",
+      "submit": "สร้างบัญชี",
+      "submitting": "กำลังสร้างบัญชี...",
+      "loginPrompt": "มีบัญชีอยู่แล้ว?",
+      "loginLink": "เข้าสู่ระบบ"
+    },
+    "confirmEmail": {
+      "pageTitle": "ยืนยันอีเมล",
+      "pageDescription": "ยืนยันอีเมลของบัญชี SIRI UpSkill ของคุณ",
+      "confirming": "กำลังยืนยันอีเมลของคุณ...",
+      "missingTokenHeading": "ลิงก์ยืนยันไม่ถูกต้อง",
+      "missingTokenBody": "ลิงก์นี้ไม่มีโทเคนยืนยัน กรุณาใช้ลิงก์จากอีเมลยืนยันของคุณ หรือสมัครสมาชิกใหม่อีกครั้ง",
+      "backToRegister": "กลับไปหน้าสมัครสมาชิก"
+    },
+    "login": {
+      "pageTitle": "เข้าสู่ระบบ",
+      "pageDescription": "เข้าสู่ระบบบัญชี SIRI UpSkill ของคุณ",
+      "heading": "เข้าสู่ระบบ",
+      "subheading": "ยินดีต้อนรับกลับมา",
+      "submit": "เข้าสู่ระบบ",
+      "submitting": "กำลังเข้าสู่ระบบ...",
+      "forgotPasswordLink": "ลืมรหัสผ่าน?",
+      "registerPrompt": "ยังไม่มีบัญชี?",
+      "registerLink": "สมัครสมาชิก"
+    },
+    "forgotPassword": {
+      "pageTitle": "ลืมรหัสผ่าน",
+      "pageDescription": "ขอลิงก์สำหรับตั้งรหัสผ่านใหม่ของบัญชี SIRI UpSkill",
+      "heading": "ลืมรหัสผ่านใช่ไหม?",
+      "subheading": "กรอกอีเมลของคุณ เราจะส่งลิงก์ตั้งรหัสผ่านใหม่ให้หากมีบัญชีนี้อยู่ในระบบ",
+      "submit": "ส่งลิงก์ตั้งรหัสผ่านใหม่",
+      "submitting": "กำลังส่ง...",
+      "backToLogin": "กลับไปหน้าเข้าสู่ระบบ"
+    },
+    "resetPassword": {
+      "pageTitle": "ตั้งรหัสผ่านใหม่",
+      "pageDescription": "ตั้งรหัสผ่านใหม่ของบัญชี SIRI UpSkill",
+      "heading": "ตั้งรหัสผ่านใหม่",
+      "submit": "ตั้งรหัสผ่านใหม่",
+      "submitting": "กำลังตั้งรหัสผ่านใหม่...",
+      "missingTokenHeading": "ลิงก์ตั้งรหัสผ่านใหม่ไม่ถูกต้อง",
+      "missingTokenBody": "ลิงก์นี้ไม่มีโทเคนตั้งรหัสผ่านใหม่ กรุณาขอลิงก์ใหม่อีกครั้ง",
+      "requestNewLink": "ขอลิงก์ใหม่"
+    },
+    "devices": {
+      "pageTitle": "อุปกรณ์ที่เข้าสู่ระบบ",
+      "pageDescription": "จัดการอุปกรณ์ที่เข้าสู่ระบบบัญชี SIRI UpSkill ของคุณ",
+      "heading": "อุปกรณ์ที่เข้าสู่ระบบ",
+      "subheading": "อุปกรณ์ที่กำลังเข้าสู่ระบบหรือเพิ่งเข้าสู่ระบบบัญชีของคุณ",
+      "thisDevice": "อุปกรณ์นี้",
+      "revokedLabel": "ออกจากระบบแล้ว",
+      "revokedOnLabel": "ออกจากระบบเมื่อ {{date}}",
+      "lastSeenLabel": "ใช้งานล่าสุด {{date}}",
+      "ipLabel": "IP address",
+      "unknownDevice": "ไม่ทราบชื่ออุปกรณ์",
+      "revokeButton": "ออกจากระบบ",
+      "revokeOthersButton": "ออกจากระบบอุปกรณ์อื่นทั้งหมด",
+      "revokeAllButton": "ออกจากระบบทุกอุปกรณ์",
+      "emptyHeading": "ไม่มีอุปกรณ์ที่เข้าสู่ระบบ",
+      "emptyDescription": "คุณไม่มีอุปกรณ์ที่กำลังใช้งานหรือเพิ่งออกจากระบบ",
+      "errorHeading": "โหลดรายการอุปกรณ์ไม่สำเร็จ",
+      "retryButton": "ลองใหม่",
+      "confirmRevokeTitle": "ออกจากระบบอุปกรณ์นี้?",
+      "confirmRevokeBody": "การดำเนินการนี้จะออกจากระบบ \"{{device}}\" คุณจะต้องเข้าสู่ระบบใหม่บนอุปกรณ์นั้น",
+      "confirmRevokeConfirm": "ออกจากระบบอุปกรณ์นี้",
+      "confirmOthersTitle": "ออกจากระบบอุปกรณ์อื่นทั้งหมด?",
+      "confirmOthersBody": "การดำเนินการนี้จะออกจากระบบทุกอุปกรณ์ยกเว้นอุปกรณ์นี้ อุปกรณ์นี้จะยังคงเข้าสู่ระบบอยู่",
+      "confirmOthersConfirm": "ออกจากระบบอุปกรณ์อื่นทั้งหมด",
+      "confirmAllTitle": "ออกจากระบบทุกอุปกรณ์?",
+      "confirmAllBody": "การดำเนินการนี้จะออกจากระบบทุกอุปกรณ์ รวมถึงอุปกรณ์นี้ด้วย คุณจะต้องเข้าสู่ระบบใหม่ที่นี่ด้วยเช่นกัน",
+      "confirmAllConfirm": "ออกจากระบบทุกอุปกรณ์",
+      "confirmCancel": "ยกเลิก"
+    }
   }
 }

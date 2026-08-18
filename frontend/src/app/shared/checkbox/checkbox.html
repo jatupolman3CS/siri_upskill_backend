@@ -1,0 +1,44 @@
+<div class="flex items-start gap-2.5">
+  <span class="relative flex h-11 w-11 shrink-0 items-center justify-center">
+    <input
+      type="checkbox"
+      [id]="fieldId"
+      [checked]="checked()"
+      [indeterminate]="indeterminate()"
+      [disabled]="isDisabled()"
+      [attr.aria-required]="required() ? 'true' : null"
+      (change)="handleChange($event)"
+      class="peer absolute inset-0 h-full w-full cursor-pointer appearance-none disabled:cursor-not-allowed"
+    />
+    <span
+      aria-hidden="true"
+      class="pointer-events-none absolute h-5 w-5 rounded-[var(--radius-sm)] border-2 transition-colors duration-200 ease-out"
+      [class]="boxClasses()"
+    ></span>
+    <ng-icon
+      name="phosphorCheck"
+      aria-hidden="true"
+      class="pointer-events-none absolute h-3.5 w-3.5 text-[var(--color-primary-foreground)] transition-opacity duration-150"
+      [class.opacity-100]="checked() && !indeterminate()"
+      [class.opacity-0]="!checked() || indeterminate()"
+    />
+    <ng-icon
+      name="phosphorMinus"
+      aria-hidden="true"
+      class="pointer-events-none absolute h-3.5 w-3.5 text-[var(--color-primary-foreground)] transition-opacity duration-150"
+      [class.opacity-100]="indeterminate()"
+      [class.opacity-0]="!indeterminate()"
+    />
+    <span
+      aria-hidden="true"
+      class="pointer-events-none absolute h-5 w-5 rounded-[var(--radius-sm)] ring-2 ring-[var(--color-focus-ring)] opacity-0 ring-offset-2 ring-offset-[var(--color-bg)] transition-opacity duration-150 peer-focus-visible:opacity-100"
+    ></span>
+  </span>
+  <label [for]="fieldId" class="min-h-11 cursor-pointer select-none py-2.5 text-sm text-[var(--color-text)]">
+    {{ label() }}
+    @if (required()) {
+      <span aria-hidden="true" class="text-[var(--color-danger)]">*</span>
+      <span class="sr-only">({{ 'shared.field.required' | translate }})</span>
+    }
+  </label>
+</div>

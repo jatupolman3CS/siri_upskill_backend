@@ -1,0 +1,42 @@
+<label [for]="fieldId" class="mb-1.5 block text-sm font-medium text-[var(--color-text)]">
+  {{ label() }}
+  @if (required()) {
+    <span aria-hidden="true" class="text-[var(--color-danger)]">*</span>
+    <span class="sr-only">({{ 'shared.field.required' | translate }})</span>
+  }
+</label>
+
+<input
+  [id]="fieldId"
+  [type]="type()"
+  [value]="value()"
+  [attr.placeholder]="placeholder() ?? null"
+  [disabled]="isDisabled()"
+  [attr.required]="required() ? true : null"
+  [attr.aria-required]="required() ? 'true' : null"
+  [attr.aria-invalid]="hasError() ? 'true' : null"
+  [attr.aria-describedby]="describedBy()"
+  [attr.autocomplete]="autocomplete() ?? null"
+  (input)="handleInput($event)"
+  (blur)="handleBlur()"
+  class="block h-12 w-full rounded-[var(--radius-md)] border bg-[var(--color-bg)] px-3.5 text-base text-[var(--color-text)]
+    transition-colors duration-200 ease-out
+    placeholder:text-[var(--color-text-muted)]
+    disabled:cursor-not-allowed disabled:bg-[var(--color-surface-muted)] disabled:text-[var(--color-text-muted)]
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+  [class]="
+    hasError()
+      ? 'border-[var(--color-danger)]'
+      : 'border-[var(--color-border)] focus-visible:border-[var(--color-primary)]'
+  "
+/>
+
+@if (hasError()) {
+  <p [id]="errorId" role="alert" class="mt-1.5 flex items-center gap-1 text-sm text-[var(--color-danger)]">
+    {{ errorMessage() }}
+  </p>
+} @else if (helperText()) {
+  <p [id]="helperId" class="mt-1.5 text-sm text-[var(--color-text-muted)]">
+    {{ helperText() }}
+  </p>
+}

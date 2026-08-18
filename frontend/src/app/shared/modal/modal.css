@@ -1,0 +1,32 @@
+/* Entrance transition only (subtle fade + small rise, per MASTER.md's
+   Motion dial 3/10). The panel unmounts immediately on close via `@if` —
+   no exit transition is attempted, so there is nothing for
+   prefers-reduced-motion to need to cancel on the way out; on the way in,
+   it disables the animation below. */
+@keyframes app-modal-overlay-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes app-modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+.app-modal-overlay {
+  animation: app-modal-overlay-in 200ms ease-out;
+}
+
+.app-modal-panel {
+  animation: app-modal-panel-in 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-modal-overlay,
+  .app-modal-panel {
+    animation: none;
+  }
+}

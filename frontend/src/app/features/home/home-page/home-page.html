@@ -1,10 +1,31 @@
-<main
-  class="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center gap-4 px-4 text-center"
->
-  <h1 class="text-3xl font-semibold text-[color:var(--color-text)]">
-    {{ translation.t('common.appName') }}
+<div class="mx-auto flex min-h-[60vh] max-w-3xl flex-col items-center justify-center gap-6 px-4 py-16 text-center">
+  <h1 class="text-4xl font-bold text-[var(--color-text)] sm:text-5xl">
+    {{ 'home.hero.heading' | translate }}
   </h1>
-  <p class="text-base text-[color:var(--color-text-muted)]">
-    {{ translation.t('home.placeholder') }}
+  <p class="max-w-xl text-lg text-[var(--color-text-muted)]">
+    {{ 'home.hero.subheading' | translate }}
   </p>
-</main>
+
+  <div class="mt-2 flex flex-col gap-3 sm:flex-row">
+    <a
+      routerLink="/register"
+      class="inline-flex h-14 select-none items-center justify-center gap-2.5 rounded-[var(--radius-md)] px-6
+        text-base font-medium text-[var(--color-primary-foreground)] bg-[var(--color-primary)]
+        transition-colors duration-200 ease-out hover:bg-[var(--color-primary-hover)]
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]
+        focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]"
+    >
+      {{ 'home.hero.ctaRegister' | translate }}
+    </a>
+    <a
+      routerLink="/login"
+      class="inline-flex h-14 select-none items-center justify-center gap-2.5 rounded-[var(--radius-md)] px-6
+        text-base font-medium text-[var(--color-text)] border border-[var(--color-border)] bg-[var(--color-surface)]
+        transition-colors duration-200 ease-out hover:bg-[var(--color-surface-muted)]
+        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]
+        focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]"
+    >
+      {{ 'home.hero.ctaLogin' | translate }}
+    </a>
+  </div>
+</div>

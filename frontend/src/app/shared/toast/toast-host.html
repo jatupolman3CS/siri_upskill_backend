@@ -1,0 +1,35 @@
+<div class="pointer-events-none fixed inset-x-0 top-0 z-[70] flex flex-col items-end gap-3 p-4 sm:p-6">
+  @for (toast of toastService.toasts(); track toast.id) {
+    <div
+      [attr.role]="roleFor(toast.type)"
+      [attr.aria-live]="ariaLiveFor(toast.type)"
+      aria-atomic="true"
+      (mouseenter)="toastService.pause(toast.id)"
+      (mouseleave)="toastService.resume(toast.id)"
+      (focusin)="toastService.pause(toast.id)"
+      (focusout)="toastService.resume(toast.id)"
+      class="app-toast pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] p-4 shadow-[var(--shadow-lg)]"
+    >
+      <ng-icon
+        [name]="iconFor(toast.type)"
+        aria-hidden="true"
+        [class]="colorClassFor(toast.type) + ' mt-0.5 h-5 w-5 shrink-0'"
+      />
+      <p class="min-w-0 flex-1 py-1.5 text-sm text-[var(--color-text)]">
+        <span class="sr-only">{{ labelKeyFor(toast.type) | translate }}: </span>
+        {{ toast.message }}
+      </p>
+      <button
+        type="button"
+        (click)="toastService.dismiss(toast.id)"
+        [attr.aria-label]="'shared.toast.dismiss' | translate"
+        class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-md)]
+          text-[var(--color-text-muted)] transition-colors duration-200 ease-out
+          hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text)]
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+      >
+        <ng-icon name="phosphorX" aria-hidden="true" />
+      </button>
+    </div>
+  }
+</div>

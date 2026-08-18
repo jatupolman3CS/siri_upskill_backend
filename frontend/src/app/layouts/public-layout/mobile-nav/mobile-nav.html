@@ -1,0 +1,113 @@
+@if (open()) {
+  <!--
+    Backdrop is intentionally not a keyboard tab stop: it's a decorative
+    click-catcher (role="presentation"), not a widget — same reasoning as
+    shared/modal/modal.html. Escape is handled via native keydown bubbling
+    from whatever CdkTrapFocus is currently holding focus inside the panel.
+  -->
+  <div
+    role="presentation"
+    class="app-mobile-nav-overlay fixed inset-0 z-50 flex justify-end bg-[rgb(15_23_42_/_0.6)]"
+    (click)="onOverlayClick($event)"
+    (keydown.escape)="requestClose()"
+  >
+    <div
+      id="app-mobile-nav-panel"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-labelledby]="titleId"
+      cdkTrapFocus
+      [cdkTrapFocusAutoCapture]="true"
+      class="app-mobile-nav-panel flex h-full w-full max-w-xs flex-col gap-6 overflow-y-auto bg-[var(--color-bg)] p-6 shadow-[var(--shadow-lg)]"
+    >
+      <div class="flex items-center justify-between gap-4">
+        <h2 [id]="titleId" class="text-lg font-semibold text-[var(--color-text)]">
+          {{ 'nav.menuTitle' | translate }}
+        </h2>
+        <button
+          type="button"
+          (click)="requestClose()"
+          [attr.aria-label]="'nav.closeMenu' | translate"
+          class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-md)]
+            text-[var(--color-text-muted)] transition-colors duration-200 ease-out
+            hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text)]
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+        >
+          <ng-icon name="phosphorX" aria-hidden="true" />
+        </button>
+      </div>
+
+      <nav [attr.aria-label]="'nav.mainNavLabel' | translate" class="flex flex-col gap-2">
+        <a
+          routerLink="/"
+          routerLinkActive="text-[var(--color-primary)]"
+          [routerLinkActiveOptions]="{ exact: true }"
+          (click)="requestClose()"
+          class="flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-base font-medium text-[var(--color-text)]
+            hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+        >
+          {{ 'nav.home' | translate }}
+        </a>
+
+        @if (authService.isAuthenticated()) {
+          <a
+            routerLink="/account/devices"
+            (click)="requestClose()"
+            class="flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-base font-medium text-[var(--color-text)]
+              hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          >
+            {{ 'nav.devices' | translate }}
+          </a>
+          <button
+            type="button"
+            (click)="signOut()"
+            class="flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-left text-base font-medium text-[var(--color-danger)]
+              hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          >
+            {{ 'nav.signOut' | translate }}
+          </button>
+        } @else {
+          <a
+            routerLink="/login"
+            (click)="requestClose()"
+            class="flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-base font-medium text-[var(--color-text)]
+              hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          >
+            {{ 'nav.login' | translate }}
+          </a>
+          <a
+            routerLink="/register"
+            (click)="requestClose()"
+            class="flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-base font-medium text-[var(--color-primary)]
+              hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          >
+            {{ 'nav.register' | translate }}
+          </a>
+        }
+      </nav>
+
+      <div class="mt-auto flex items-center gap-2 border-t border-[var(--color-border)] pt-4">
+        <button
+          type="button"
+          (click)="setLocale('th')"
+          [attr.aria-current]="translation.locale() === 'th' ? 'true' : null"
+          [class.font-semibold]="translation.locale() === 'th'"
+          class="flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-sm text-[var(--color-text)]
+            hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+        >
+          {{ 'nav.languageThai' | translate }}
+        </button>
+        <button
+          type="button"
+          (click)="setLocale('en')"
+          [attr.aria-current]="translation.locale() === 'en' ? 'true' : null"
+          [class.font-semibold]="translation.locale() === 'en'"
+          class="flex min-h-11 items-center rounded-[var(--radius-md)] px-3 text-sm text-[var(--color-text)]
+            hover:bg-[var(--color-surface-muted)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+        >
+          {{ 'nav.languageEnglish' | translate }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

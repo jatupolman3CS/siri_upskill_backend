@@ -1,0 +1,30 @@
+/* Slide-in-from-right entrance only (subtle, per MASTER.md's Motion dial
+   3/10) — transform, not width/left, so it composites instead of triggering
+   layout. The panel unmounts immediately on close via `@if`, so there is no
+   exit transition to gate behind prefers-reduced-motion. */
+@keyframes app-mobile-nav-overlay-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes app-mobile-nav-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+.app-mobile-nav-overlay {
+  animation: app-mobile-nav-overlay-in 200ms ease-out;
+}
+
+.app-mobile-nav-panel {
+  animation: app-mobile-nav-panel-in 200ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-mobile-nav-overlay,
+  .app-mobile-nav-panel {
+    animation: none;
+  }
+}

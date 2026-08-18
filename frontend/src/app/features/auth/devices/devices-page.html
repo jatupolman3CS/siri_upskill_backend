@@ -1,0 +1,135 @@
+<div class="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-12">
+  <header>
+    <h1 class="text-2xl font-semibold text-[var(--color-text)]">{{ 'auth.devices.heading' | translate }}</h1>
+    <p class="mt-1 text-[var(--color-text-muted)]">{{ 'auth.devices.subheading' | translate }}</p>
+  </header>
+
+  @switch (loadState()) {
+    @case ('loading') {
+      <div class="flex flex-col gap-3" aria-live="polite">
+        <app-skeleton variant="block" height="5rem" />
+        <app-skeleton variant="block" height="5rem" />
+        <app-skeleton variant="block" height="5rem" />
+      </div>
+    }
+    @case ('error') {
+      <section
+        class="rounded-[var(--radius-lg)] border border-[var(--color-danger)] bg-[var(--color-surface)] p-6 text-center"
+        role="alert"
+      >
+        <p class="font-semibold text-[var(--color-text)]">{{ 'auth.devices.errorHeading' | translate }}</p>
+        <p class="mt-1 text-sm text-[var(--color-text-muted)]">{{ loadErrorMessage() }}</p>
+        <app-button variant="secondary" size="sm" class="mt-4" (click)="loadSessions()">
+          {{ 'auth.devices.retryButton' | translate }}
+        </app-button>
+      </section>
+    }
+    @case ('success') {
+      @if (sessions().length === 0) {
+        <app-empty-state
+          [heading]="'auth.devices.emptyHeading' | translate"
+          [description]="'auth.devices.emptyDescription' | translate"
+        />
+      } @else {
+        <div class="flex flex-wrap gap-3">
+          <app-button variant="secondary" size="sm" [disabled]="actionInFlight()" (click)="revokeOthersModalOpen.set(true)">
+            {{ 'auth.devices.revokeOthersButton' | translate }}
+          </app-button>
+          <app-button variant="danger" size="sm" [disabled]="actionInFlight()" (click)="revokeAllModalOpen.set(true)">
+            {{ 'auth.devices.revokeAllButton' | translate }}
+          </app-button>
+        </div>
+
+        <ul class="flex flex-col gap-3">
+          @for (session of sessions(); track session.sessionId) {
+            <li
+              class="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="font-medium text-[var(--color-text)]">{{ deviceLabel(session) }}</p>
+                  @if (session.isCurrentSession) {
+                    <span class="rounded-[var(--radius-full)] bg-[var(--color-primary)] px-2 py-0.5 text-xs font-medium text-[var(--color-primary-foreground)]">
+                      {{ 'auth.devices.thisDevice' | translate }}
+                    </span>
+                  }
+                  @if (!session.isActive) {
+                    <span class="rounded-[var(--radius-full)] bg-[var(--color-surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--color-text-muted)]">
+                      {{ 'auth.devices.revokedLabel' | translate }}
+                    </span>
+                  }
+                </div>
+                @if (session.ipAddress) {
+                  <p class="mt-1 text-sm text-[var(--color-text-muted)]">{{ 'auth.devices.ipLabel' | translate }}: {{ session.ipAddress }}</p>
+                }
+                <p class="mt-1 text-sm text-[var(--color-text-muted)]">
+                  @if (session.isActive) {
+                    {{ 'auth.devices.lastSeenLabel' | translate: { date: formatDateTime(session.lastSeenAtUtc) } }}
+                  } @else if (session.revokedAtUtc) {
+                    {{ 'auth.devices.revokedOnLabel' | translate: { date: formatDateTime(session.revokedAtUtc) } }}
+                  }
+                </p>
+              </div>
+
+              @if (session.isActive) {
+                <app-button variant="danger" size="sm" [disabled]="actionInFlight()" (click)="openRevokeConfirm(session)">
+                  {{ 'auth.devices.revokeButton' | translate }}
+                </app-button>
+              }
+            </li>
+          }
+        </ul>
+      }
+    }
+  }
+</div>
+
+<app-modal
+  [(open)]="revokeModalOpen"
+  [titleText]="'auth.devices.confirmRevokeTitle' | translate"
+  [closeOnOverlayClick]="false"
+>
+  @if (sessionPendingRevoke(); as session) {
+    <p>{{ 'auth.devices.confirmRevokeBody' | translate: { device: deviceLabel(session) } }}</p>
+  }
+  <div modalFooter class="flex gap-3">
+    <app-button variant="secondary" [disabled]="actionInFlight()" (click)="revokeModalOpen.set(false)">
+      {{ 'auth.devices.confirmCancel' | translate }}
+    </app-button>
+    <app-button variant="danger" [loading]="actionInFlight()" [disabled]="actionInFlight()" (click)="confirmRevoke()">
+      {{ 'auth.devices.confirmRevokeConfirm' | translate }}
+    </app-button>
+  </div>
+</app-modal>
+
+<app-modal
+  [(open)]="revokeOthersModalOpen"
+  [titleText]="'auth.devices.confirmOthersTitle' | translate"
+  [closeOnOverlayClick]="false"
+>
+  <p>{{ 'auth.devices.confirmOthersBody' | translate }}</p>
+  <div modalFooter class="flex gap-3">
+    <app-button variant="secondary" [disabled]="actionInFlight()" (click)="revokeOthersModalOpen.set(false)">
+      {{ 'auth.devices.confirmCancel' | translate }}
+    </app-button>
+    <app-button variant="danger" [loading]="actionInFlight()" [disabled]="actionInFlight()" (click)="confirmRevokeOthers()">
+      {{ 'auth.devices.confirmOthersConfirm' | translate }}
+    </app-button>
+  </div>
+</app-modal>
+
+<app-modal
+  [(open)]="revokeAllModalOpen"
+  [titleText]="'auth.devices.confirmAllTitle' | translate"
+  [closeOnOverlayClick]="false"
+>
+  <p>{{ 'auth.devices.confirmAllBody' | translate }}</p>
+  <div modalFooter class="flex gap-3">
+    <app-button variant="secondary" [disabled]="actionInFlight()" (click)="revokeAllModalOpen.set(false)">
+      {{ 'auth.devices.confirmCancel' | translate }}
+    </app-button>
+    <app-button variant="danger" [loading]="actionInFlight()" [disabled]="actionInFlight()" (click)="confirmRevokeAll()">
+      {{ 'auth.devices.confirmAllConfirm' | translate }}
+    </app-button>
+  </div>
+</app-modal>

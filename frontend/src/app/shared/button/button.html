@@ -1,0 +1,38 @@
+<button
+  [type]="type()"
+  [disabled]="isInactive()"
+  [attr.aria-busy]="loading() ? 'true' : null"
+  class="inline-flex select-none items-center justify-center rounded-[var(--radius-md)] font-medium
+    transition-colors duration-200 ease-out
+    cursor-pointer disabled:cursor-not-allowed disabled:opacity-60
+    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]"
+  [class]="sizeClasses() + ' ' + variantClasses() + (fullWidth() ? ' w-full' : '')"
+>
+  @if (loading()) {
+    <svg
+      class="app-button-spinner h-[1.1em] w-[1.1em] shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-dasharray="42"
+        stroke-dashoffset="32"
+        opacity="0.85"
+      />
+    </svg>
+    <span class="sr-only">{{ 'common.loading' | translate }}</span>
+  } @else {
+    <ng-content select="[leading]" />
+  }
+  <ng-content />
+  @if (!loading()) {
+    <ng-content select="[trailing]" />
+  }
+</button>

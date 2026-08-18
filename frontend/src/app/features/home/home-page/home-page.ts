@@ -1,18 +1,30 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
+import { TranslatePipe } from '../../../core/i18n/translate.pipe';
 import { TranslationService } from '../../../core/i18n/translation.service';
+import { setPageMeta } from '../../../core/seo/page-meta';
 
 /**
- * Minimal home route — just enough real content to prove the app builds,
- * serves, and server-renders end-to-end. The real marketing/catalog home
- * page is a separate feature task once the design system exists.
+ * Home route — hero section only (heading/subheading + CTA to register/login). Featured
+ * courses/social proof sections are task P1-23 and need real Catalog API data — see
+ * frontend/design-system/siri-upskill/MASTER.md's own note that the full
+ * Hero+Feature+SocialProof+CTA pattern is "a starting point for the home/landing page (P1)".
+ * Deliberately not faked here with placeholder course/testimonial content.
  */
 @Component({
   selector: 'app-home-page',
-  imports: [],
+  imports: [RouterLink, TranslatePipe],
   templateUrl: './home-page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HomePage {
-  protected readonly translation = inject(TranslationService);
+  private readonly translation = inject(TranslationService);
+
+  constructor() {
+    setPageMeta({
+      title: this.translation.t('common.appName'),
+      description: this.translation.t('home.pageDescription'),
+    });
+  }
 }

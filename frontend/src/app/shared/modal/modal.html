@@ -1,0 +1,51 @@
+@if (open()) {
+  <!--
+    This backdrop is intentionally not a keyboard tab stop: it is a
+    decorative click-catcher (role="presentation"), not a widget. The
+    keyboard-equivalent close action is Escape, which this same element
+    already handles via the native keydown bubbling from whatever is
+    focused inside the dialog — adding tabindex here would insert a
+    purposeless stop into the tab order instead of making anything more
+    operable.
+  -->
+  <div
+    role="presentation"
+    class="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-[rgb(15_23_42_/_0.6)] p-4"
+    (click)="onOverlayClick($event)"
+    (keydown.escape)="requestClose()"
+  >
+    <div
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-labelledby]="titleId"
+      cdkTrapFocus
+      [cdkTrapFocusAutoCapture]="true"
+      class="app-modal-panel w-full max-w-lg rounded-[var(--radius-lg)] bg-[var(--color-bg)] p-6 shadow-[var(--shadow-lg)]"
+    >
+      <div class="mb-4 flex items-start justify-between gap-4">
+        <h2 [id]="titleId" class="text-lg font-semibold text-[var(--color-text)]">{{ titleText() }}</h2>
+        @if (showCloseButton()) {
+          <button
+            type="button"
+            (click)="requestClose()"
+            [attr.aria-label]="'shared.modal.close' | translate"
+            class="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-md)]
+              text-[var(--color-text-muted)] transition-colors duration-200 ease-out
+              hover:bg-[var(--color-surface-muted)] hover:text-[var(--color-text)]
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          >
+            <ng-icon name="phosphorX" aria-hidden="true" />
+          </button>
+        }
+      </div>
+
+      <div class="text-[var(--color-text)]">
+        <ng-content />
+      </div>
+
+      <div class="mt-6 flex justify-end gap-3 empty:mt-0">
+        <ng-content select="[modalFooter]" />
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,76 @@
+<div class="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center gap-6 px-4 py-12">
+  @if (successMessage(); as message) {
+    <section class="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-center" aria-live="polite">
+      <h1 class="text-xl font-semibold text-[var(--color-text)]">{{ 'auth.common.successHeading' | translate }}</h1>
+      <!-- Verbatim RegisterResponse.message from the backend — never reworded, see this
+           component's class doc comment. -->
+      <p class="mt-2 text-[var(--color-text)]">{{ message }}</p>
+      <a
+        routerLink="/login"
+        class="mt-6 inline-flex h-12 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-primary)] px-4 font-medium text-[var(--color-primary-foreground)] transition-colors duration-200 ease-out hover:bg-[var(--color-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)] focus-visible:ring-offset-2"
+      >
+        {{ 'auth.common.goToLogin' | translate }}
+      </a>
+    </section>
+  } @else {
+    <header class="text-center">
+      <h1 class="text-2xl font-semibold text-[var(--color-text)]">{{ 'auth.register.heading' | translate }}</h1>
+      <p class="mt-1 text-[var(--color-text-muted)]">{{ 'auth.register.subheading' | translate }}</p>
+    </header>
+
+    @if (showClientErrorSummary() || apiError()) {
+      <div
+        #errorSummary
+        tabindex="-1"
+        role="alert"
+        class="rounded-[var(--radius-md)] border border-[var(--color-danger)] bg-[var(--color-surface)] p-4 focus-visible:outline-none focus:outline-none"
+      >
+        <p class="font-semibold text-[var(--color-danger)]">{{ 'auth.common.errorSummaryHeading' | translate }}</p>
+        @if (formLevelError(); as message) {
+          <p class="mt-1 text-sm text-[var(--color-text)]">{{ message }}</p>
+        }
+      </div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="flex flex-col gap-5">
+      <app-input
+        formControlName="email"
+        type="email"
+        [label]="'auth.fields.email' | translate"
+        autocomplete="email"
+        [required]="true"
+        [errorMessage]="emailError()"
+      />
+
+      <app-input
+        formControlName="displayName"
+        type="text"
+        [label]="'auth.fields.displayName' | translate"
+        autocomplete="name"
+        [required]="true"
+        [errorMessage]="displayNameError()"
+      />
+
+      <app-input
+        formControlName="password"
+        type="password"
+        [label]="'auth.fields.password' | translate"
+        autocomplete="new-password"
+        [required]="true"
+        [helperText]="'auth.fields.passwordHelper' | translate: { min: minPasswordLength }"
+        [errorMessage]="passwordError()"
+      />
+
+      <app-button type="submit" [loading]="submitting()" [disabled]="submitting()" [fullWidth]="true">
+        {{ (submitting() ? 'auth.register.submitting' : 'auth.register.submit') | translate }}
+      </app-button>
+    </form>
+
+    <p class="text-center text-sm text-[var(--color-text-muted)]">
+      {{ 'auth.register.loginPrompt' | translate }}
+      <a routerLink="/login" class="font-medium text-[var(--color-primary)] hover:text-[var(--color-primary-hover)]">
+        {{ 'auth.register.loginLink' | translate }}
+      </a>
+    </p>
+  }
+</div>

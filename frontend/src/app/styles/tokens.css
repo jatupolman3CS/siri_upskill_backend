@@ -1,15 +1,25 @@
 /*
  * Design tokens — SIRI UpSkill
  * ============================================================================
- * TODO(design-system): PLACEHOLDER PALETTE. This is a neutral slate/blue
- * scale chosen only so the app is usable and every component has a token
- * to point at. It is NOT the real brand identity.
+ * Real brand identity (P0-31, decided 2026-08-17). Reasoning and the full
+ * design-system brief live at frontend/design-system/siri-upskill/MASTER.md
+ * (generated + hand-tuned via the ui-ux-pro-max skill). Summary:
  *
- * The real palette/typography decision is deferred to a later task once
- * Python is installed and the `ui-ux-pro-max` design skill's search tool
- * can run (see .claude/rules/ui-design.md). When that task lands, the
- * values below get replaced — the token *names* should stay stable so
- * components that already reference var(--color-*) etc. keep working.
+ * - Style: Flat Design with Minimalism-influenced spacing discipline — clean
+ *   grid, restrained shadows, no glassmorphism/claymorphism/neumorphism.
+ *   Chosen because SIRI UpSkill spans a consumer storefront + checkout
+ *   (needs to read as trustworthy, especially around payment) AND
+ *   data-dense instructor/admin dashboards — a style has to work for both.
+ * - Color: trust blue as primary (the semantic every payment/gov/fintech
+ *   product in the reference dataset converges on) + an amber/gold accent
+ *   reserved for achievement moments (certificates, badges, "featured") —
+ *   not used as a dominant UI color, just the "you earned this" signal.
+ * - Typography: IBM Plex Sans Thai, one family for Thai + Latin (weights
+ *   400–700 loaded). Avoids the mismatched-metrics risk of pairing a
+ *   Latin-only display font with a separate Thai body font — this codebase
+ *   ships a bilingual TH/EN UI (see core/i18n/), so headings and body must
+ *   look like one system in both scripts, not two typefaces stitched
+ *   together at the language boundary.
  *
  * Convention (ui-design.md): full palette defined on :root (light is the
  * default/fallback), only the tokens that actually differ are overridden
@@ -31,10 +41,15 @@
   --color-text-muted: #475569;
   --color-text-inverse: #f8fafc;
 
-  /* Brand / accent — TODO(design-system): replace with real brand color */
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
+  /* Brand — trust blue. Primary CTA, links, active nav, checkout affordances. */
+  --color-primary: #0369a1;
+  --color-primary-hover: #075985;
   --color-primary-foreground: #ffffff;
+
+  /* Accent — achievement gold. Certificates, badges, "featured" ribbons only;
+     never the dominant color on a page (that stays --color-primary). */
+  --color-accent: #b45309;
+  --color-accent-foreground: #ffffff;
 
   /* Semantic feedback */
   --color-success: #16a34a;
@@ -42,7 +57,7 @@
   --color-danger: #dc2626;
 
   /* Focus ring — must stay visible; see ui-design.md a11y rules */
-  --color-focus-ring: #2563eb;
+  --color-focus-ring: #0369a1;
 
   /* Radius scale — only these sizes, no ad-hoc values per page */
   --radius-sm: 0.25rem;
@@ -50,16 +65,17 @@
   --radius-lg: 0.75rem;
   --radius-full: 9999px;
 
-  /* Shadow scale */
+  /* Shadow scale — restrained per the Flat/Minimalism-influenced style;
+     used for elevation (cards, popovers), not decoration. */
   --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.06);
   --shadow-md: 0 4px 6px -1px rgb(15 23 42 / 0.1), 0 2px 4px -2px rgb(15 23 42 / 0.06);
   --shadow-lg: 0 10px 15px -3px rgb(15 23 42 / 0.1), 0 4px 6px -4px rgb(15 23 42 / 0.06);
 
-  /* Typography — TODO(design-system): swap for a paired display/body font
-     that covers Thai (e.g. IBM Plex Sans Thai / Noto Sans Thai / LINE Seed
-     Sans TH) and verify Thai vowel/tone-mark line-height at real sizes. */
+  /* Typography — IBM Plex Sans Thai loaded in index.html (weights 400-700).
+     One family, full Thai + Latin coverage; use font-weight for hierarchy
+     (600/700 headings, 400 body) rather than switching families. */
   --font-sans:
-    'Segoe UI', system-ui, -apple-system, 'Noto Sans Thai', 'Leelawadee UI', sans-serif;
+    'IBM Plex Sans Thai', system-ui, -apple-system, 'Noto Sans Thai', 'Leelawadee UI', sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -73,9 +89,12 @@
     --color-text-muted: #94a3b8;
     --color-text-inverse: #0f172a;
 
-    --color-primary-hover: #3b82f6;
+    /* Lighter tints for sufficient contrast against dark surfaces */
+    --color-primary-hover: #38bdf8;
+    --color-accent: #fbbf24;
+    --color-accent-foreground: #1c1917;
 
     /* focus ring must stay ≥3:1 against dark surfaces too */
-    --color-focus-ring: #60a5fa;
+    --color-focus-ring: #38bdf8;
   }
 }

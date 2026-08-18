@@ -49,11 +49,26 @@ export class TranslationService {
    * Resolves a dot-path key against the active dictionary, e.g.
    * `t('common.loading')`. Returns the key itself when not found, so a
    * missing translation is visible in the UI instead of silently blank.
+   *
+   * `params`, when given, fills `{{placeholder}}` tokens in the resolved
+   * string (e.g. dictionary value `"Go to page {{page}}"` +
+   * `t('shared.pagination.goToPage', { page: 3 })` → `"Go to page 3"`).
+   * Added for P0-34's shared UI kit (Pagination, etc.) — several built-in
+   * component defaults need a translated string with a dynamic value, and
+   * the dictionary must stay word-order-correct for Thai, which ruled out
+   * assembling the string via string concatenation in the component.
    */
-  t(key: string): string {
+  t(key: string, params?: Readonly<Record<string, string | number>>): string {
     const value = resolveKey(this.dictionary(), key);
-    return typeof value === 'string' ? value : key;
+    const resolved = typeof value === 'string' ? value : key;
+    return params ? interpolate(resolved, params) : resolved;
   }
+}
+
+function interpolate(template: string, params: Readonly<Record<string, string | number>>): string {
+  return template.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, token: string) =>
+    token in params ? String(params[token]) : match,
+  );
 }
 
 function resolveKey(source: unknown, path: string): unknown {

@@ -1,0 +1,31 @@
+<nav [attr.aria-label]="'shared.breadcrumb.navLabel' | translate" class="overflow-x-auto">
+  <ol class="flex items-center gap-1.5 whitespace-nowrap text-sm">
+    @for (item of items(); track item.label; let last = $last) {
+      <li class="flex items-center gap-1.5">
+        @if (!last && item.href) {
+          <a
+            [routerLink]="item.href"
+            class="rounded-[var(--radius-sm)] text-[var(--color-text-muted)] underline-offset-2
+              transition-colors duration-200 ease-out
+              hover:text-[var(--color-primary)] hover:underline
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus-ring)]"
+          >
+            {{ item.label }}
+          </a>
+        } @else if (!last) {
+          <span class="text-[var(--color-text-muted)]">{{ item.label }}</span>
+        } @else {
+          <span aria-current="page" class="font-medium text-[var(--color-text)]">{{ item.label }}</span>
+        }
+
+        @if (!last) {
+          <ng-icon
+            name="phosphorCaretRight"
+            aria-hidden="true"
+            class="h-3.5 w-3.5 shrink-0 text-[var(--color-text-muted)]"
+          />
+        }
+      </li>
+    }
+  </ol>
+</nav>

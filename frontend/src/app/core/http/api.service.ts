@@ -51,8 +51,15 @@ export class ApiService {
     return this.http.get<T>(`${this.apiBaseUrl}${path}`, { params: toHttpParams(params) });
   }
 
-  protected post<T>(path: string, body: unknown): Observable<T> {
-    return this.http.post<T>(`${this.apiBaseUrl}${path}`, body);
+  /**
+   * `withCredentials`, when passed, tells the browser to send/store this origin's cookies on the
+   * request — needed by Identity's login/refresh endpoints, whose httpOnly refresh-token cookie
+   * (`RefreshTokenCookie.cs`) is otherwise never set/sent cross-origin between the Angular dev
+   * server and the API. Optional and defaulted-away for every other caller, so this is additive,
+   * not a behavior change for the handful of call sites that predate P0-35.
+   */
+  protected post<T>(path: string, body: unknown, options?: { readonly withCredentials?: boolean }): Observable<T> {
+    return this.http.post<T>(`${this.apiBaseUrl}${path}`, body, { withCredentials: options?.withCredentials });
   }
 
   protected put<T>(path: string, body: unknown): Observable<T> {

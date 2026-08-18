@@ -4,7 +4,8 @@ import { TranslationService } from './translation.service';
 
 /**
  * Template ergonomics wrapper around `TranslationService.t()`:
- * `{{ 'common.loading' | translate }}`.
+ * `{{ 'common.loading' | translate }}`, or with interpolation params:
+ * `{{ 'shared.pagination.goToPage' | translate: { page: 3 } }}`.
  *
  * Stays reactive to locale changes despite being a pure pipe: it reads
  * `TranslationService.dictionary()` (a signal) during `transform`, so the
@@ -15,7 +16,7 @@ import { TranslationService } from './translation.service';
 export class TranslatePipe implements PipeTransform {
   private readonly translation = inject(TranslationService);
 
-  transform(key: string): string {
-    return this.translation.t(key);
+  transform(key: string, params?: Readonly<Record<string, string | number>>): string {
+    return this.translation.t(key, params);
   }
 }
