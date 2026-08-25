@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed for IServiceCollection/IConfiguration/IOptions<T>/ILogger<T> in
+         EmailServiceCollectionExtensions.cs and the two IEmailSender implementations. A plain class
+         library (not Sdk.Web) — this only pulls in the shared-framework types, not a web host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- SMTP client for SmtpEmailSender — a well-maintained, modern library, deliberately not the
+         legacy System.Net.Mail.SmtpClient (which Microsoft no longer recommends for new
+         development) and not hand-rolled SMTP protocol code. Pulls in MimeKit transitively for
+         MimeMessage/BodyBuilder/MailboxAddress. -->
+    <PackageReference Include="MailKit" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

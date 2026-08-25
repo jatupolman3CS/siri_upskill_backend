@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Persistence\Siri.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
+    <!-- P1-01: CategoryTests/CreateCategoryValidatorTests/etc. exercise Catalog's domain + validators
+         directly. Already reachable transitively through Siri.Api below, but explicit for the same
+         reason every other reference in this file is: don't rely on an incidental transitive path. -->
+    <ProjectReference Include="..\..\src\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Integrations.Email\Siri.Integrations.Email.csproj" />
+    <!-- P2-02: BunnyVideoProvider + VideoProviderOptions unit tests. -->
+    <ProjectReference Include="..\..\src\Siri.Integrations.Video\Siri.Integrations.Video.csproj" />
+    <!-- P3-01: StripePaymentMethod + PaymentService unit tests. -->
+    <ProjectReference Include="..\..\src\Siri.Integrations.Payment\Siri.Integrations.Payment.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Commerce\Siri.Modules.Commerce.csproj" />
+    <!-- P0-22: AuthorizationPolicyTests exercises Siri.Api.Authorization.AuthorizationPolicyExtensions
+         (the AdminOnly/InstructorOnly policy definitions) directly — referencing the host project from
+         its test project is the same pattern Program.cs's own trailing `public partial class Program;`
+         comment anticipates for WebApplicationFactory<Program>-style testing. -->
+    <ProjectReference Include="..\..\src\Siri.Workers\Siri.Workers.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Api\Siri.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <!-- Only for SmtpEmailSenderOptionsTests.cs, to build a real IConfiguration from an in-memory
+         collection and exercise the same GetSection(...).Get<T>() binding path production code uses. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

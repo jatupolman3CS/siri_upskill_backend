@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Siri.Api\Siri.Api.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Workers\Siri.Workers.csproj" />
+    <ProjectReference Include="..\..\src\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Persistence\Siri.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Media\Siri.Modules.Media.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Learning\Siri.Modules.Learning.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Commerce\Siri.Modules.Commerce.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Payout\Siri.Modules.Payout.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Cms\Siri.Modules.Cms.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Community\Siri.Modules.Community.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Analytics\Siri.Modules.Analytics.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Integrations.Video\Siri.Integrations.Video.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Integrations.Payment\Siri.Integrations.Payment.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Integrations.Storage\Siri.Integrations.Storage.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Integrations.Email\Siri.Integrations.Email.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

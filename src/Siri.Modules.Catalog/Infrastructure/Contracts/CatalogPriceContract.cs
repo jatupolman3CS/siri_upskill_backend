@@ -1,0 +1,139 @@
+using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Contracts;
+using Siri.Modules.Catalog.Domain;
+using Siri.Modules.Notification.Contracts;
+using Siri.Persistence;
+
+namespace Siri.Modules.Catalog.Infrastructure.Contracts;
+
+public sealed class CatalogPriceContract(AppDbContext dbContext) : ICatalogPriceContract, ICourseOwnershipVerifier
+{
+    public async Task<IReadOnlyDictionary<Guid, CoursePriceInfo>> GetPublishedCoursePricesAsync(
+        IEnumerable<Guid> courseIds,
+        CancellationToken cancellationToken)
+    {
+        var idList = courseIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return new Dictionary<Guid, CoursePriceInfo>();
+        }
+
+        var courses = await dbContext.Courses()
+            .AsNoTracking()
+            .Where(c => idList.Contains(c.Id) && c.Status == CourseStatus.Published)
+            .Select(c => new CoursePriceInfo(c.Id, c.Title, c.Price, c.InstructorId, c.AccessDurationDays))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return courses.ToDictionary(c => c.CourseId);
+    }
+
+    public async Task<bool> IsInstructorOwnerOfEpisodeAsync(
+        Guid episodeId,
+        Guid instructorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (instructorUserId == Guid.Empty)
+        {
+            return false;
+        }
+
+        var episodeCourseId = await dbContext.CourseEpisodes()
+            .AsNoTracking()
+            .Where(e => e.Id == episodeId)
+            .Select(e => (Guid?)e.CourseId)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (episodeCourseId is null)
+        {
+            return false;
+        }
+
+        return await dbContext.Courses()
+            .AsNoTracking()
+            .Where(c => c.Id == episodeCourseId.Value)
+            .Join(
+                dbContext.InstructorProfiles().AsNoTracking(),
+                course => course.InstructorId,
+                profile => profile.Id,
+                (course, profile) => profile.UserId)
+            .AnyAsync(ownerUserId => ownerUserId == instructorUserId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<bool> IsInstructorOwnerOfCourseAsync(
+        Guid courseId,
+        Guid instructorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (instructorUserId == Guid.Empty)
+        {
+            return false;
+        }
+
+        return await dbContext.Courses()
+            .AsNoTracking()
+            .Where(c => c.Id == courseId)
+            .Join(
+                dbContext.InstructorProfiles().AsNoTracking(),
+                course => course.InstructorId,
+                profile => profile.Id,
+                (course, profile) => profile.UserId)
+            .AnyAsync(ownerUserId => ownerUserId == instructorUserId, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<bool> IsEpisodeFreePreviewAsync(
+        Guid episodeId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.CourseEpisodes()
+            .AsNoTracking()
+            .AnyAsync(e => e.Id == episodeId && e.IsFreePreview, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<Guid?> GetCourseIdForEpisodeAsync(
+        Guid episodeId,
+        CancellationToken cancellationToken)
+    {
+        var episode = await dbContext.CourseEpisodes()
+            .AsNoTracking()
+            .Where(e => e.Id == episodeId)
+            .Select(e => new { e.CourseId })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return episode?.CourseId;
+    }
+
+    public async Task<int> GetPendingReviewsCountAsync(CancellationToken cancellationToken)
+    {
+        return await dbContext.Courses()
+            .AsNoTracking()
+            .Where(c => c.Status == CourseStatus.InReview)
+            .CountAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(
+        IEnumerable<Guid> courseIds,
+        CancellationToken cancellationToken)
+    {
+        var idList = courseIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        var courses = await dbContext.Courses()
+            .AsNoTracking()
+            .Where(c => idList.Contains(c.Id))
+            .Select(c => new { c.Id, c.Title })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return courses.ToDictionary(c => c.Id, c => c.Title);
+    }
+}

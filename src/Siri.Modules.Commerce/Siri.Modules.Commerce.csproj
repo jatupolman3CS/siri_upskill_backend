@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <!-- P3-01: IPaymentMethod + StripePaymentMethod integration. -->
+    <ProjectReference Include="..\Siri.Integrations.Payment\Siri.Integrations.Payment.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Learning\Siri.Modules.Learning.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Payout\Siri.Modules.Payout.csproj" />
+    <!-- Resolves the real buyer email for the receipt sent after a paid order (Identity.Contracts
+         .IUserContactReader) — Stripe's PaymentIntent.ReceiptEmail is never populated in this codebase,
+         so this is the only real source of truth for "who do we email." Identity does not reference
+         Commerce back, so this does not create a project cycle (same precedent as Catalog's own
+         reference to Identity). -->
+    <ProjectReference Include="..\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed for IEndpointRouteBuilder/IServiceCollection endpoint-mapping extension points in
+         {Module}Module.cs. Modules stay class libraries (not Sdk.Web) — this only pulls in the
+         ASP.NET Core types, not a web host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Hangfire.Core" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

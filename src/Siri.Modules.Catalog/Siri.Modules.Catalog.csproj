@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <!-- P1-03: ApproveInstructorApplication grants the Instructor role through Identity's
+         IInstructorRoleGrantor contract (Roles/UserRoles are Identity's data). Only
+         Siri.Modules.Identity.Contracts is ever referenced from here — never .Domain/.Infrastructure of
+         that module, per the module-boundary rule (backend.md/ArchitectureTests.LayeringTests). Same
+         precedent already set by Siri.Modules.Identity.csproj's own reference to
+         Siri.Modules.Notification.csproj (that doc comment explains the reasoning in full). Identity
+         does not reference Catalog back, so this does not create a project cycle. -->
+    <ProjectReference Include="..\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed for IEndpointRouteBuilder/IServiceCollection endpoint-mapping extension points in
+         {Module}Module.cs. Modules stay class libraries (not Sdk.Web) — this only pulls in the
+         ASP.NET Core types, not a web host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-agnostic EF Core only (no .SqlServer here) — same reasoning as
+         Siri.Modules.Identity.csproj: this module's Infrastructure/ owns its own
+         IEntityTypeConfiguration<T> classes, but only Siri.Persistence decides the actual provider. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- P1-01: category CRUD command validation. -->
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- P1-01: CategoryTreeCache (Infrastructure/) caches the public category tree read. Resolves the
+         IConnectionMultiplexer singleton Siri.Persistence.DependencyInjection.AddSharedRedis
+         registers centrally — this package reference is only for the type, not a second connection. -->
+    <PackageReference Include="StackExchange.Redis" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

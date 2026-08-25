@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <!-- Siri.Workers is the composition root for recurring jobs across modules (same role
+         Siri.Api plays for endpoints) — RecurringJobsRegistration.cs references each module's job
+         type directly to register it. -->
+    <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Analytics\Siri.Modules.Analytics.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Commerce\Siri.Modules.Commerce.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Media\Siri.Modules.Media.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Payout\Siri.Modules.Payout.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Hangfire.AspNetCore" />
+    <PackageReference Include="Hangfire.SqlServer" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

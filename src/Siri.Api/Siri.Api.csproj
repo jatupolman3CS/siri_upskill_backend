@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\Siri.Workers\Siri.Workers.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Media\Siri.Modules.Media.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Learning\Siri.Modules.Learning.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Commerce\Siri.Modules.Commerce.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Payout\Siri.Modules.Payout.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Cms\Siri.Modules.Cms.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Community\Siri.Modules.Community.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Analytics\Siri.Modules.Analytics.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- P0-16: AddAuthentication().AddJwtBearer(...) in Program.cs validates the access tokens Login/
+         Refresh issue (Siri.Modules.Identity's AccessTokenGenerator). Version resolved via
+         `dotnet add package`, not guessed. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    <PackageReference Include="Serilog.AspNetCore" />
+    <PackageReference Include="Serilog.Sinks.Console" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Serilog.Sinks.OpenTelemetry" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>96c7dfcb-d5cd-49cf-ae3b-6b2bbac243cc</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

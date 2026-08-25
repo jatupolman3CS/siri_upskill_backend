@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <!-- P2-02: IVideoProvider + BunnyVideoProvider + VideoProviderOptions registration. -->
+    <ProjectReference Include="..\Siri.Integrations.Video\Siri.Integrations.Video.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Learning\Siri.Modules.Learning.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed for IEndpointRouteBuilder/IServiceCollection endpoint-mapping extension points in
+         {Module}Module.cs. Modules stay class libraries (not Sdk.Web) — this only pulls in the
+         ASP.NET Core types, not a web host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-agnostic EF Core only (no .SqlServer here) — same reasoning as
+         Siri.Modules.Catalog.csproj: this module's Infrastructure/ owns its own
+         IEntityTypeConfiguration<T> classes, but only Siri.Persistence decides the actual provider. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Hangfire.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Media asset/upload-session command validation (Application/). -->
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

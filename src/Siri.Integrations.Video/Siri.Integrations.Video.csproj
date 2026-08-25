@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Siri.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- BunnyVideoProvider: IHttpClientFactory for connection pooling/lifetime management. -->
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <!-- VideoProviderOptions: Options pattern binding + ValidateDataAnnotations + ValidateOnStart. -->
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <!-- BunnyVideoProvider: ILogger<T> for structured logging of API errors/retries. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

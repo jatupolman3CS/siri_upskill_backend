@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Commerce\Siri.Modules.Commerce.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Learning\Siri.Modules.Learning.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed for IEndpointRouteBuilder/IServiceCollection endpoint-mapping extension points in
+         {Module}Module.cs. Modules stay class libraries (not Sdk.Web) — this only pulls in the
+         ASP.NET Core types, not a web host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-agnostic EF Core only (no .SqlServer here) — per ARCHITECTURE.md §2, a module's
+         Infrastructure/ owns its own IEntityTypeConfiguration<T> classes, but only Siri.Persistence
+         decides the actual provider. Same reasoning/same two packages Siri.Modules.Identity.csproj/
+         Siri.Modules.Catalog.csproj/Siri.Modules.Notification.csproj already declare — both are already
+         centrally versioned in Directory.Packages.props (no change made there), so this isn't a new
+         package to the solution, just this module declaring its own existing dependency explicitly
+         instead of leaning on transitive flow through the Siri.Persistence ProjectReference above. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Hangfire.Core" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

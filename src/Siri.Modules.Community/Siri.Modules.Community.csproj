@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed for IEndpointRouteBuilder/IServiceCollection endpoint-mapping extension points in
+         {Module}Module.cs. Modules stay class libraries (not Sdk.Web) — this only pulls in the
+         ASP.NET Core types, not a web host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-agnostic EF Core only (no .SqlServer here) — same reasoning as
+         Siri.Modules.Catalog.csproj: this module's Infrastructure/ owns its own
+         IEntityTypeConfiguration<T> classes (DiscussionConfiguration/ReportConfiguration) and DbSet<T>
+         accessors, but only Siri.Persistence decides the actual provider. Already centrally versioned
+         in Directory.Packages.props (Catalog/Persistence already reference these) — not a new package
+         to the solution, just a new direct reference from this project instead of relying on implicit
+         transitive flow-through from the Siri.Persistence ProjectReference above. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- D-17 scaffold: CreateDiscussionCommand/CreateReportCommand validation (ValidationEndpointFilter<T>,
+         Siri.SharedKernel). Already centrally versioned in Directory.Packages.props (Catalog/Identity
+         already reference it) — not a new package to the solution. -->
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

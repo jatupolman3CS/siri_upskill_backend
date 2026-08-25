@@ -1,0 +1,34 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Siri.Modules.Catalog.Domain;
+
+namespace Siri.Modules.Catalog.Infrastructure;
+
+public sealed class EpisodeAttachmentConfiguration : IEntityTypeConfiguration<EpisodeAttachment>
+{
+    public void Configure(EntityTypeBuilder<EpisodeAttachment> builder)
+    {
+        builder.ToTable("EpisodeAttachments", "catalog");
+
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).ValueGeneratedNever();
+
+        builder.Property(a => a.EpisodeId).IsRequired();
+        builder.Property(a => a.FileName).HasMaxLength(255).IsRequired();
+        builder.Property(a => a.StorageKey).HasMaxLength(500).IsRequired();
+        builder.Property(a => a.ContentType).HasMaxLength(100).IsRequired();
+        builder.Property(a => a.SizeBytes).IsRequired();
+
+        builder.Property(a => a.CreatedAtUtc).IsRequired();
+        builder.Property(a => a.CreatedBy);
+        builder.Property(a => a.UpdatedAtUtc);
+        builder.Property(a => a.UpdatedBy);
+
+        builder.HasIndex(a => a.EpisodeId);
+
+        builder.HasOne<CourseEpisode>()
+            .WithMany()
+            .HasForeignKey(a => a.EpisodeId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}
