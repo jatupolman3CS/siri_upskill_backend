@@ -20,7 +20,6 @@
     <!-- P0-16: AddAuthentication().AddJwtBearer(...) in Program.cs validates the access tokens Login/
          Refresh issue (Siri.Modules.Identity's AccessTokenGenerator). Version resolved via
          `dotnet add package`, not guessed. -->
-    <PackageReference Include="DotNetEnv" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
