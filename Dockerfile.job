@@ -1,0 +1,25 @@
+# Job image for EF Core migration and admin database tooling.
+# This is a tooling container, not a long-running service.
+# Use it with docker run and pass the connection string / project target explicitly.
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS tools
+WORKDIR /src
+
+ENV PATH="${PATH}:/root/.dotnet/tools"
+RUN dotnet tool install --global dotnet-ef
+
+COPY ["Directory.Build.props", "./"]
+COPY ["Directory.Packages.props", "./"]
+COPY ["SiriUpSkill.sln", "./"]
+COPY ["src", "src/"]
+
+RUN dotnet restore "src/Siri.Api/Siri.Api.csproj"
+
+# Build startup app once so dotnet ef can run without a rebuild on first use.
+RUN dotnet build "src/Siri.Api/Siri.Api.csproj" -c Debug --no-restore
+
+ENV TZ=Asia/Bangkok
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+# No secrets in the image. Inject connection string / JWT settings at runtime.
+ENTRYPOINT ["dotnet", "ef"]

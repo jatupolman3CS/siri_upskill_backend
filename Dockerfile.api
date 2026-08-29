@@ -1,0 +1,34 @@
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG TARGETARCH
+WORKDIR /src
+
+COPY ["Directory.Build.props", "./"]
+COPY ["Directory.Packages.props", "./"]
+COPY ["SiriUpSkill.sln", "./"]
+COPY ["src", "src/"]
+
+RUN dotnet restore "src/Siri.Api/Siri.Api.csproj" -a $TARGETARCH
+
+RUN dotnet publish "src/Siri.Api/Siri.Api.csproj" \
+    -c Release -a $TARGETARCH -o /app/publish --no-restore \
+    /p:UseAppHost=false -m:1 /p:UseSharedCompilation=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata && \
+    ln -snf /usr/share/zoneinfo/Asia/Bangkok /etc/localtime && \
+    echo "Asia/Bangkok" > /etc/timezone && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV TZ=Asia/Bangkok
+ENV ASPNETCORE_URLS=http://+:9004
+ENV ASPNETCORE_ENVIRONMENT=Production
+
+EXPOSE 9004
+
+COPY --from=build /app/publish .
+
+USER $APP_UID
+
+ENTRYPOINT ["dotnet", "Siri.Api.dll"]
