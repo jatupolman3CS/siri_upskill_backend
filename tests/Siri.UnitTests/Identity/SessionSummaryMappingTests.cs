@@ -12,7 +12,7 @@ public class SessionSummaryMappingTests
     public void ToSummary_CurrentSessionIdMatchesSessionId_IsCurrentSessionTrue()
     {
         var clock = new FakeClock(new DateTime(2026, 8, 17, 8, 0, 0, DateTimeKind.Utc));
-        var session = UserSession.Start(Guid.NewGuid(), "device-1", "My Laptop", "Mozilla/5.0", "203.0.113.10", clock);
+        var session = USER_SESSION.Start(Guid.NewGuid(), "device-1", "My Laptop", "Mozilla/5.0", "203.0.113.10", clock);
 
         var summary = session.ToSummary(session.Id);
 
@@ -29,7 +29,7 @@ public class SessionSummaryMappingTests
     public void ToSummary_CurrentSessionIdIsADifferentSession_IsCurrentSessionFalse()
     {
         var clock = new FakeClock(DateTime.UtcNow);
-        var session = UserSession.Start(Guid.NewGuid(), "device-1", null, null, null, clock);
+        var session = USER_SESSION.Start(Guid.NewGuid(), "device-1", null, null, null, clock);
 
         var summary = session.ToSummary(Guid.NewGuid());
 
@@ -40,7 +40,7 @@ public class SessionSummaryMappingTests
     public void ToSummary_CurrentSessionIdIsNull_IsCurrentSessionFalse()
     {
         var clock = new FakeClock(DateTime.UtcNow);
-        var session = UserSession.Start(Guid.NewGuid(), "device-1", null, null, null, clock);
+        var session = USER_SESSION.Start(Guid.NewGuid(), "device-1", null, null, null, clock);
 
         var summary = session.ToSummary(null);
 
@@ -51,7 +51,7 @@ public class SessionSummaryMappingTests
     public void ToSummary_RevokedSession_ReflectsRevokedStateAndTimestamp()
     {
         var clock = new FakeClock(new DateTime(2026, 8, 17, 8, 0, 0, DateTimeKind.Utc));
-        var session = UserSession.Start(Guid.NewGuid(), "device-1", null, null, null, clock);
+        var session = USER_SESSION.Start(Guid.NewGuid(), "device-1", null, null, null, clock);
         var revokeClock = new FakeClock(new DateTime(2026, 8, 17, 9, 0, 0, DateTimeKind.Utc));
         session.Revoke("revoked_by_user", revokeClock);
 

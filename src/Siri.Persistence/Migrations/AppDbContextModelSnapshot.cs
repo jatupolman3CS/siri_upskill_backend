@@ -25,28 +25,36 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Analytics.Domain.DAILY_COURSE_STAT", b =>
                 {
                     b.Property<DateOnly>("DATE")
-                        .HasColumnType("date");
+                        .HasColumnType("date")
+                        .HasColumnName("DATE");
 
                     b.Property<Guid>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<decimal>("COMPLETION_RATE")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("COMPLETION_RATE");
 
                     b.Property<int>("ENROLLMENTS")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("ENROLLMENTS");
 
                     b.Property<decimal>("REVENUE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("REVENUE");
 
                     b.Property<int>("VIEWS")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("VIEWS");
 
-                    b.HasKey("DATE", "COURSE_ID");
+                    b.HasKey("DATE", "COURSE_ID")
+                        .HasName("PK_DAILY_COURSE_STATS");
 
-                    b.HasIndex("COURSE_ID", "DATE");
+                    b.HasIndex("COURSE_ID", "DATE")
+                        .HasDatabaseName("IX_DAILY_COURSE_STATS_COURSE_ID_DATE");
 
                     b.ToTable("DAILY_COURSE_STATS", "ANALYTICS");
                 });
@@ -54,24 +62,31 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Analytics.Domain.EPISODE_DROP_OFF", b =>
                 {
                     b.Property<DateOnly>("DATE")
-                        .HasColumnType("date");
+                        .HasColumnType("date")
+                        .HasColumnName("DATE");
 
                     b.Property<Guid>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("EPISODE_ID");
 
                     b.Property<decimal>("AVG_WATCH_PERCENT")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("AVG_WATCH_PERCENT");
 
                     b.Property<int>("COMPLETE_COUNT")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("COMPLETE_COUNT");
 
                     b.Property<int>("START_COUNT")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("START_COUNT");
 
-                    b.HasKey("DATE", "EPISODE_ID");
+                    b.HasKey("DATE", "EPISODE_ID")
+                        .HasName("PK_EPISODE_DROP_OFF");
 
-                    b.HasIndex("EPISODE_ID", "DATE");
+                    b.HasIndex("EPISODE_ID", "DATE")
+                        .HasDatabaseName("IX_EPISODE_DROP_OFF_EPISODE_ID_DATE");
 
                     b.ToTable("EPISODE_DROP_OFF", "ANALYTICS");
                 });
@@ -80,568 +95,799 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<string>("IconKey")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("ICON_KEY");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_ACTIVE");
 
                     b.Property<string>("NameEn")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("NAME_EN");
 
                     b.Property<string>("NameTh")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("NAME_TH");
 
                     b.Property<Guid?>("ParentId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PARENT_ID");
 
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("SLUG");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_CATEGORIES");
 
                     b.HasIndex("Slug")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_CATEGORIES_SLUG");
 
-                    b.HasIndex("ParentId", "SortOrder");
+                    b.HasIndex("ParentId", "SortOrder")
+                        .HasDatabaseName("IX_CATEGORIES_PARENT_ID_SORT_ORDER");
 
-                    b.ToTable("Categories", "catalog");
+                    b.ToTable("CATEGORIES", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.Course", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<int?>("AccessDurationDays")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("ACCESS_DURATION_DAYS");
 
                     b.Property<Guid>("CategoryId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CATEGORY_ID");
 
                     b.Property<decimal?>("ComparePrice")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("COMPARE_PRICE");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<string>("Currency")
                         .IsRequired()
-                        .HasColumnType("char(3)");
+                        .HasColumnType("char(3)")
+                        .HasColumnName("CURRENCY");
 
                     b.Property<DateTime?>("DeletedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("DELETED_AT_UTC");
 
                     b.Property<string>("Description")
                         .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnName("DESCRIPTION");
 
                     b.Property<int>("EnrollmentCount")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("ENROLLMENT_COUNT");
 
                     b.Property<int>("EpisodeCount")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("EPISODE_COUNT");
 
                     b.Property<Guid>("InstructorId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("INSTRUCTOR_ID");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_DELETED");
 
                     b.Property<string>("Language")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("LANGUAGE");
 
                     b.Property<string>("Level")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("LEVEL");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("PRICE");
 
                     b.Property<DateTime?>("PublishedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("PUBLISHED_AT_UTC");
 
                     b.Property<decimal>("RatingAverage")
                         .HasPrecision(3, 2)
-                        .HasColumnType("decimal(3,2)");
+                        .HasColumnType("decimal(3,2)")
+                        .HasColumnName("RATING_AVERAGE");
 
                     b.Property<int>("RatingCount")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("RATING_COUNT");
 
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("REJECTION_REASON");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
+                        .HasColumnType("rowversion")
+                        .HasColumnName("ROW_VERSION");
 
                     b.Property<string>("SeoDescription")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("SEO_DESCRIPTION");
 
                     b.Property<string>("SeoTitle")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("SEO_TITLE");
 
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("SLUG");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<string>("Subtitle")
                         .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
+                        .HasColumnType("nvarchar(300)")
+                        .HasColumnName("SUBTITLE");
 
                     b.Property<string>("ThumbnailUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("THUMBNAIL_URL");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
                     b.Property<int>("TotalDurationSeconds")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("TOTAL_DURATION_SECONDS");
 
                     b.Property<Guid?>("TrailerMediaAssetId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TRAILER_MEDIA_ASSET_ID");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_COURSES");
 
-                    b.HasIndex("InstructorId");
+                    b.HasIndex("InstructorId")
+                        .HasDatabaseName("IX_COURSES_INSTRUCTOR_ID");
 
                     b.HasIndex("Slug")
                         .IsUnique()
-                        .HasFilter("[IsDeleted] = 0");
+                        .HasDatabaseName("IX_COURSES_SLUG")
+                        .HasFilter("[IS_DELETED] = 0");
 
-                    b.HasIndex("Status", "CategoryId", "PublishedAtUtc");
+                    b.HasIndex("Status", "CategoryId", "PublishedAtUtc")
+                        .HasDatabaseName("IX_COURSES_STATUS_CATEGORY_ID_PUBLISHED_AT_UTC");
 
                     SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Status", "CategoryId", "PublishedAtUtc"), new[] { "Title", "Slug", "Price", "RatingAverage", "ThumbnailUrl" });
 
-                    b.ToTable("Courses", "catalog");
+                    b.ToTable("COURSES", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.CourseEpisode", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("DESCRIPTION");
 
                     b.Property<int?>("DurationSeconds")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("DURATION_SECONDS");
 
                     b.Property<bool>("IsFreePreview")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_FREE_PREVIEW");
 
                     b.Property<Guid?>("MediaAssetId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("MEDIA_ASSET_ID");
 
                     b.Property<Guid>("SectionId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("SECTION_ID");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_COURSE_EPISODES");
 
-                    b.HasIndex("CourseId");
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("IX_COURSE_EPISODES_COURSE_ID");
 
                     b.HasIndex("SectionId", "SortOrder")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_COURSE_EPISODES_SECTION_ID_SORT_ORDER");
 
-                    b.ToTable("CourseEpisodes", "catalog");
+                    b.ToTable("COURSE_EPISODES", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.CourseOutcome", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("TEXT");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_COURSE_OUTCOMES");
 
-                    b.HasIndex("CourseId", "SortOrder");
+                    b.HasIndex("CourseId", "SortOrder")
+                        .HasDatabaseName("IX_COURSE_OUTCOMES_COURSE_ID_SORT_ORDER");
 
-                    b.ToTable("CourseOutcomes", "catalog");
+                    b.ToTable("COURSE_OUTCOMES", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.CourseRequirement", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("TEXT");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_COURSE_REQUIREMENTS");
 
-                    b.HasIndex("CourseId", "SortOrder");
+                    b.HasIndex("CourseId", "SortOrder")
+                        .HasDatabaseName("IX_COURSE_REQUIREMENTS_COURSE_ID_SORT_ORDER");
 
-                    b.ToTable("CourseRequirements", "catalog");
+                    b.ToTable("COURSE_REQUIREMENTS", "CATALOG");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Catalog.Domain.CourseReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("COMMENT");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
+
+                    b.Property<bool>("IsPublished")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IS_PUBLISHED");
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("int")
+                        .HasColumnName("RATING");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UPDATED_AT_UTC");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
+
+                    b.HasKey("Id")
+                        .HasName("PK_COURSE_REVIEWS");
+
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("IX_COURSE_REVIEWS_COURSE_ID");
+
+                    b.HasIndex("CourseId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_COURSE_REVIEWS_COURSE_ID_USER_ID");
+
+                    b.ToTable("COURSE_REVIEWS", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.CourseSection", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_COURSE_SECTIONS");
 
-                    b.HasIndex("CourseId", "SortOrder");
+                    b.HasIndex("CourseId", "SortOrder")
+                        .HasDatabaseName("IX_COURSE_SECTIONS_COURSE_ID_SORT_ORDER");
 
-                    b.ToTable("CourseSections", "catalog");
+                    b.ToTable("COURSE_SECTIONS", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.EpisodeAttachment", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("CONTENT_TYPE");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("EpisodeId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("EPISODE_ID");
 
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("FILE_NAME");
 
                     b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint");
+                        .HasColumnType("bigint")
+                        .HasColumnName("SIZE_BYTES");
 
                     b.Property<string>("StorageKey")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("STORAGE_KEY");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_EPISODE_ATTACHMENTS");
 
-                    b.HasIndex("EpisodeId");
+                    b.HasIndex("EpisodeId")
+                        .HasDatabaseName("IX_EPISODE_ATTACHMENTS_EPISODE_ID");
 
-                    b.ToTable("EpisodeAttachments", "catalog");
+                    b.ToTable("EPISODE_ATTACHMENTS", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.InstructorProfile", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<DateTime?>("ApprovedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("APPROVED_AT_UTC");
 
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("AVATAR_URL");
 
                     b.Property<string>("Bio")
                         .IsRequired()
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("BIO");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("DISPLAY_NAME");
 
                     b.Property<string>("Headline")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("HEADLINE");
 
                     b.Property<decimal>("RevenueSharePercent")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("REVENUE_SHARE_PERCENT");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_INSTRUCTOR_PROFILES");
 
                     b.HasIndex("UserId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_INSTRUCTOR_PROFILES_USER_ID");
 
-                    b.ToTable("InstructorProfiles", "catalog");
+                    b.ToTable("INSTRUCTOR_PROFILES", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.LearningPath", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("DESCRIPTION");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_ACTIVE");
 
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("SLUG");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_LEARNING_PATHS");
 
                     b.HasIndex("Slug")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_LEARNING_PATHS_SLUG");
 
-                    b.HasIndex("IsActive", "SortOrder");
+                    b.HasIndex("IsActive", "SortOrder")
+                        .HasDatabaseName("IX_LEARNING_PATHS_IS_ACTIVE_SORT_ORDER");
 
-                    b.ToTable("LearningPaths", "catalog");
+                    b.ToTable("LEARNING_PATHS", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.LearningPathItem", b =>
                 {
                     b.Property<Guid>("PathId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PATH_ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("PathId", "CourseId");
+                    b.HasKey("PathId", "CourseId")
+                        .HasName("PK_LEARNING_PATH_ITEMS");
 
-                    b.HasIndex("CourseId");
+                    b.HasIndex("CourseId")
+                        .HasDatabaseName("IX_LEARNING_PATH_ITEMS_COURSE_ID");
 
-                    b.HasIndex("PathId", "SortOrder");
+                    b.HasIndex("PathId", "SortOrder")
+                        .HasDatabaseName("IX_LEARNING_PATH_ITEMS_PATH_ID_SORT_ORDER");
 
-                    b.ToTable("LearningPathItems", "catalog");
+                    b.ToTable("LEARNING_PATH_ITEMS", "CATALOG");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Catalog.Domain.WishlistItem", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.HasKey("UserId", "CourseId")
+                        .HasName("PK_WISHLISTS");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_WISHLISTS_USER_ID");
+
+                    b.ToTable("WISHLISTS", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Cms.Domain.BANNER", b =>
                 {
                     b.Property<Guid>("BANNER_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("BANNER_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -654,40 +900,49 @@ namespace Siri.Persistence.Migrations
 
                     b.Property<DateTime?>("ENDS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("ENDS_AT_UTC");
 
                     b.Property<string>("IMAGE_URL")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("IMAGE_URL");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_ACTIVE");
 
                     b.Property<string>("LINK_URL")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("LINK_URL");
 
                     b.Property<string>("MOBILE_IMAGE_URL")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("MOBILE_IMAGE_URL");
 
                     b.Property<string>("PLACEMENT")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("PLACEMENT");
 
                     b.Property<int>("SORT_ORDER")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<DateTime?>("STARTS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("STARTS_AT_UTC");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -698,18 +953,75 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("BANNER_ID");
+                    b.HasKey("BANNER_ID")
+                        .HasName("PK_BANNERS");
 
-                    b.HasIndex("PLACEMENT", "IS_ACTIVE", "SORT_ORDER");
+                    b.HasIndex("PLACEMENT", "IS_ACTIVE", "SORT_ORDER")
+                        .HasDatabaseName("IX_BANNERS_PLACEMENT_IS_ACTIVE_SORT_ORDER");
 
-                    b.ToTable("BANNERS", "cms");
+                    b.ToTable("BANNERS", "CMS");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Cms.Domain.FEATURE_FLAG", b =>
+                {
+                    b.Property<Guid>("FEATURE_FLAG_ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("FEATURE_FLAG_ID");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
+
+                    b.Property<string>("DESCRIPTION")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("DESCRIPTION");
+
+                    b.Property<bool>("IS_ENABLED")
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_ENABLED");
+
+                    b.Property<string>("KEY")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("KEY");
+
+                    b.Property<string>("NAME")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("NAME");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UPDATED_AT_UTC");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
+
+                    b.HasKey("FEATURE_FLAG_ID")
+                        .HasName("PK_FEATURE_FLAGS");
+
+                    b.HasIndex("KEY")
+                        .IsUnique()
+                        .HasDatabaseName("IX_FEATURE_FLAGS_KEY");
+
+                    b.ToTable("FEATURE_FLAGS", "CMS");
                 });
 
             modelBuilder.Entity("Siri.Modules.Cms.Domain.MENU_ITEM", b =>
                 {
                     b.Property<Guid>("MENU_ITEM_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("MENU_ITEM_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -721,23 +1033,28 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("CREATED_BY");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_ACTIVE");
 
                     b.Property<string>("LABEL")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("LABEL");
 
                     b.Property<Guid?>("PARENT_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PARENT_ID");
 
                     b.Property<int>("SORT_ORDER")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("URL")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("URL");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -748,29 +1065,35 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("MENU_ITEM_ID");
+                    b.HasKey("MENU_ITEM_ID")
+                        .HasName("PK_MENU_ITEMS");
 
-                    b.HasIndex("PARENT_ID", "SORT_ORDER");
+                    b.HasIndex("PARENT_ID", "SORT_ORDER")
+                        .HasDatabaseName("IX_MENU_ITEMS_PARENT_ID_SORT_ORDER");
 
-                    b.ToTable("MENU_ITEMS", "cms");
+                    b.ToTable("MENU_ITEMS", "CMS");
                 });
 
             modelBuilder.Entity("Siri.Modules.Cms.Domain.POST", b =>
                 {
                     b.Property<Guid>("POST_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("POST_ID");
 
                     b.Property<Guid>("AUTHOR_USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("AUTHOR_USER_ID");
 
                     b.Property<string>("CONTENT_HTML")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("CONTENT_HTML");
 
                     b.Property<string>("COVER_IMAGE_URL")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("COVER_IMAGE_URL");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -789,7 +1112,8 @@ namespace Siri.Persistence.Migrations
                     b.Property<string>("EXCERPT")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("EXCERPT");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit")
@@ -797,30 +1121,36 @@ namespace Siri.Persistence.Migrations
 
                     b.Property<DateTime?>("PUBLISHED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("PUBLISHED_AT_UTC");
 
                     b.Property<string>("SEO_DESCRIPTION")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("SEO_DESCRIPTION");
 
                     b.Property<string>("SEO_TITLE")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("SEO_TITLE");
 
                     b.Property<string>("SLUG")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("SLUG");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -831,22 +1161,26 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("POST_ID");
+                    b.HasKey("POST_ID")
+                        .HasName("PK_POSTS");
 
                     b.HasIndex("SLUG")
                         .IsUnique()
+                        .HasDatabaseName("IX_POSTS_SLUG")
                         .HasFilter("[IS_DELETED] = 0");
 
-                    b.HasIndex("STATUS", "PUBLISHED_AT_UTC");
+                    b.HasIndex("STATUS", "PUBLISHED_AT_UTC")
+                        .HasDatabaseName("IX_POSTS_STATUS_PUBLISHED_AT_UTC");
 
-                    b.ToTable("POSTS", "cms");
+                    b.ToTable("POSTS", "CMS");
                 });
 
             modelBuilder.Entity("Siri.Modules.Cms.Domain.REDIRECT", b =>
                 {
                     b.Property<Guid>("REDIRECT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REDIRECT_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -860,15 +1194,18 @@ namespace Siri.Persistence.Migrations
                     b.Property<string>("FROM_PATH")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("FROM_PATH");
 
                     b.Property<int>("STATUS_CODE")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("STATUS_CODE");
 
                     b.Property<string>("TO_PATH")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("TO_PATH");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -879,53 +1216,65 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("REDIRECT_ID");
+                    b.HasKey("REDIRECT_ID")
+                        .HasName("PK_REDIRECTS");
 
                     b.HasIndex("FROM_PATH")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_REDIRECTS_FROM_PATH");
 
-                    b.ToTable("REDIRECTS", "cms");
+                    b.ToTable("REDIRECTS", "CMS");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.BUNDLE", b =>
                 {
                     b.Property<Guid>("BUNDLE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("BUNDLE_ID");
 
                     b.Property<string>("DESCRIPTION")
                         .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnName("DESCRIPTION");
 
                     b.Property<DateTime?>("ENDS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("ENDS_AT_UTC");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_ACTIVE");
 
                     b.Property<decimal>("PRICE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("PRICE");
 
                     b.Property<string>("SLUG")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("SLUG");
 
                     b.Property<DateTime?>("STARTS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("STARTS_AT_UTC");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
-                    b.HasKey("BUNDLE_ID");
+                    b.HasKey("BUNDLE_ID")
+                        .HasName("PK_BUNDLES");
 
                     b.HasIndex("SLUG")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_BUNDLES_SLUG");
 
                     b.ToTable("BUNDLES", "COMMERCE");
                 });
@@ -933,12 +1282,15 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.BUNDLE_ITEM", b =>
                 {
                     b.Property<Guid>("BUNDLE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("BUNDLE_ID");
 
                     b.Property<Guid>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
-                    b.HasKey("BUNDLE_ID", "COURSE_ID");
+                    b.HasKey("BUNDLE_ID", "COURSE_ID")
+                        .HasName("PK_BUNDLE_ITEMS");
 
                     b.ToTable("BUNDLE_ITEMS", "COMMERCE");
                 });
@@ -947,19 +1299,24 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("CART_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CART_ID");
 
                     b.Property<DateTime>("UPDATED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
-                    b.HasKey("CART_ID");
+                    b.HasKey("CART_ID")
+                        .HasName("PK_CARTS");
 
                     b.HasIndex("USER_ID")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_CARTS_USER_ID");
 
                     b.ToTable("CARTS", "COMMERCE");
                 });
@@ -968,26 +1325,33 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("CART_ITEM_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CART_ITEM_ID");
 
                     b.Property<DateTime>("ADDED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("ADDED_AT_UTC");
 
                     b.Property<Guid>("CART_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CART_ID");
 
                     b.Property<string>("ITEM_TYPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("ITEM_TYPE");
 
                     b.Property<Guid>("REF_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REF_ID");
 
-                    b.HasKey("CART_ITEM_ID");
+                    b.HasKey("CART_ITEM_ID")
+                        .HasName("PK_CART_ITEMS");
 
-                    b.HasIndex("CART_ID");
+                    b.HasIndex("CART_ID")
+                        .HasDatabaseName("IX_CART_ITEMS_CART_ID");
 
                     b.ToTable("CART_ITEMS", "COMMERCE");
                 });
@@ -996,25 +1360,31 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("FLASH_SALE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("FLASH_SALE_ID");
 
                     b.Property<DateTime>("ENDS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("ENDS_AT_UTC");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_ACTIVE");
 
                     b.Property<DateTime>("STARTS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("STARTS_AT_UTC");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
-                    b.HasKey("FLASH_SALE_ID");
+                    b.HasKey("FLASH_SALE_ID")
+                        .HasName("PK_FLASH_SALES");
 
                     b.ToTable("FLASH_SALES", "COMMERCE");
                 });
@@ -1023,22 +1393,28 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("FLASH_SALE_ITEM_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("FLASH_SALE_ITEM_ID");
 
                     b.Property<Guid>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<Guid>("FLASH_SALE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("FLASH_SALE_ID");
 
                     b.Property<decimal>("SALE_PRICE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("SALE_PRICE");
 
-                    b.HasKey("FLASH_SALE_ITEM_ID");
+                    b.HasKey("FLASH_SALE_ITEM_ID")
+                        .HasName("PK_FLASH_SALE_ITEMS");
 
                     b.HasIndex("FLASH_SALE_ID", "COURSE_ID")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_FLASH_SALE_ITEMS_FLASH_SALE_ID_COURSE_ID");
 
                     b.ToTable("FLASH_SALE_ITEMS", "COMMERCE");
                 });
@@ -1047,11 +1423,13 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("ORDER_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ORDER_ID");
 
                     b.Property<string>("CURRENCY")
                         .IsRequired()
-                        .HasColumnType("char(3)");
+                        .HasColumnType("char(3)")
+                        .HasColumnName("CURRENCY");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -1064,45 +1442,55 @@ namespace Siri.Persistence.Migrations
 
                     b.Property<decimal>("DISCOUNT_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("DISCOUNT_AMOUNT");
 
                     b.Property<string>("ORDER_NO")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("ORDER_NO");
 
                     b.Property<DateTime?>("PAID_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("PAID_AT_UTC");
 
                     b.Property<Guid?>("PROMO_CODE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PROMO_CODE_ID");
 
                     b.Property<byte[]>("ROW_VERSION")
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
+                        .HasColumnType("rowversion")
+                        .HasColumnName("ROW_VERSION");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<decimal>("SUBTOTAL_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("SUBTOTAL_AMOUNT");
 
                     b.Property<decimal>("TAX_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("TAX_AMOUNT");
 
                     b.Property<decimal>("TOTAL_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("TOTAL_AMOUNT");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -1113,10 +1501,12 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("ORDER_ID");
+                    b.HasKey("ORDER_ID")
+                        .HasName("PK_ORDERS");
 
                     b.HasIndex("ORDER_NO")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_ORDERS_ORDER_NO");
 
                     b.HasIndex("USER_ID", "CreatedAtUtc")
                         .HasDatabaseName("IX_ORDERS_USER_HISTORY");
@@ -1128,30 +1518,38 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("ORDER_ITEM_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ORDER_ITEM_ID");
 
                     b.Property<Guid?>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<decimal>("LINE_TOTAL")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("LINE_TOTAL");
 
                     b.Property<Guid>("ORDER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ORDER_ID");
 
                     b.Property<string>("TITLE_SNAPSHOT")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE_SNAPSHOT");
 
                     b.Property<decimal>("UNIT_PRICE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("UNIT_PRICE");
 
-                    b.HasKey("ORDER_ITEM_ID");
+                    b.HasKey("ORDER_ITEM_ID")
+                        .HasName("PK_ORDER_ITEMS");
 
-                    b.HasIndex("ORDER_ID");
+                    b.HasIndex("ORDER_ID")
+                        .HasDatabaseName("IX_ORDER_ITEMS_ORDER_ID");
 
                     b.ToTable("ORDER_ITEMS", "COMMERCE");
                 });
@@ -1160,53 +1558,66 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PAYMENT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PAYMENT_ID");
 
                     b.Property<decimal>("AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("AMOUNT");
 
                     b.Property<DateTime>("CREATED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<string>("FAILURE_REASON")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("FAILURE_REASON");
 
                     b.Property<string>("METHOD")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("METHOD");
 
                     b.Property<Guid>("ORDER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ORDER_ID");
 
                     b.Property<string>("PROVIDER")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("PROVIDER");
 
                     b.Property<string>("PROVIDER_PAYMENT_INTENT_ID")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("PROVIDER_PAYMENT_INTENT_ID");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<DateTime?>("SUCCEEDED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("SUCCEEDED_AT_UTC");
 
-                    b.HasKey("PAYMENT_ID");
+                    b.HasKey("PAYMENT_ID")
+                        .HasName("PK_PAYMENTS");
 
-                    b.HasIndex("ORDER_ID");
+                    b.HasIndex("ORDER_ID")
+                        .HasDatabaseName("IX_PAYMENTS_ORDER_ID");
 
                     b.HasIndex("PROVIDER_PAYMENT_INTENT_ID")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_PAYMENTS_PROVIDER_PAYMENT_INTENT_ID");
 
                     b.ToTable("PAYMENTS", "COMMERCE");
                 });
@@ -1215,38 +1626,48 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PAYMENT_OPS_QUEUE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PAYMENT_OPS_QUEUE_ID");
 
                     b.Property<Guid?>("ASSIGNED_TO_USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ASSIGNED_TO_USER_ID");
 
                     b.Property<string>("NOTE")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("NOTE");
 
                     b.Property<Guid>("PAYMENT_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PAYMENT_ID");
 
                     b.Property<string>("REASON")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("REASON");
 
                     b.Property<DateTime?>("RESOLVED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("RESOLVED_AT_UTC");
 
                     b.Property<Guid?>("RESOLVED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RESOLVED_BY_USER_ID");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
-                    b.HasKey("PAYMENT_OPS_QUEUE_ID");
+                    b.HasKey("PAYMENT_OPS_QUEUE_ID")
+                        .HasName("PK_PAYMENT_OPS_QUEUE");
 
-                    b.HasIndex("PAYMENT_ID");
+                    b.HasIndex("PAYMENT_ID")
+                        .HasDatabaseName("IX_PAYMENT_OPS_QUEUE_PAYMENT_ID");
 
                     b.ToTable("PAYMENT_OPS_QUEUE", "COMMERCE");
                 });
@@ -1255,64 +1676,80 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PROMO_CODE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PROMO_CODE_ID");
 
                     b.Property<string>("CODE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("CODE");
 
                     b.Property<string>("DISCOUNT_TYPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("DISCOUNT_TYPE");
 
                     b.Property<decimal>("DISCOUNT_VALUE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("DISCOUNT_VALUE");
 
                     b.Property<DateTime>("ENDS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("ENDS_AT_UTC");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_ACTIVE");
 
                     b.Property<int>("MAX_PER_USER")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("MAX_PER_USER");
 
                     b.Property<int>("MAX_REDEMPTIONS")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("MAX_REDEMPTIONS");
 
                     b.Property<decimal>("MIN_ORDER_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("MIN_ORDER_AMOUNT");
 
                     b.Property<int>("REDEEMED_COUNT")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("REDEEMED_COUNT");
 
                     b.Property<byte[]>("ROW_VERSION")
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
+                        .HasColumnType("rowversion")
+                        .HasColumnName("ROW_VERSION");
 
                     b.Property<string>("SCOPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("SCOPE");
 
                     b.Property<Guid?>("SCOPE_REF_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("SCOPE_REF_ID");
 
                     b.Property<DateTime>("STARTS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("STARTS_AT_UTC");
 
-                    b.HasKey("PROMO_CODE_ID");
+                    b.HasKey("PROMO_CODE_ID")
+                        .HasName("PK_PROMO_CODES");
 
                     b.HasIndex("CODE")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_PROMO_CODES_CODE");
 
                     b.ToTable("PROMO_CODES", "COMMERCE");
                 });
@@ -1321,29 +1758,38 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PROMO_REDEMPTION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PROMO_REDEMPTION_ID");
 
                     b.Property<Guid>("ORDER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ORDER_ID");
 
                     b.Property<Guid>("PROMO_CODE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PROMO_CODE_ID");
 
                     b.Property<DateTime>("REDEEMED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("REDEEMED_AT_UTC");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
-                    b.HasKey("PROMO_REDEMPTION_ID");
+                    b.HasKey("PROMO_REDEMPTION_ID")
+                        .HasName("PK_PROMO_REDEMPTIONS");
 
-                    b.HasIndex("ORDER_ID");
+                    b.HasIndex("ORDER_ID")
+                        .HasDatabaseName("IX_PROMO_REDEMPTIONS_ORDER_ID");
 
                     b.HasIndex("PROMO_CODE_ID", "ORDER_ID")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_PROMO_REDEMPTIONS_PROMO_CODE_ID_ORDER_ID");
 
-                    b.HasIndex("PROMO_CODE_ID", "USER_ID");
+                    b.HasIndex("PROMO_CODE_ID", "USER_ID")
+                        .HasDatabaseName("IX_PROMO_REDEMPTIONS_PROMO_CODE_ID_USER_ID");
 
                     b.ToTable("PROMO_REDEMPTIONS", "COMMERCE");
                 });
@@ -1352,57 +1798,72 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("REFUND_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REFUND_ID");
 
                     b.Property<decimal>("AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("AMOUNT");
 
                     b.Property<DateTime?>("COMPLETED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("COMPLETED_AT_UTC");
 
                     b.Property<DateTime?>("DECIDED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("DECIDED_AT_UTC");
 
                     b.Property<Guid?>("DECIDED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DECIDED_BY_USER_ID");
 
                     b.Property<string>("DECISION_NOTE")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("DECISION_NOTE");
 
                     b.Property<Guid>("PAYMENT_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PAYMENT_ID");
 
                     b.Property<string>("REASON")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("REASON");
 
                     b.Property<DateTime>("REQUESTED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("REQUESTED_AT_UTC");
 
                     b.Property<Guid>("REQUESTED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REQUESTED_BY_USER_ID");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<string>("STRIPE_REFUND_ID")
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("STRIPE_REFUND_ID");
 
-                    b.HasKey("REFUND_ID");
+                    b.HasKey("REFUND_ID")
+                        .HasName("PK_REFUNDS");
 
-                    b.HasIndex("PAYMENT_ID");
+                    b.HasIndex("PAYMENT_ID")
+                        .HasDatabaseName("IX_REFUNDS_PAYMENT_ID");
 
                     b.HasIndex("STRIPE_REFUND_ID")
                         .IsUnique()
+                        .HasDatabaseName("IX_REFUNDS_STRIPE_REFUND_ID")
                         .HasFilter("[STRIPE_REFUND_ID] IS NOT NULL");
 
                     b.HasIndex("REQUESTED_BY_USER_ID", "REQUESTED_AT_UTC")
@@ -1415,38 +1876,47 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("STRIPE_WEBHOOK_EVENT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("STRIPE_WEBHOOK_EVENT_ID");
 
                     b.Property<string>("EVENT_TYPE")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("EVENT_TYPE");
 
                     b.Property<string>("PAYLOAD_JSON")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("PAYLOAD_JSON");
 
                     b.Property<DateTime?>("PROCESSED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("PROCESSED_AT_UTC");
 
                     b.Property<string>("PROCESS_RESULT")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("PROCESS_RESULT");
 
                     b.Property<DateTime>("RECEIVED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("RECEIVED_AT_UTC");
 
                     b.Property<string>("STRIPE_EVENT_ID")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("STRIPE_EVENT_ID");
 
-                    b.HasKey("STRIPE_WEBHOOK_EVENT_ID");
+                    b.HasKey("STRIPE_WEBHOOK_EVENT_ID")
+                        .HasName("PK_STRIPE_WEBHOOK_EVENTS");
 
                     b.HasIndex("STRIPE_EVENT_ID")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_STRIPE_WEBHOOK_EVENTS_STRIPE_EVENT_ID");
 
                     b.ToTable("STRIPE_WEBHOOK_EVENTS", "COMMERCE");
                 });
@@ -1455,46 +1925,57 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("TAX_INVOICE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("TAX_INVOICE_ID");
 
                     b.Property<string>("BUYER_NAME")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("BUYER_NAME");
 
                     b.Property<string>("INVOICE_NO")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("INVOICE_NO");
 
                     b.Property<DateTime>("ISSUED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("ISSUED_AT_UTC");
 
                     b.Property<Guid>("ORDER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ORDER_ID");
 
                     b.Property<string>("PDF_STORAGE_KEY")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("PDF_STORAGE_KEY");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<string>("TAX_ID_ENCRYPTED")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("TAX_ID_ENCRYPTED");
 
-                    b.HasKey("TAX_INVOICE_ID");
+                    b.HasKey("TAX_INVOICE_ID")
+                        .HasName("PK_TAX_INVOICES");
 
                     b.HasIndex("INVOICE_NO")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_TAX_INVOICES_INVOICE_NO");
 
                     b.HasIndex("ORDER_ID")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_TAX_INVOICES_ORDER_ID");
 
                     b.ToTable("TAX_INVOICES", "COMMERCE");
                 });
@@ -1503,15 +1984,18 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("DISCUSSION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DISCUSSION_ID");
 
                     b.Property<string>("BODY")
                         .IsRequired()
                         .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnName("BODY");
 
                     b.Property<Guid>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -1528,28 +2012,34 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("DELETED_AT_UTC");
 
                     b.Property<Guid?>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("EPISODE_ID");
 
                     b.Property<bool>("IS_INSTRUCTOR_ANSWER")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_INSTRUCTOR_ANSWER");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit")
                         .HasColumnName("IS_DELETED");
 
                     b.Property<Guid?>("PARENT_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PARENT_ID");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<int>("UPVOTE_COUNT")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("UPVOTE_COUNT");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -1560,20 +2050,24 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("DISCUSSION_ID");
+                    b.HasKey("DISCUSSION_ID")
+                        .HasName("PK_DISCUSSIONS");
 
-                    b.HasIndex("PARENT_ID");
+                    b.HasIndex("PARENT_ID")
+                        .HasDatabaseName("IX_DISCUSSIONS_PARENT_ID");
 
-                    b.HasIndex("EPISODE_ID", "STATUS", "CreatedAtUtc");
+                    b.HasIndex("EPISODE_ID", "STATUS", "CreatedAtUtc")
+                        .HasDatabaseName("IX_DISCUSSIONS_EPISODE_ID_STATUS_CREATED_AT_UTC");
 
-                    b.ToTable("DISCUSSIONS", "community");
+                    b.ToTable("DISCUSSIONS", "COMMUNITY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Community.Domain.REPORT", b =>
                 {
                     b.Property<Guid>("REPORT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REPORT_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -1585,24 +2079,29 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("DISCUSSION_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("DISCUSSION_ID");
 
                     b.Property<string>("REASON")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("REASON");
 
                     b.Property<Guid>("REPORTED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REPORTED_BY_USER_ID");
 
                     b.Property<DateTime?>("RESOLVED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("RESOLVED_AT_UTC");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -1613,74 +2112,93 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("REPORT_ID");
+                    b.HasKey("REPORT_ID")
+                        .HasName("PK_REPORTS");
 
-                    b.HasIndex("DISCUSSION_ID");
+                    b.HasIndex("DISCUSSION_ID")
+                        .HasDatabaseName("IX_REPORTS_DISCUSSION_ID");
 
-                    b.HasIndex("STATUS", "CreatedAtUtc");
+                    b.HasIndex("STATUS", "CreatedAtUtc")
+                        .HasDatabaseName("IX_REPORTS_STATUS_CREATED_AT_UTC");
 
-                    b.ToTable("REPORTS", "community");
+                    b.ToTable("REPORTS", "COMMUNITY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Identity.Domain.RefreshToken", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<DateTime>("ExpiresAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("EXPIRES_AT_UTC");
 
                     b.Property<Guid?>("ReplacedByTokenId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("REPLACED_BY_TOKEN_ID");
 
                     b.Property<DateTime?>("RevokedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("REVOKED_AT_UTC");
 
                     b.Property<Guid>("SessionId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("SESSION_ID");
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("TOKEN_HASH");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_REFRESH_TOKENS");
 
-                    b.HasIndex("ReplacedByTokenId");
+                    b.HasIndex("ReplacedByTokenId")
+                        .HasDatabaseName("IX_REFRESH_TOKENS_REPLACED_BY_TOKEN_ID");
 
-                    b.HasIndex("SessionId");
+                    b.HasIndex("SessionId")
+                        .HasDatabaseName("IX_REFRESH_TOKENS_SESSION_ID");
 
                     b.HasIndex("TokenHash")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_REFRESH_TOKENS_TOKEN_HASH");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_REFRESH_TOKENS_USER_ID");
 
-                    b.ToTable("RefreshTokens", "identity");
+                    b.ToTable("REFRESH_TOKENS", "IDENTITY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Identity.Domain.Role", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("NAME");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_ROLES");
 
                     b.HasIndex("Name")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_ROLES_NAME");
 
-                    b.ToTable("Roles", "identity");
+                    b.ToTable("ROLES", "IDENTITY");
 
                     b.HasData(
                         new
@@ -1709,212 +2227,259 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<string>("Detail")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("DETAIL");
 
                     b.Property<string>("EventType")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("EVENT_TYPE");
 
                     b.Property<string>("IpAddress")
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("IP_ADDRESS");
 
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("OCCURRED_AT_UTC");
 
                     b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_SECURITY_AUDITS");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_SECURITY_AUDITS_USER_ID");
 
-                    b.ToTable("SecurityAudits", "identity");
+                    b.ToTable("SECURITY_AUDITS", "IDENTITY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Identity.Domain.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("AVATAR_URL");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("DISPLAY_NAME");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("EMAIL");
 
                     b.Property<DateTime?>("EmailConfirmedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("EMAIL_CONFIRMED_AT_UTC");
 
                     b.Property<DateTime?>("LastLoginAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("LAST_LOGIN_AT_UTC");
 
                     b.Property<int?>("MaxConcurrentSessionsOverride")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("MAX_CONCURRENT_SESSIONS_OVERRIDE");
 
                     b.Property<string>("NormalizedEmail")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("NORMALIZED_EMAIL");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
+                        .HasColumnType("nvarchar(512)")
+                        .HasColumnName("PASSWORD_HASH");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("PHONE_NUMBER");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<bool>("TwoFactorEnabled")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("TWO_FACTOR_ENABLED");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_USERS");
 
                     b.HasIndex("NormalizedEmail")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_USERS_NORMALIZED_EMAIL");
 
-                    b.ToTable("Users", "identity");
+                    b.ToTable("USERS", "IDENTITY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Identity.Domain.UserSecurityToken", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<DateTime?>("ConsumedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CONSUMED_AT_UTC");
 
                     b.Property<DateTime>("ExpiresAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("EXPIRES_AT_UTC");
 
                     b.Property<string>("Purpose")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("PURPOSE");
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("TOKEN_HASH");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_USER_SECURITY_TOKENS");
 
                     b.HasIndex("TokenHash")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_USER_SECURITY_TOKENS_TOKEN_HASH");
 
                     b.HasIndex("UserId", "Purpose")
-                        .HasDatabaseName("IX_UserSecurityTokens_Active")
-                        .HasFilter("[ConsumedAtUtc] IS NULL");
+                        .HasDatabaseName("IX_USER_SECURITY_TOKENS_ACTIVE")
+                        .HasFilter("[CONSUMED_AT_UTC] IS NULL");
 
-                    b.ToTable("UserSecurityTokens", "identity");
+                    b.ToTable("USER_SECURITY_TOKENS", "IDENTITY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Identity.Domain.UserSession", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<string>("DeviceId")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("DEVICE_ID");
 
                     b.Property<string>("DeviceName")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("DEVICE_NAME");
 
                     b.Property<string>("IpAddress")
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("IP_ADDRESS");
 
                     b.Property<DateTime>("LastSeenAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("LAST_SEEN_AT_UTC");
 
                     b.Property<string>("RevokeReason")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("REVOKE_REASON");
 
                     b.Property<DateTime?>("RevokedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("REVOKED_AT_UTC");
 
                     b.Property<string>("UserAgent")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("USER_AGENT");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_USER_SESSIONS");
 
                     b.HasIndex("UserId")
-                        .HasDatabaseName("IX_UserSessions_Active")
-                        .HasFilter("[RevokedAtUtc] IS NULL");
+                        .HasDatabaseName("IX_USER_SESSIONS_ACTIVE")
+                        .HasFilter("[REVOKED_AT_UTC] IS NULL");
 
                     b.HasIndex("UserId", "RevokedAtUtc")
-                        .HasDatabaseName("IX_UserSessions_UserId_RevokedAtUtc");
+                        .HasDatabaseName("IX_USER_SESSIONS_USER_ID_REVOKED_AT_UTC");
 
-                    b.ToTable("UserSessions", "identity");
+                    b.ToTable("USER_SESSIONS", "IDENTITY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Learning.Domain.ASSIGNMENT", b =>
                 {
                     b.Property<Guid>("ASSIGNMENT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ASSIGNMENT_ID");
 
                     b.Property<string>("ALLOWED_EXTENSIONS")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("ALLOWED_EXTENSIONS");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -1926,23 +2491,28 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("CREATED_BY");
 
                     b.Property<int?>("DUE_DAYS")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("DUE_DAYS");
 
                     b.Property<Guid>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("EPISODE_ID");
 
                     b.Property<string>("INSTRUCTIONS")
                         .IsRequired()
                         .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
+                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnName("INSTRUCTIONS");
 
                     b.Property<int>("MAX_FILE_SIZE_MB")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("MAX_FILE_SIZE_MB");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -1953,9 +2523,11 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("ASSIGNMENT_ID");
+                    b.HasKey("ASSIGNMENT_ID")
+                        .HasName("PK_ASSIGNMENTS");
 
-                    b.HasIndex("EPISODE_ID");
+                    b.HasIndex("EPISODE_ID")
+                        .HasDatabaseName("IX_ASSIGNMENTS_EPISODE_ID");
 
                     b.ToTable("ASSIGNMENTS", "LEARNING");
                 });
@@ -1964,10 +2536,12 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("ASSIGNMENT_SUBMISSION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ASSIGNMENT_SUBMISSION_ID");
 
                     b.Property<Guid>("ASSIGNMENT_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ASSIGNMENT_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -1979,40 +2553,49 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("ENROLLMENT_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ENROLLMENT_ID");
 
                     b.Property<string>("FEEDBACK")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("FEEDBACK");
 
                     b.Property<DateTime?>("GRADED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("GRADED_AT_UTC");
 
                     b.Property<Guid?>("GRADED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("GRADED_BY_USER_ID");
 
                     b.Property<string>("NOTE")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("NOTE");
 
                     b.Property<decimal?>("SCORE")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("SCORE");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<string>("STORAGE_KEY")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("STORAGE_KEY");
 
                     b.Property<DateTime>("SUBMITTED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("SUBMITTED_AT_UTC");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -2023,11 +2606,14 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("ASSIGNMENT_SUBMISSION_ID");
+                    b.HasKey("ASSIGNMENT_SUBMISSION_ID")
+                        .HasName("PK_ASSIGNMENT_SUBMISSIONS");
 
-                    b.HasIndex("ENROLLMENT_ID");
+                    b.HasIndex("ENROLLMENT_ID")
+                        .HasDatabaseName("IX_ASSIGNMENT_SUBMISSIONS_ENROLLMENT_ID");
 
-                    b.HasIndex("ASSIGNMENT_ID", "STATUS");
+                    b.HasIndex("ASSIGNMENT_ID", "STATUS")
+                        .HasDatabaseName("IX_ASSIGNMENT_SUBMISSIONS_ASSIGNMENT_ID_STATUS");
 
                     b.ToTable("ASSIGNMENT_SUBMISSIONS", "LEARNING");
                 });
@@ -2088,7 +2674,8 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("nvarchar(50)")
                         .HasColumnName("VERIFY_CODE");
 
-                    b.HasKey("CERTIFICATE_ID");
+                    b.HasKey("CERTIFICATE_ID")
+                        .HasName("PK_CERTIFICATES");
 
                     b.HasIndex("ENROLLMENT_ID")
                         .IsUnique()
@@ -2186,7 +2773,8 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("ENROLLMENT_ID");
+                    b.HasKey("ENROLLMENT_ID")
+                        .HasName("PK_ENROLLMENTS");
 
                     b.HasIndex("COURSE_ID", "STATUS")
                         .HasDatabaseName("IX_ENROLLMENTS_COURSE_ID_STATUS");
@@ -2240,7 +2828,8 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("int")
                         .HasColumnName("WATCHED_SECONDS");
 
-                    b.HasKey("EPISODE_PROGRESS_ID");
+                    b.HasKey("EPISODE_PROGRESS_ID")
+                        .HasName("PK_EPISODE_PROGRESS");
 
                     b.HasIndex("ENROLLMENT_ID", "EPISODE_ID")
                         .IsUnique()
@@ -2255,7 +2844,8 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("QUIZ_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -2267,21 +2857,26 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("EPISODE_ID");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_ACTIVE");
 
                     b.Property<int>("MAX_ATTEMPTS")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("MAX_ATTEMPTS");
 
                     b.Property<int>("PASSING_SCORE_PERCENT")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("PASSING_SCORE_PERCENT");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -2292,9 +2887,11 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("QUIZ_ID");
+                    b.HasKey("QUIZ_ID")
+                        .HasName("PK_QUIZZES");
 
-                    b.HasIndex("EPISODE_ID");
+                    b.HasIndex("EPISODE_ID")
+                        .HasDatabaseName("IX_QUIZZES_EPISODE_ID");
 
                     b.ToTable("QUIZZES", "LEARNING");
                 });
@@ -2303,10 +2900,12 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_ATTEMPT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("QUIZ_ATTEMPT_ID");
 
                     b.Property<int>("ATTEMPT_NO")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("ATTEMPT_NO");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
@@ -2318,25 +2917,31 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("ENROLLMENT_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ENROLLMENT_ID");
 
                     b.Property<bool>("IS_PASSED")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_PASSED");
 
                     b.Property<Guid>("QUIZ_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("QUIZ_ID");
 
                     b.Property<decimal?>("SCORE_PERCENT")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("SCORE_PERCENT");
 
                     b.Property<DateTime>("STARTED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("STARTED_AT_UTC");
 
                     b.Property<DateTime?>("SUBMITTED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("SUBMITTED_AT_UTC");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -2347,10 +2952,12 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("QUIZ_ATTEMPT_ID");
+                    b.HasKey("QUIZ_ATTEMPT_ID")
+                        .HasName("PK_QUIZ_ATTEMPTS");
 
                     b.HasIndex("QUIZ_ID", "ENROLLMENT_ID", "ATTEMPT_NO")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_QUIZ_ATTEMPTS_QUIZ_ID_ENROLLMENT_ID_ATTEMPT_NO");
 
                     b.ToTable("QUIZ_ATTEMPTS", "LEARNING");
                 });
@@ -2359,25 +2966,32 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_ATTEMPT_ANSWER_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("QUIZ_ATTEMPT_ANSWER_ID");
 
                     b.Property<Guid>("ATTEMPT_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ATTEMPT_ID");
 
                     b.Property<bool>("IS_CORRECT")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_CORRECT");
 
                     b.Property<Guid>("QUESTION_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("QUESTION_ID");
 
                     b.Property<string>("SELECTED_OPTION_IDS")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("SELECTED_OPTION_IDS");
 
-                    b.HasKey("QUIZ_ATTEMPT_ANSWER_ID");
+                    b.HasKey("QUIZ_ATTEMPT_ANSWER_ID")
+                        .HasName("PK_QUIZ_ATTEMPT_ANSWERS");
 
                     b.HasIndex("ATTEMPT_ID", "QUESTION_ID")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_QUIZ_ATTEMPT_ANSWERS_ATTEMPT_ID_QUESTION_ID");
 
                     b.ToTable("QUIZ_ATTEMPT_ANSWERS", "LEARNING");
                 });
@@ -2386,25 +3000,32 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_OPTION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("QUIZ_OPTION_ID");
 
                     b.Property<bool>("IS_CORRECT")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("IS_CORRECT");
 
                     b.Property<Guid>("QUESTION_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("QUESTION_ID");
 
                     b.Property<int>("SORT_ORDER")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("TEXT")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasColumnType("nvarchar(500)")
+                        .HasColumnName("TEXT");
 
-                    b.HasKey("QUIZ_OPTION_ID");
+                    b.HasKey("QUIZ_OPTION_ID")
+                        .HasName("PK_QUIZ_OPTIONS");
 
-                    b.HasIndex("QUESTION_ID", "SORT_ORDER");
+                    b.HasIndex("QUESTION_ID", "SORT_ORDER")
+                        .HasDatabaseName("IX_QUIZ_OPTIONS_QUESTION_ID_SORT_ORDER");
 
                     b.ToTable("QUIZ_OPTIONS", "LEARNING");
                 });
@@ -2413,34 +3034,43 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_QUESTION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("QUIZ_QUESTION_ID");
 
                     b.Property<string>("EXPLANATION")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("EXPLANATION");
 
                     b.Property<int>("POINTS")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("POINTS");
 
                     b.Property<Guid>("QUIZ_ID")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("QUIZ_ID");
 
                     b.Property<int>("SORT_ORDER")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("TEXT")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("TEXT");
 
                     b.Property<string>("TYPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("TYPE");
 
-                    b.HasKey("QUIZ_QUESTION_ID");
+                    b.HasKey("QUIZ_QUESTION_ID")
+                        .HasName("PK_QUIZ_QUESTIONS");
 
-                    b.HasIndex("QUIZ_ID", "SORT_ORDER");
+                    b.HasIndex("QUIZ_ID", "SORT_ORDER")
+                        .HasDatabaseName("IX_QUIZ_QUESTIONS_QUIZ_ID_SORT_ORDER");
 
                     b.ToTable("QUIZ_QUESTIONS", "LEARNING");
                 });
@@ -2477,7 +3107,8 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("int")
                         .HasColumnName("POSITION_SECONDS");
 
-                    b.HasKey("WATCH_EVENT_ID");
+                    b.HasKey("WATCH_EVENT_ID")
+                        .HasName("PK_WATCH_EVENTS");
 
                     b.HasIndex("ENROLLMENT_ID", "OCCURRED_AT_UTC")
                         .HasDatabaseName("IX_WATCH_EVENTS_ENROLLMENT_ID_OCCURRED_AT_UTC");
@@ -2560,10 +3191,12 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("MEDIA_ASSET_ID");
+                    b.HasKey("MEDIA_ASSET_ID")
+                        .HasName("PK_MEDIA_ASSETS");
 
                     b.HasIndex("PROVIDER", "PROVIDER_ASSET_ID")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_MEDIA_ASSETS_PROVIDER_PROVIDER_ASSET_ID");
 
                     b.ToTable("MEDIA_ASSETS", "MEDIA");
                 });
@@ -2614,9 +3247,11 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("MEDIA_UPLOAD_SESSION_ID");
+                    b.HasKey("MEDIA_UPLOAD_SESSION_ID")
+                        .HasName("PK_MEDIA_UPLOAD_SESSIONS");
 
-                    b.HasIndex("MEDIA_ASSET_ID");
+                    b.HasIndex("MEDIA_ASSET_ID")
+                        .HasDatabaseName("IX_MEDIA_UPLOAD_SESSIONS_MEDIA_ASSET_ID");
 
                     b.ToTable("MEDIA_UPLOAD_SESSIONS", "MEDIA");
                 });
@@ -2660,9 +3295,11 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("USER_ID");
 
-                    b.HasKey("PLAYBACK_SESSION_ID");
+                    b.HasKey("PLAYBACK_SESSION_ID")
+                        .HasName("PK_PLAYBACK_SESSIONS");
 
-                    b.HasIndex("USER_ID", "ISSUED_AT_UTC");
+                    b.HasIndex("USER_ID", "ISSUED_AT_UTC")
+                        .HasDatabaseName("IX_PLAYBACK_SESSIONS_USER_ID_ISSUED_AT_UTC");
 
                     b.ToTable("PLAYBACK_SESSIONS", "MEDIA");
                 });
@@ -2671,149 +3308,271 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<string>("Body")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("BODY");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid>("InstructorId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("INSTRUCTOR_ID");
 
                     b.Property<int>("RecipientCount")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("RECIPIENT_COUNT");
 
                     b.Property<DateTime?>("ScheduledAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("SCHEDULED_AT_UTC");
 
                     b.Property<bool>("SendEmail")
-                        .HasColumnType("bit");
+                        .HasColumnType("bit")
+                        .HasColumnName("SEND_EMAIL");
 
                     b.Property<DateTime?>("SentAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("SENT_AT_UTC");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
+                        .HasColumnType("nvarchar(300)")
+                        .HasColumnName("TITLE");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_ANNOUNCEMENTS");
 
                     b.HasIndex("CourseId")
-                        .HasDatabaseName("IX_Announcements_CourseId");
+                        .HasDatabaseName("IX_ANNOUNCEMENTS_COURSE_ID");
 
                     b.HasIndex("InstructorId")
-                        .HasDatabaseName("IX_Announcements_InstructorId");
+                        .HasDatabaseName("IX_ANNOUNCEMENTS_INSTRUCTOR_ID");
 
-                    b.ToTable("Announcements", "notify");
+                    b.ToTable("ANNOUNCEMENTS", "NOTIFY");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Notification.Domain.ContactMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
+
+                    b.Property<string>("AdminNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("ADMIN_NOTES");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("CREATED_BY");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("DELETED_AT_UTC");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)")
+                        .HasColumnName("EMAIL");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IS_DELETED");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnName("MESSAGE");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("NAME");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("RESOLVED_AT_UTC");
+
+                    b.Property<Guid?>("ResolvedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("RESOLVED_BY");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("STATUS");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("SUBJECT");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UPDATED_AT_UTC");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("UPDATED_BY");
+
+                    b.HasKey("Id")
+                        .HasName("PK_CONTACT_MESSAGES");
+
+                    b.HasIndex("CreatedAtUtc")
+                        .HasDatabaseName("IX_CONTACT_MESSAGES_CREATED_AT_UTC");
+
+                    b.HasIndex("IsDeleted")
+                        .HasDatabaseName("IX_CONTACT_MESSAGES_IS_DELETED");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_CONTACT_MESSAGES_STATUS");
+
+                    b.ToTable("CONTACT_MESSAGES", "NOTIFY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Notification.Domain.EmailOutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<int>("Attempts")
-                        .HasColumnType("int");
+                        .HasColumnType("int")
+                        .HasColumnName("ATTEMPTS");
 
                     b.Property<string>("BodyHtml")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("BODY_HTML");
 
                     b.Property<string>("LastError")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("LAST_ERROR");
 
                     b.Property<DateTime?>("NextRetryAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("NEXT_RETRY_AT_UTC");
 
                     b.Property<DateTime?>("SentAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("SENT_AT_UTC");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("STATUS");
 
                     b.Property<string>("Subject")
                         .IsRequired()
                         .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
+                        .HasColumnType("nvarchar(300)")
+                        .HasColumnName("SUBJECT");
 
                     b.Property<string>("TemplateKey")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("TEMPLATE_KEY");
 
                     b.Property<string>("ToEmail")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("TO_EMAIL");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_EMAIL_OUTBOX");
 
                     b.HasIndex("Status", "NextRetryAtUtc")
-                        .HasDatabaseName("IX_EmailOutbox_Status_NextRetryAtUtc");
+                        .HasDatabaseName("IX_EMAIL_OUTBOX_STATUS_NEXT_RETRY_AT_UTC");
 
-                    b.ToTable("EmailOutbox", "notify");
+                    b.ToTable("EMAIL_OUTBOX", "NOTIFY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Notification.Domain.UserNotification", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ID");
 
                     b.Property<string>("Body")
                         .IsRequired()
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("BODY");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<string>("LinkUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("LINK_URL");
 
                     b.Property<DateTime?>("ReadAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)");
+                        .HasColumnType("datetime2(3)")
+                        .HasColumnName("READ_AT_UTC");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
+                        .HasColumnType("nvarchar(300)")
+                        .HasColumnName("TITLE");
 
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
+                        .HasColumnType("nvarchar(64)")
+                        .HasColumnName("TYPE");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("PK_NOTIFICATIONS");
 
                     b.HasIndex("UserId", "CreatedAtUtc")
-                        .HasDatabaseName("IX_Notifications_UserId_CreatedAtUtc");
+                        .HasDatabaseName("IX_NOTIFICATIONS_USER_ID_CREATED_AT_UTC");
 
                     b.HasIndex("UserId", "ReadAtUtc")
-                        .HasDatabaseName("IX_Notifications_UserId_ReadAtUtc");
+                        .HasDatabaseName("IX_NOTIFICATIONS_USER_ID_READ_AT_UTC");
 
-                    b.ToTable("Notifications", "notify");
+                    b.ToTable("NOTIFICATIONS", "NOTIFY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Payout.Domain.INSTRUCTOR_PAYOUT_ACCOUNT", b =>
@@ -2855,9 +3614,15 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("INSTRUCTOR_ID");
 
                     b.Property<string>("TAX_ID")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
                         .HasColumnName("TAX_ID");
+
+                    b.Property<string>("TAX_PAYER_TYPE")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasColumnName("TAX_PAYER_TYPE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
@@ -2873,7 +3638,8 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("datetime2(3)")
                         .HasColumnName("VERIFIED_AT_UTC");
 
-                    b.HasKey("INSTRUCTOR_PAYOUT_ACCOUNT_ID");
+                    b.HasKey("INSTRUCTOR_PAYOUT_ACCOUNT_ID")
+                        .HasName("PK_INSTRUCTOR_PAYOUT_ACCOUNTS");
 
                     b.HasIndex("INSTRUCTOR_ID")
                         .IsUnique()
@@ -2932,7 +3698,8 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("PAYOUT_BATCH_ID");
+                    b.HasKey("PAYOUT_BATCH_ID")
+                        .HasName("PK_PAYOUT_BATCHES");
 
                     b.HasIndex("PERIOD_KEY")
                         .HasDatabaseName("IX_PAYOUT_BATCHES_PERIOD_KEY");
@@ -2999,9 +3766,16 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("decimal(18,2)")
                         .HasColumnName("WITHHOLDING_TAX_AMOUNT");
 
-                    b.HasKey("PAYOUT_BATCH_ITEM_ID");
+                    b.Property<decimal>("WITHHOLDING_TAX_PERCENT")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("WITHHOLDING_TAX_PERCENT");
 
-                    b.HasIndex("BATCH_ID");
+                    b.HasKey("PAYOUT_BATCH_ITEM_ID")
+                        .HasName("PK_PAYOUT_BATCH_ITEMS");
+
+                    b.HasIndex("BATCH_ID")
+                        .HasDatabaseName("IX_PAYOUT_BATCH_ITEMS_BATCH_ID");
 
                     b.HasIndex("INSTRUCTOR_ID")
                         .HasDatabaseName("IX_PAYOUT_BATCH_ITEMS_INSTRUCTOR_ID");
@@ -3048,6 +3822,10 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("decimal(18,2)")
                         .HasColumnName("PAYMENT_FEE_AMOUNT");
 
+                    b.Property<Guid?>("PAYOUT_BATCH_ITEM_ID")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("PAYOUT_BATCH_ITEM_ID");
+
                     b.Property<string>("PERIOD_KEY")
                         .IsRequired()
                         .HasColumnType("char(7)")
@@ -3057,6 +3835,11 @@ namespace Siri.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)")
                         .HasColumnName("PLATFORM_FEE_AMOUNT");
+
+                    b.Property<decimal>("REVENUE_SHARE_PERCENT")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("REVENUE_SHARE_PERCENT");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
@@ -3073,11 +3856,14 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("UPDATED_BY");
 
-                    b.HasKey("REVENUE_SPLIT_ID");
+                    b.HasKey("REVENUE_SPLIT_ID")
+                        .HasName("PK_REVENUE_SPLITS");
 
                     b.HasIndex("ORDER_ITEM_ID")
-                        .IsUnique()
                         .HasDatabaseName("IX_REVENUE_SPLITS_ORDER_ITEM_ID");
+
+                    b.HasIndex("PAYOUT_BATCH_ITEM_ID")
+                        .HasDatabaseName("IX_REVENUE_SPLITS_PAYOUT_BATCH_ITEM_ID");
 
                     b.HasIndex("INSTRUCTOR_ID", "PERIOD_KEY", "STATUS")
                         .HasDatabaseName("IX_REVENUE_SPLITS_PAYOUT");
@@ -3088,16 +3874,20 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("UserRoles", b =>
                 {
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("USER_ID");
 
                     b.Property<Guid>("RoleId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("ROLE_ID");
 
-                    b.HasKey("UserId", "RoleId");
+                    b.HasKey("UserId", "RoleId")
+                        .HasName("PK_USER_ROLES");
 
-                    b.HasIndex("RoleId");
+                    b.HasIndex("RoleId")
+                        .HasDatabaseName("IX_USER_ROLES_ROLE_ID");
 
-                    b.ToTable("UserRoles", "identity");
+                    b.ToTable("USER_ROLES", "IDENTITY");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.Category", b =>
@@ -3105,7 +3895,8 @@ namespace Siri.Persistence.Migrations
                     b.HasOne("Siri.Modules.Catalog.Domain.Category", null)
                         .WithMany()
                         .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_CATEGORIES_CATEGORIES_PARENT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.Course", b =>
@@ -3114,7 +3905,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("InstructorId")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_COURSES_INSTRUCTOR_PROFILES_INSTRUCTOR_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.CourseEpisode", b =>
@@ -3123,13 +3915,15 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_COURSE_EPISODES_COURSES_COURSE_ID");
 
                     b.HasOne("Siri.Modules.Catalog.Domain.CourseSection", null)
                         .WithMany("Episodes")
                         .HasForeignKey("SectionId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_COURSE_EPISODES_COURSE_SECTIONS_SECTION_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.CourseOutcome", b =>
@@ -3138,7 +3932,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("Outcomes")
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_COURSE_OUTCOMES_COURSES_COURSE_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.CourseRequirement", b =>
@@ -3147,7 +3942,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("Requirements")
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_COURSE_REQUIREMENTS_COURSES_COURSE_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.CourseSection", b =>
@@ -3156,7 +3952,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("Sections")
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_COURSE_SECTIONS_COURSES_COURSE_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.EpisodeAttachment", b =>
@@ -3165,7 +3962,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("EpisodeId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_EPISODE_ATTACHMENTS_COURSE_EPISODES_EPISODE_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.LearningPathItem", b =>
@@ -3174,13 +3972,15 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("CourseId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_LEARNING_PATH_ITEMS_COURSES_COURSE_ID");
 
                     b.HasOne("Siri.Modules.Catalog.Domain.LearningPath", null)
                         .WithMany("Items")
                         .HasForeignKey("PathId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_LEARNING_PATH_ITEMS_LEARNING_PATHS_PATH_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Cms.Domain.MENU_ITEM", b =>
@@ -3188,7 +3988,8 @@ namespace Siri.Persistence.Migrations
                     b.HasOne("Siri.Modules.Cms.Domain.MENU_ITEM", null)
                         .WithMany()
                         .HasForeignKey("PARENT_ID")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_MENU_ITEMS_MENU_ITEMS_PARENT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.BUNDLE_ITEM", b =>
@@ -3197,7 +3998,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("BUNDLE_ITEMS")
                         .HasForeignKey("BUNDLE_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_BUNDLE_ITEMS_BUNDLES_BUNDLE_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.CART_ITEM", b =>
@@ -3206,7 +4008,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("CART_ITEMS")
                         .HasForeignKey("CART_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_CART_ITEMS_CARTS_CART_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.FLASH_SALE_ITEM", b =>
@@ -3215,7 +4018,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("FLASH_SALE_ITEMS")
                         .HasForeignKey("FLASH_SALE_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_FLASH_SALE_ITEMS_FLASH_SALES_FLASH_SALE_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.ORDER_ITEM", b =>
@@ -3224,7 +4028,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("ORDER_ITEMS")
                         .HasForeignKey("ORDER_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_ORDER_ITEMS_ORDERS_ORDER_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.PAYMENT", b =>
@@ -3233,7 +4038,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ORDER_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_PAYMENTS_ORDERS_ORDER_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.PAYMENT_OPS_QUEUE", b =>
@@ -3242,7 +4048,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("PAYMENT_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_PAYMENT_OPS_QUEUE_PAYMENTS_PAYMENT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.PROMO_REDEMPTION", b =>
@@ -3251,13 +4058,15 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ORDER_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_PROMO_REDEMPTIONS_ORDERS_ORDER_ID");
 
                     b.HasOne("Siri.Modules.Commerce.Domain.PROMO_CODE", null)
                         .WithMany()
                         .HasForeignKey("PROMO_CODE_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_PROMO_REDEMPTIONS_PROMO_CODES_PROMO_CODE_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.REFUND", b =>
@@ -3266,7 +4075,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("PAYMENT_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_REFUNDS_PAYMENTS_PAYMENT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.TAX_INVOICE", b =>
@@ -3275,7 +4085,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ORDER_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_TAX_INVOICES_ORDERS_ORDER_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Community.Domain.DISCUSSION", b =>
@@ -3283,7 +4094,8 @@ namespace Siri.Persistence.Migrations
                     b.HasOne("Siri.Modules.Community.Domain.DISCUSSION", null)
                         .WithMany()
                         .HasForeignKey("PARENT_ID")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_DISCUSSIONS_DISCUSSIONS_PARENT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Community.Domain.REPORT", b =>
@@ -3292,7 +4104,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("DISCUSSION_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_REPORTS_DISCUSSIONS_DISCUSSION_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Identity.Domain.RefreshToken", b =>
@@ -3300,19 +4113,22 @@ namespace Siri.Persistence.Migrations
                     b.HasOne("Siri.Modules.Identity.Domain.RefreshToken", null)
                         .WithMany()
                         .HasForeignKey("ReplacedByTokenId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_REFRESH_TOKENS_REFRESH_TOKENS_REPLACED_BY_TOKEN_ID");
 
                     b.HasOne("Siri.Modules.Identity.Domain.UserSession", null)
                         .WithMany()
                         .HasForeignKey("SessionId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_REFRESH_TOKENS_USER_SESSIONS_SESSION_ID");
 
                     b.HasOne("Siri.Modules.Identity.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_REFRESH_TOKENS_USERS_USER_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Identity.Domain.SecurityAudit", b =>
@@ -3320,7 +4136,8 @@ namespace Siri.Persistence.Migrations
                     b.HasOne("Siri.Modules.Identity.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("FK_SECURITY_AUDITS_USERS_USER_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Identity.Domain.UserSecurityToken", b =>
@@ -3329,7 +4146,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_USER_SECURITY_TOKENS_USERS_USER_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Identity.Domain.UserSession", b =>
@@ -3338,7 +4156,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_USER_SESSIONS_USERS_USER_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Learning.Domain.ASSIGNMENT_SUBMISSION", b =>
@@ -3347,7 +4166,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ASSIGNMENT_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_ASSIGNMENT_SUBMISSIONS_ASSIGNMENTS_ASSIGNMENT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Learning.Domain.CERTIFICATE", b =>
@@ -3356,7 +4176,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ENROLLMENT_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_CERTIFICATES_ENROLLMENTS_ENROLLMENT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Learning.Domain.EPISODE_PROGRESS", b =>
@@ -3365,7 +4186,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ENROLLMENT_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_EPISODE_PROGRESS_ENROLLMENTS_ENROLLMENT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Learning.Domain.QUIZ_ATTEMPT", b =>
@@ -3374,7 +4196,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("QUIZ_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_QUIZ_ATTEMPTS_QUIZZES_QUIZ_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Learning.Domain.QUIZ_ATTEMPT_ANSWER", b =>
@@ -3383,7 +4206,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("ANSWERS")
                         .HasForeignKey("ATTEMPT_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_QUIZ_ATTEMPT_ANSWERS_QUIZ_ATTEMPTS_ATTEMPT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Learning.Domain.QUIZ_OPTION", b =>
@@ -3392,7 +4216,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("OPTIONS")
                         .HasForeignKey("QUESTION_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_QUIZ_OPTIONS_QUIZ_QUESTIONS_QUESTION_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Learning.Domain.QUIZ_QUESTION", b =>
@@ -3401,7 +4226,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("QUESTIONS")
                         .HasForeignKey("QUIZ_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_QUIZ_QUESTIONS_QUIZZES_QUIZ_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Learning.Domain.WATCH_EVENT", b =>
@@ -3410,7 +4236,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("ENROLLMENT_ID")
                         .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_WATCH_EVENTS_ENROLLMENTS_ENROLLMENT_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Media.Domain.MEDIA_UPLOAD_SESSION", b =>
@@ -3419,7 +4246,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("MEDIA_ASSET_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_MEDIA_UPLOAD_SESSIONS_MEDIA_ASSETS_MEDIA_ASSET_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Payout.Domain.PAYOUT_BATCH_ITEM", b =>
@@ -3428,7 +4256,8 @@ namespace Siri.Persistence.Migrations
                         .WithMany("Items")
                         .HasForeignKey("BATCH_ID")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_PAYOUT_BATCH_ITEMS_PAYOUT_BATCHES_BATCH_ID");
                 });
 
             modelBuilder.Entity("UserRoles", b =>
@@ -3437,13 +4266,15 @@ namespace Siri.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_USER_ROLES_ROLES_ROLE_ID");
 
                     b.HasOne("Siri.Modules.Identity.Domain.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("FK_USER_ROLES_USERS_USER_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.Course", b =>

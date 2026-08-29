@@ -24,7 +24,7 @@ public class AccessTokenGeneratorTests
     {
         var clock = new FakeClock(new DateTime(2026, 8, 17, 8, 0, 0, DateTimeKind.Utc));
         var generator = CreateGenerator(clock);
-        var user = User.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
+        var user = USER.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
 
         var (accessToken, expiresAtUtc) = generator.Generate(user, Guid.NewGuid());
 
@@ -37,7 +37,7 @@ public class AccessTokenGeneratorTests
     {
         var clock = new FakeClock(DateTime.UtcNow);
         var generator = CreateGenerator(clock);
-        var user = User.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
+        var user = USER.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
 
         var (accessToken, _) = generator.Generate(user, Guid.NewGuid());
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
@@ -51,9 +51,9 @@ public class AccessTokenGeneratorTests
     {
         var clock = new FakeClock(DateTime.UtcNow);
         var generator = CreateGenerator(clock);
-        var user = User.Register("instructor@example.com", "INSTRUCTOR@EXAMPLE.COM", "hash", "Teacher One");
-        user.AssignRole(new Role(Role.LearnerId, "Learner"));
-        user.AssignRole(new Role(Role.InstructorId, "Instructor"));
+        var user = USER.Register("instructor@example.com", "INSTRUCTOR@EXAMPLE.COM", "hash", "Teacher One");
+        user.AssignRole(new ROLE(ROLE.LearnerId, "Learner"));
+        user.AssignRole(new ROLE(ROLE.InstructorId, "Instructor"));
 
         var (accessToken, _) = generator.Generate(user, Guid.NewGuid());
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
@@ -69,7 +69,7 @@ public class AccessTokenGeneratorTests
     {
         var clock = new FakeClock(DateTime.UtcNow);
         var generator = CreateGenerator(clock);
-        var user = User.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
+        var user = USER.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
 
         var (accessToken, _) = generator.Generate(user, Guid.NewGuid());
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
@@ -82,7 +82,7 @@ public class AccessTokenGeneratorTests
     {
         var clock = new FakeClock(DateTime.UtcNow);
         var generator = CreateGenerator(clock);
-        var user = User.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
+        var user = USER.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
 
         var (accessToken, _) = generator.Generate(user, Guid.NewGuid());
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(accessToken);
@@ -96,7 +96,7 @@ public class AccessTokenGeneratorTests
     {
         var clock = new FakeClock(DateTime.UtcNow);
         var generator = CreateGenerator(clock);
-        var user = User.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
+        var user = USER.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
         var sessionId = Guid.NewGuid();
 
         var (first, _) = generator.Generate(user, sessionId);
@@ -112,7 +112,7 @@ public class AccessTokenGeneratorTests
     {
         var clock = new FakeClock(DateTime.UtcNow);
         var generator = CreateGenerator(clock);
-        var user = User.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
+        var user = USER.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
         var sessionId = Guid.NewGuid();
 
         var (accessToken, _) = generator.Generate(user, sessionId);
@@ -126,7 +126,7 @@ public class AccessTokenGeneratorTests
     {
         var clock = new FakeClock(DateTime.UtcNow);
         var generator = CreateGenerator(clock);
-        var user = User.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
+        var user = USER.Register("student@example.com", "STUDENT@EXAMPLE.COM", "hash", "Student One");
         var sessionIdA = Guid.NewGuid();
         var sessionIdB = Guid.NewGuid();
 

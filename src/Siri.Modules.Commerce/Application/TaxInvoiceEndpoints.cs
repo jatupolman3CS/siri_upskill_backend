@@ -35,6 +35,24 @@ public static class TaxInvoiceEndpoints
             .Produces<TaxInvoiceResponse>(StatusCodes.Status200OK)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
+        endpoints.MapGet("/by-order/{orderId:guid}", GetByOrderIdAsync)
+            .WithName("CommerceGetTaxInvoiceByOrder")
+            .WithSummary("ดูใบกำกับภาษีตามรหัสคำสั่งซื้อ")
+            .Produces<TaxInvoiceResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
+        endpoints.MapGet("/{taxInvoiceId:guid}/pdf", GetPdfAsync)
+            .WithName("CommerceGetTaxInvoicePdf")
+            .WithSummary("ดาวน์โหลดใบกำกับภาษีในรูปแบบ PDF")
+            .Produces(StatusCodes.Status200OK, contentType: "application/pdf")
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
+        endpoints.MapGet("/by-order/{orderId:guid}/pdf", GetOrderReceiptPdfAsync)
+            .WithName("CommerceGetTaxInvoicePdfByOrder")
+            .WithSummary("ดาวน์โหลดใบกำกับภาษีตามรหัสคำสั่งซื้อในรูปแบบ PDF")
+            .Produces(StatusCodes.Status200OK, contentType: "application/pdf")
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
         return endpoints;
     }
 
@@ -63,6 +81,34 @@ public static class TaxInvoiceEndpoints
 
         var result = await taxInvoiceService.GetByIdAsync(userId, taxInvoiceId, cancellationToken).ConfigureAwait(false);
         return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+    }
+
+    private static async Task<IResult> GetByOrderIdAsync(Guid orderId, TaxInvoiceService taxInvoiceService, IUserContext userContext, HttpContext httpContext, CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId) return Results.Unauthorized();
+
+        var result = await taxInvoiceService.GetByOrderIdAsync(userId, orderId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+    }
+
+    private static async Task<IResult> GetPdfAsync(Guid taxInvoiceId, TaxInvoiceService taxInvoiceService, IUserContext userContext, HttpContext httpContext, CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId) return Results.Unauthorized();
+
+        var result = await taxInvoiceService.GetPdfAsync(userId, taxInvoiceId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess
+            ? Results.File(result.Value.Bytes, "application/pdf", result.Value.FileName)
+            : result.Error.ToProblemHttpResult(httpContext);
+    }
+
+    private static async Task<IResult> GetOrderReceiptPdfAsync(Guid orderId, TaxInvoiceService taxInvoiceService, IUserContext userContext, HttpContext httpContext, CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId) return Results.Unauthorized();
+
+        var result = await taxInvoiceService.GetOrderReceiptPdfAsync(userId, orderId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess
+            ? Results.File(result.Value.Bytes, "application/pdf", result.Value.FileName)
+            : result.Error.ToProblemHttpResult(httpContext);
     }
 
     private static async Task<IResult> ListAsync(TaxInvoiceService taxInvoiceService, CancellationToken cancellationToken, int page = 1, int pageSize = 20)

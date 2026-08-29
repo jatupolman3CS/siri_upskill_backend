@@ -5,11 +5,11 @@ using Siri.Modules.Identity.Domain;
 namespace Siri.Modules.Identity.Infrastructure;
 
 /// <summary>EF Core mapping for <see cref="User"/> — see docs/DATABASE.md's "identity" section.</summary>
-public sealed class UserConfiguration : IEntityTypeConfiguration<User>
+public sealed class UserConfiguration : IEntityTypeConfiguration<USER>
 {
-    public void Configure(EntityTypeBuilder<User> builder)
+    public void Configure(EntityTypeBuilder<USER> builder)
     {
-        builder.ToTable("Users", "identity");
+        builder.ToTable("USERS", "IDENTITY");
 
         builder.HasKey(u => u.Id);
 
@@ -58,11 +58,11 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
             .WithMany()
             .UsingEntity<Dictionary<string, object>>(
                 "UserRoles",
-                right => right.HasOne<Role>().WithMany().HasForeignKey("RoleId"),
-                left => left.HasOne<User>().WithMany().HasForeignKey("UserId"),
+                right => right.HasOne<ROLE>().WithMany().HasForeignKey("RoleId"),
+                left => left.HasOne<USER>().WithMany().HasForeignKey("UserId"),
                 join =>
                 {
-                    join.ToTable("UserRoles", "identity");
+                    join.ToTable("USER_ROLES", "IDENTITY");
                     join.HasKey("UserId", "RoleId");
                 });
 

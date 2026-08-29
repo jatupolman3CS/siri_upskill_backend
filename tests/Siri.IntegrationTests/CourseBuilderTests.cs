@@ -36,7 +36,7 @@ using Siri.SharedKernel;
 namespace Siri.IntegrationTests;
 
 /// <summary>
-/// Integration tests for P4-01 Course Builder API:
+/// Integration tests for P4-01 COURSE Builder API:
 /// Section/Episode CRUD & reorder, optimistic concurrency autosave, ownership checks, and status guards.
 /// </summary>
 [Collection(ContainersCollection.Name)]
@@ -125,15 +125,15 @@ public sealed class CourseBuilderTests : IAsyncLifetime
         await _app.DisposeAsync();
     }
 
-    private static async Task<User> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
+    private static async Task<USER> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, password);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         dbContext.Users().Add(user);
@@ -152,15 +152,15 @@ public sealed class CourseBuilderTests : IAsyncLifetime
         return result.Value.AccessToken;
     }
 
-    private async Task<(InstructorProfile Profile, string AccessToken)> CreateApprovedInstructorAndLoginAsync(
+    private async Task<(INSTRUCTOR_PROFILE Profile, string AccessToken)> CreateApprovedInstructorAndLoginAsync(
         IServiceProvider services, AppDbContext dbContext)
     {
         var clock = services.GetRequiredService<IClock>();
         var email = $"instructor-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email, KnownPassword);
 
-        user.AssignRole(new Role(Role.InstructorId, Role.InstructorName));
-        var profile = InstructorProfile.Apply(user.Id, "Test Instructor", "Headline", "Bio");
+        user.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        var profile = INSTRUCTOR_PROFILE.Apply(user.Id, "Test Instructor", "Headline", "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
         await dbContext.SaveChangesAsync();
@@ -169,9 +169,9 @@ public sealed class CourseBuilderTests : IAsyncLifetime
         return (profile, token);
     }
 
-    private static async Task<Category> CreateCategoryAsync(AppDbContext dbContext)
+    private static async Task<CATEGORY> CreateCategoryAsync(AppDbContext dbContext)
     {
-        var category = Category.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test Category", null, null, 0);
+        var category = CATEGORY.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test CATEGORY", null, null, 0);
         dbContext.Categories().Add(category);
         await dbContext.SaveChangesAsync();
         return category;
@@ -191,11 +191,11 @@ public sealed class CourseBuilderTests : IAsyncLifetime
         return body!;
     }
 
-    private static async Task<Course> CreatePublishedCourseAsync(
+    private static async Task<COURSE> CreatePublishedCourseAsync(
         IServiceProvider services, AppDbContext dbContext, Guid instructorProfileId, Guid categoryId)
     {
         var clock = services.GetRequiredService<IClock>();
-        var course = Course.Create($"published-{Guid.NewGuid():N}", "Published Course", instructorProfileId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var course = COURSE.Create($"published-{Guid.NewGuid():N}", "Published COURSE", instructorProfileId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
         course.Publish(clock);
@@ -221,7 +221,7 @@ public sealed class CourseBuilderTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (_, instructorToken) = await CreateApprovedInstructorAndLoginAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var created = await CreateCourseAsync(instructorToken, category.Id, "Builder Course");
+        var created = await CreateCourseAsync(instructorToken, category.Id, "Builder COURSE");
 
         using var response = await _client.SendAsync(
             AuthenticatedRequest(HttpMethod.Get, $"/api/catalog/instructor/courses/{created.Id}/builder", instructorToken));
@@ -229,7 +229,7 @@ public sealed class CourseBuilderTests : IAsyncLifetime
 
         var body = await response.Content.ReadFromJsonAsync<CourseBuilderResponse>(JsonOptions);
         Assert.NotNull(body);
-        Assert.Equal("Builder Course", body!.Title);
+        Assert.Equal("Builder COURSE", body!.Title);
         Assert.NotNull(body.RowVersion);
         Assert.NotEmpty(body.RowVersion);
     }

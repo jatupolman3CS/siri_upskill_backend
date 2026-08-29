@@ -14,7 +14,7 @@ public sealed class MenuItemConfiguration : IEntityTypeConfiguration<MENU_ITEM>
 {
     public void Configure(EntityTypeBuilder<MENU_ITEM> builder)
     {
-        builder.ToTable("MENU_ITEMS", "cms");
+        builder.ToTable("MENU_ITEMS", "CMS");
 
         builder.HasKey(m => m.MENU_ITEM_ID);
 

@@ -26,6 +26,36 @@ public sealed class OrderRepository(AppDbContext dbContext) : IOrderRepository
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+    public async Task<(IReadOnlyList<ORDER> Items, int TotalCount)> ListByUserIdAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var effectivePageSize = pageSize is <= 0 or > 100 ? 20 : pageSize;
+        var effectivePage = page <= 0 ? 1 : page;
+
+        var query = dbContext.Orders()
+            .Include(o => o.ORDER_ITEMS)
+            .Where(o => o.USER_ID == userId);
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+        var items = await query
+            .OrderByDescending(o => o.CreatedAtUtc)
+            .Skip((effectivePage - 1) * effectivePageSize)
+            .Take(effectivePageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return (items, totalCount);
+    }
+
+    public async Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken)
+    {
+        return await dbContext.Orders()
+            .Where(o => o.STATUS == OrderStatus.AwaitingPayment && o.CreatedAtUtc <= cutoffUtc)
+            .OrderBy(o => o.CreatedAtUtc)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 
     public async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
@@ -53,6 +83,33 @@ public sealed class OrderRepository(AppDbContext dbContext) : IOrderRepository
                     await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 }
                 return result;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                throw;
+            }
+        }).ConfigureAwait(false);
+    }
+
+    public async Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+
+        if (dbContext.Database.CurrentTransaction is not null)
+        {
+            await operation().ConfigureAwait(false);
+            return;
+        }
+
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await operation().ConfigureAwait(false);
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
             catch
             {

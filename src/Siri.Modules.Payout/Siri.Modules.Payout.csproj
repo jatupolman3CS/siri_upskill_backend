@@ -3,7 +3,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
     <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
   </ItemGroup>
+
 
   <ItemGroup>
     <!-- Needed for IEndpointRouteBuilder/IServiceCollection endpoint-mapping extension points in

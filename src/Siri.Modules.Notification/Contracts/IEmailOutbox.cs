@@ -1,10 +1,10 @@
-namespace Siri.Modules.Notification.Contracts;
+﻿namespace Siri.Modules.Notification.Contracts;
 
 /// <summary>
 /// The Notification module's public surface for queuing an outbound email — the only way another
 /// module may reach this module's outbox (backend.md/ARCHITECTURE.md §2: "Module A เรียก Module B
 /// ผ่าน Contracts/ เท่านั้น ห้าม reference Domain/Infrastructure ของ module อื่น"). Wraps
-/// <c>Domain.EmailOutboxMessage.Enqueue</c> without exposing that Domain type — or the fact that an
+/// <c>Domain.EMAIL_OUTBOX_MESSAGE.Enqueue</c> without exposing that Domain type — or the fact that an
 /// outbox table backs it at all — to callers outside this module.
 /// </summary>
 public interface IEmailOutbox

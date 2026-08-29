@@ -24,6 +24,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         }
 
         modelBuilder.ApplySoftDeleteQueryFilter();
+        modelBuilder.ApplyUppercaseNamingConventions();
     }
 
     private static IEnumerable<Assembly> GetModuleAssemblies() =>

@@ -11,7 +11,7 @@ namespace Siri.Modules.Catalog.Features.UpdateCategory;
 /// differs from the current value, re-parents it.
 /// <para>
 /// <b>Cycle prevention</b> — moving a category under one of its own descendants would corrupt the
-/// tree (an infinite loop for anything that walks it). <see cref="Category.MoveTo"/> only rejects the
+/// tree (an infinite loop for anything that walks it). <see cref="CATEGORY.MoveTo"/> only rejects the
 /// trivial "under myself" case (it cannot see the rest of the tree — backend.md: domain stays
 /// EF-ignorant); this handler does the general check: load every category once, then walk up from the
 /// requested new parent following <c>ParentId</c> links. If that walk ever reaches the category being

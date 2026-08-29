@@ -7,6 +7,9 @@ namespace Siri.Modules.Payout.Infrastructure;
 
 public sealed class PayoutBatchItemRepository(AppDbContext dbContext) : IPayoutBatchItemRepository
 {
+    public Task<PAYOUT_BATCH_ITEM?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.PayoutBatchItems().FirstOrDefaultAsync(i => i.PAYOUT_BATCH_ITEM_ID == id, cancellationToken);
+
     public async Task<IReadOnlyList<PAYOUT_BATCH_ITEM>> GetByBatchIdAsync(Guid batchId, CancellationToken cancellationToken) =>
         await dbContext.PayoutBatchItems()
             .Where(i => i.BATCH_ID == batchId)

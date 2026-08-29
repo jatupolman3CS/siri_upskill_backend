@@ -75,15 +75,15 @@ public sealed class ForgotPasswordAndResetPasswordTests : IAsyncLifetime
 
     public async Task DisposeAsync() => await _serviceProvider.DisposeAsync();
 
-    private static async Task<User> CreateActiveUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
+    private static async Task<USER> CreateActiveUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, password);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         dbContext.Users().Add(user);
@@ -149,9 +149,9 @@ public sealed class ForgotPasswordAndResetPasswordTests : IAsyncLifetime
         var email = $"pending-{Guid.NewGuid():N}@example.test";
         var normalizedEmail = email.ToUpperInvariant();
         var passwordHasher = scope.ServiceProvider.GetRequiredService<IUserPasswordHasher>();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, KnownPassword);
-        var pendingUser = User.Register(email, normalizedEmail, hash, "Test User"); // never confirmed
+        var pendingUser = USER.Register(email, normalizedEmail, hash, "Test USER"); // never confirmed
         dbContext.Users().Add(pendingUser);
         await dbContext.SaveChangesAsync();
 
@@ -203,7 +203,7 @@ public sealed class ForgotPasswordAndResetPasswordTests : IAsyncLifetime
     /// <summary>
     /// The real security decision this task makes (task instruction): a successful reset must revoke
     /// every session/refresh token the account had, not just log the password change. Logs in first
-    /// (creating a real <see cref="UserSession"/> + <see cref="RefreshToken"/>), resets the password,
+    /// (creating a real <see cref="USER_SESSION"/> + <see cref="REFRESH_TOKEN"/>), resets the password,
     /// then proves the pre-reset refresh token no longer works — the same proof
     /// <c>LoginAndRefreshTests.Refresh_ValidToken_...</c> uses for rotation, applied to this new
     /// revocation path.
@@ -305,7 +305,7 @@ public sealed class ForgotPasswordAndResetPasswordTests : IAsyncLifetime
         var expiredUser = await CreateActiveUserAsync(scope.ServiceProvider, dbContext, expiredEmail, KnownPassword);
         var (expiredRawToken, expiredHash) = tokenGenerator.Generate();
         dbContext.UserSecurityTokens().Add(
-            UserSecurityToken.Issue(expiredUser.Id, UserSecurityTokenPurpose.PasswordReset, expiredHash, clock.UtcNow.AddMinutes(-1)));
+            USER_SECURITY_TOKEN.Issue(expiredUser.Id, UserSecurityTokenPurpose.PasswordReset, expiredHash, clock.UtcNow.AddMinutes(-1)));
         await dbContext.SaveChangesAsync(CancellationToken.None);
         var expiredResult = await resetHandler.HandleAsync(
             new ResetPasswordCommand(expiredRawToken, NewPassword), null, CancellationToken.None);
@@ -351,7 +351,7 @@ public sealed class ForgotPasswordAndResetPasswordTests : IAsyncLifetime
         await forgotHandler.HandleAsync(new ForgotPasswordCommand(email), CancellationToken.None);
         var firstOutbox = await dbContext.EmailOutboxMessages().AsNoTracking()
             .Where(m => m.ToEmail == email && m.TemplateKey == "identity-password-reset")
-            .OrderBy(m => m.Id) // UUIDv7 ids are chronologically sortable (EmailOutboxMessage's own doc comment)
+            .OrderBy(m => m.Id) // UUIDv7 ids are chronologically sortable (EMAIL_OUTBOX_MESSAGE's own doc comment)
             .FirstAsync();
         var firstRawToken = ExtractRawTokenFromEmailBody(firstOutbox.BodyHtml);
 

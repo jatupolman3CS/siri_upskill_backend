@@ -44,6 +44,7 @@ public static class MediaModule
         services.AddScoped<MediaUploadSessionService>();
         services.AddScoped<PlaybackSessionService>();
         services.AddScoped<BunnyWebhookHandler>();
+        services.AddScoped<PlaybackAnomalyDetectionJob>();
 
         // P2-02: Bunny Stream video provider (IVideoProvider implementation).
         services.AddOptions<VideoProviderOptions>()

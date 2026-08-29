@@ -1,20 +1,20 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Catalog.Domain;
 
 namespace Siri.Modules.Catalog.Infrastructure;
 
 /// <summary>
-/// EF Core mapping for <see cref="Course"/> — see docs/DATABASE.md's "catalog" section.
+/// EF Core mapping for <see cref="COURSE"/> — see docs/DATABASE.md's "catalog" section.
 /// <para>
-/// <see cref="Course.InstructorId"/> now has a real FK to <c>InstructorProfiles.Id</c> (task P1-03) —
+/// <see cref="COURSE.InstructorId"/> now has a real FK to <c>InstructorProfiles.Id</c> (task P1-03) —
 /// same module/schema, so this was always going to get one once that table existed (P1-02's own
 /// sequencing gap, closed here). <c>NoAction</c>, not <c>Cascade</c>: an instructor's courses must not
 /// vanish if their profile row is ever removed (it never is in practice — no delete endpoint exists for
-/// <c>InstructorProfile</c> — but the DB-level rule should hold regardless of what today's application
+/// <c>INSTRUCTOR_PROFILE</c> — but the DB-level rule should hold regardless of what today's application
 /// code happens to do), matching database.md's blanket "ห้าม cascade delete" instinct even outside the
 /// explicitly-named Orders/Payments/RevenueSplits/Enrollments/Certificates list.
-/// <see cref="Course.TrailerMediaAssetId"/> is a different case — targets <c>media.MediaAssets</c>, a
+/// <see cref="COURSE.TrailerMediaAssetId"/> is a different case — targets <c>media.MediaAssets</c>, a
 /// different module/schema/project (<c>Siri.Modules.Media</c>, confirmed still an empty stub, already
 /// checked by <c>Siri.ArchitectureTests</c>'s module-boundary test) — this one gets no FK constraint
 /// <em>ever</em>: a database-level FK spanning two modules' schemas is exactly the physical coupling
@@ -23,28 +23,28 @@ namespace Siri.Modules.Catalog.Infrastructure;
 /// later handler writes it.
 /// </para>
 /// <para>
-/// Soft-delete (<see cref="Siri.Persistence.Conventions.ISoftDelete"/>) applies only to <see cref="Course"/>
-/// itself — not <see cref="CourseSection"/>/<see cref="CourseEpisode"/>/<see cref="CourseOutcome"/>/
-/// <see cref="CourseRequirement"/> (matches docs/DATABASE.md's explicit soft-delete table list: "Course,
+/// Soft-delete (<see cref="Siri.Persistence.Conventions.ISoftDelete"/>) applies only to <see cref="COURSE"/>
+/// itself — not <see cref="COURSE_SECTION"/>/<see cref="COURSE_EPISODE"/>/<see cref="COURSE_OUTCOME"/>/
+/// <see cref="COURSE_REQUIREMENT"/> (matches docs/DATABASE.md's explicit soft-delete table list: "COURSE,
 /// Post, Discussion"). <c>ApplySoftDeleteQueryFilter</c> adds its <c>WHERE IsDeleted = 0</c> filter per
 /// entity type individually — it does <em>not</em> cascade to children, so a soft-deleted course's
 /// sections/episodes/outcomes/requirements are still visible to a query against those tables directly.
 /// Whoever writes the first standalone query against <c>CourseSections()</c>/<c>CourseEpisodes()</c>/etc.
-/// (P1-04/P1-06/P1-07) must join through and filter by the parent <see cref="Course.IsDeleted"/> itself.
+/// (P1-04/P1-06/P1-07) must join through and filter by the parent <see cref="COURSE.IsDeleted"/> itself.
 /// </para>
 /// </summary>
-public sealed class CourseConfiguration : IEntityTypeConfiguration<Course>
+public sealed class CourseConfiguration : IEntityTypeConfiguration<COURSE>
 {
-    public void Configure(EntityTypeBuilder<Course> builder)
+    public void Configure(EntityTypeBuilder<COURSE> builder)
     {
-        builder.ToTable("Courses", "catalog");
+        builder.ToTable("COURSES", "CATALOG");
 
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.Slug).HasMaxLength(200).IsRequired();
         // Filtered so a soft-deleted course's slug can be reused — without this, a hidden (IsDeleted)
         // row would permanently squat the slug for every future course.
-        builder.HasIndex(c => c.Slug).IsUnique().HasFilter("[IsDeleted] = 0");
+        builder.HasIndex(c => c.Slug).IsUnique().HasFilter("[IS_DELETED] = 0");
 
         builder.Property(c => c.Title).HasMaxLength(200).IsRequired();
         builder.Property(c => c.Subtitle).HasMaxLength(300);
@@ -55,7 +55,7 @@ public sealed class CourseConfiguration : IEntityTypeConfiguration<Course>
         // NoAction. EF's convention also adds a non-unique index on InstructorId for this relationship
         // (no existing index already covers it as a leftmost prefix), which doubles as exactly what a
         // future "my courses" instructor-dashboard query (P4) will need.
-        builder.HasOne<InstructorProfile>()
+        builder.HasOne<INSTRUCTOR_PROFILE>()
             .WithMany()
             .HasForeignKey(c => c.InstructorId)
             .OnDelete(DeleteBehavior.NoAction);

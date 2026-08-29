@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Infrastructure;
 using Siri.Persistence;
@@ -18,7 +18,7 @@ public sealed class UpdateUserRolesHandler(AppDbContext dbContext, IClock clock)
     {
         if (command.Roles is null || command.Roles.Count == 0)
         {
-            return Result.Failure(DomainError.Validation("ต้องระบุ Role อย่างน้อย 1 รายการ"));
+            return Result.Failure(DomainError.Validation("ต้องระบุ ROLE อย่างน้อย 1 รายการ"));
         }
 
         var user = await dbContext.Users()
@@ -38,7 +38,7 @@ public sealed class UpdateUserRolesHandler(AppDbContext dbContext, IClock clock)
 
         if (availableRoles.Count != command.Roles.Count)
         {
-            return Result.Failure(DomainError.Validation("มี Role บางรายการที่ไม่ถูกต้อง"));
+            return Result.Failure(DomainError.Validation("มี ROLE บางรายการที่ไม่ถูกต้อง"));
         }
 
         var currentRoleNames = user.Roles.Select(r => r.Name).ToHashSet();
@@ -58,7 +58,7 @@ public sealed class UpdateUserRolesHandler(AppDbContext dbContext, IClock clock)
             user.AssignRole(r);
         }
 
-        var audit = SecurityAudit.Record(
+        var audit = SECURITY_AUDIT.Record(
             "AdminUpdateUserRoles",
             user.Id,
             $"Roles updated by {adminUserId} to: {string.Join(", ", command.Roles)}",

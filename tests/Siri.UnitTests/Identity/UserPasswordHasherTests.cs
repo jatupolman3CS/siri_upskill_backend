@@ -10,7 +10,7 @@ public class UserPasswordHasherTests
     public void HashPassword_ThenVerifyPassword_WithCorrectPassword_Succeeds()
     {
         var hasher = new UserPasswordHasher();
-        var user = User.Register("student@example.com", "STUDENT@EXAMPLE.COM", "placeholder", "Student One");
+        var user = USER.Register("student@example.com", "STUDENT@EXAMPLE.COM", "placeholder", "Student One");
 
         var hash = hasher.HashPassword(user, "Correct-Horse-Battery-Staple-1");
         var result = hasher.VerifyPassword(user, hash, "Correct-Horse-Battery-Staple-1");
@@ -23,7 +23,7 @@ public class UserPasswordHasherTests
     public void VerifyPassword_WithWrongPassword_Fails()
     {
         var hasher = new UserPasswordHasher();
-        var user = User.Register("student@example.com", "STUDENT@EXAMPLE.COM", "placeholder", "Student One");
+        var user = USER.Register("student@example.com", "STUDENT@EXAMPLE.COM", "placeholder", "Student One");
         var hash = hasher.HashPassword(user, "Correct-Horse-Battery-Staple-1");
 
         var result = hasher.VerifyPassword(user, hash, "Wrong-Password-123");

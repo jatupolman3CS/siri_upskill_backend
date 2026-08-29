@@ -10,7 +10,7 @@ namespace Siri.Modules.Learning.Infrastructure.Contracts;
 public sealed class LearningAccessContract(
     IEnrollmentRepository enrollmentRepository,
     ICatalogPriceContract catalogPriceContract,
-    IClock clock) : ILearningAccessContract
+    IClock clock) : ILearningAccessContract, IEpisodeAccessReader, ILearningEnrollmentChecker
 {
     public async Task<bool> CanUserAccessEpisodeAsync(
         Guid userId,

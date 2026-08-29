@@ -149,14 +149,14 @@ public sealed class SeoTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
-        var profile = InstructorProfile.Apply(Guid.NewGuid(), "Test Instructor", null, "Bio");
+        var profile = INSTRUCTOR_PROFILE.Apply(Guid.NewGuid(), "Test Instructor", null, "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
 
-        var category = Category.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่", "Category", null, null, 0);
+        var category = CATEGORY.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่", "CATEGORY", null, null, 0);
         dbContext.Categories().Add(category);
 
-        var course = Course.Create($"course-{Guid.NewGuid():N}", "Sitemap Test Course", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var course = COURSE.Create($"course-{Guid.NewGuid():N}", "Sitemap Test COURSE", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
         course.Publish(clock);
@@ -179,14 +179,14 @@ public sealed class SeoTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
-        var profile = InstructorProfile.Apply(Guid.NewGuid(), "Test Instructor", null, "Bio");
+        var profile = INSTRUCTOR_PROFILE.Apply(Guid.NewGuid(), "Test Instructor", null, "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
 
-        var category = Category.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่", "Category", null, null, 0);
+        var category = CATEGORY.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่", "CATEGORY", null, null, 0);
         dbContext.Categories().Add(category);
 
-        var draft = Course.Create($"course-{Guid.NewGuid():N}", "Still A Draft", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var draft = COURSE.Create($"course-{Guid.NewGuid():N}", "Still A Draft", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         dbContext.Courses().Add(draft);
 
         await dbContext.SaveChangesAsync();

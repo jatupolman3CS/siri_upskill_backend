@@ -72,7 +72,35 @@ public static class QuizEndpoints
             .Produces<QuizResponse>(StatusCodes.Status200OK)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
+        var learnerGroup = endpoints.MapGroup("/api/learning/quizzes")
+            .WithTags("Learning")
+            .RequireAuthorization();
+
+        learnerGroup.MapGet("/by-episode/{episodeId:guid}", GetByEpisodeForLearnerAsync)
+            .WithName("LearningGetQuizByEpisode")
+            .WithSummary("ดึงแบบทดสอบสำหรับบทเรียน (สำหรับผู้เรียน คำตอบถูกจะถูกซ่อนไว้)")
+            .Produces<LearnerQuizResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
+            .Produces<ProblemDetails>(StatusCodes.Status403Forbidden)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
         return endpoints;
+    }
+
+    private static async Task<IResult> GetByEpisodeForLearnerAsync(
+        Guid episodeId,
+        QuizService service,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await service.GetByEpisodeForLearnerAsync(userId, episodeId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
     }
 
     private static async Task<IResult> CreateAsync(

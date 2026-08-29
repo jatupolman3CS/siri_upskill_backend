@@ -128,15 +128,15 @@ public sealed class PromoCodeTests : IAsyncLifetime
         await _app.DisposeAsync();
     }
 
-    private static async Task<User> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
+    private static async Task<USER> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, password);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         dbContext.Users().Add(user);
@@ -155,7 +155,7 @@ public sealed class PromoCodeTests : IAsyncLifetime
         return result.Value.AccessToken;
     }
 
-    private async Task<(User User, string Token)> CreateUserAndLoginAsync(IServiceProvider services, AppDbContext dbContext)
+    private async Task<(USER USER, string Token)> CreateUserAndLoginAsync(IServiceProvider services, AppDbContext dbContext)
     {
         var email = $"user-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email, KnownPassword);
@@ -163,19 +163,19 @@ public sealed class PromoCodeTests : IAsyncLifetime
         return (user, token);
     }
 
-    private static async Task<Course> CreatePublishedCourseAsync(
+    private static async Task<COURSE> CreatePublishedCourseAsync(
         IServiceProvider services, AppDbContext dbContext, decimal price = 1000m)
     {
         var clock = services.GetRequiredService<IClock>();
 
-        var category = Category.Create($"cat-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test Cat", null, null, 0);
+        var category = CATEGORY.Create($"cat-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test Cat", null, null, 0);
         dbContext.Categories().Add(category);
 
-        var profile = InstructorProfile.Apply(Guid.NewGuid(), "Test Instructor", "Headline", "Bio");
+        var profile = INSTRUCTOR_PROFILE.Apply(Guid.NewGuid(), "Test Instructor", "Headline", "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
 
-        var course = Course.Create($"course-{Guid.NewGuid():N}", "Test Course", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, price);
+        var course = COURSE.Create($"course-{Guid.NewGuid():N}", "Test COURSE", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, price);
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
         course.Publish(clock);
@@ -408,7 +408,7 @@ public sealed class PromoCodeTests : IAsyncLifetime
         dbContext.Payments().Add(payment);
         await dbContext.SaveChangesAsync();
 
-        // 3. User requests refund and admin approves
+        // 3. USER requests refund and admin approves
         var reqRefundResult = await refundService.RequestAsync(user.Id, new RequestRefundCommand(payment.PAYMENT_ID, 800m, "Need refund"), CancellationToken.None);
         Assert.True(reqRefundResult.IsSuccess);
 

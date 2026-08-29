@@ -1,10 +1,13 @@
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Community.Application.Response;
 using Siri.Modules.Community.Domain;
 using Siri.SharedKernel;
 
 namespace Siri.Modules.Community.Application;
 
-public sealed class DiscussionService(IDiscussionRepository repository)
+public sealed class DiscussionService(
+    IDiscussionRepository repository,
+    ICatalogPriceContract catalogPriceContract)
 {
     public const int DefaultPageSize = 20;
     public const int MaxPageSize = 100;
@@ -22,12 +25,15 @@ public sealed class DiscussionService(IDiscussionRepository repository)
             }
         }
 
+        var isInstructor = await catalogPriceContract.IsInstructorOwnerOfCourseAsync(command.CourseId, userId, cancellationToken).ConfigureAwait(false);
+
         var discussion = DISCUSSION.Create(
             command.CourseId,
             command.EpisodeId,
             userId,
             command.ParentId,
-            command.Body);
+            command.Body,
+            isInstructor);
 
         repository.Add(discussion);
         await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

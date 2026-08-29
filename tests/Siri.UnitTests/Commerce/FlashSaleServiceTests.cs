@@ -29,6 +29,9 @@ public sealed class FlashSaleServiceTests
             return Task.FromResult(items);
         }
 
+        public Task<IReadOnlyList<FLASH_SALE>> GetActiveFlashSalesAsync(DateTime nowUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FLASH_SALE>>(FlashSales.Values.Where(f => f.IS_ACTIVE && f.STARTS_AT_UTC <= nowUtc && f.ENDS_AT_UTC >= nowUtc).ToList());
+
         public Task<int> CountAsync(CancellationToken cancellationToken) =>
             Task.FromResult(FlashSales.Count);
     }

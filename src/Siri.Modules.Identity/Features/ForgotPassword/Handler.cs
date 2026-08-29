@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Siri.Modules.Identity.Domain;
@@ -11,7 +11,7 @@ namespace Siri.Modules.Identity.Features.ForgotPassword;
 
 /// <summary>
 /// Starts the "forgot password" flow: if the (normalized) email belongs to a genuinely existing,
-/// <see cref="UserStatus.Active"/> account, issues a <see cref="UserSecurityToken"/> (Purpose =
+/// <see cref="UserStatus.Active"/> account, issues a <see cref="USER_SECURITY_TOKEN"/> (Purpose =
 /// <see cref="UserSecurityTokenPurpose.PasswordReset"/>) and queues a reset-link email — otherwise does
 /// neither and returns the exact same success response anyway. Never changes the password or touches
 /// sessions itself; that only happens once the link is actually redeemed (<c>ResetPasswordHandler</c>).
@@ -42,7 +42,7 @@ namespace Siri.Modules.Identity.Features.ForgotPassword;
 /// <para>
 /// The genuine (if much smaller) asymmetry that remains is on the exists-and-active branch's extra
 /// database round trip(s): invalidating prior outstanding tokens, inserting the new
-/// <see cref="UserSecurityToken"/> row, inserting the queued email, and committing them via
+/// <see cref="USER_SECURITY_TOKEN"/> row, inserting the queued email, and committing them via
 /// <see cref="AppDbContext.SaveChangesAsync"/> — none of which the not-found/not-active branch does.
 /// This is the exact same category of residual gap <c>RegisterHandler</c>'s own doc comment already
 /// names and explicitly accepts ("the new-user branch also does two extra DB writes ... full timing
@@ -71,9 +71,9 @@ namespace Siri.Modules.Identity.Features.ForgotPassword;
 /// <para>
 /// <b>Design decision — a new request invalidates any prior outstanding PasswordReset token for that
 /// user</b> (task instruction: "make a specific, deliberate choice and document why"). Before issuing
-/// the new token, this handler loads every currently-unconsumed <see cref="UserSecurityToken"/> row for
+/// the new token, this handler loads every currently-unconsumed <see cref="USER_SECURITY_TOKEN"/> row for
 /// this user with Purpose = PasswordReset and, for whichever of those are not already expired, calls
-/// <see cref="UserSecurityToken.Consume"/> on them too — reusing the exact same one-time-use mechanism
+/// <see cref="USER_SECURITY_TOKEN.Consume"/> on them too — reusing the exact same one-time-use mechanism
 /// (never a second "invalidate" API) so that only the most recently issued reset link can ever succeed.
 /// Chosen over letting every outstanding link stay independently valid because: a user who clicks
 /// "forgot password" more than once almost always wants the newest email (older ones sitting in an
@@ -85,10 +85,10 @@ namespace Siri.Modules.Identity.Features.ForgotPassword;
 /// </para>
 /// <para>
 /// Only the exists-and-active branch writes anything: the invalidated old token row(s), a new
-/// <see cref="UserSecurityToken"/> row, and a queued reset-link email — all added to the same
+/// <see cref="USER_SECURITY_TOKEN"/> row, and a queued reset-link email — all added to the same
 /// <see cref="AppDbContext"/> instance and committed in one <see cref="AppDbContext.SaveChangesAsync"/>
 /// call (database.md: atomic multi-table writes). Deliberately does <b>not</b> touch the user's password
-/// or any <see cref="UserSession"/>/<see cref="RefreshToken"/> — that is entirely <c>ResetPasswordHandler</c>'s
+/// or any <see cref="USER_SESSION"/>/<see cref="REFRESH_TOKEN"/> — that is entirely <c>ResetPasswordHandler</c>'s
 /// job, once the link is actually redeemed (task instruction: "do NOT reset the password or touch
 /// sessions at this step").
 /// </para>
@@ -131,7 +131,7 @@ public sealed class ForgotPasswordHandler(
 
         // Design decision (see class doc comment): invalidate any prior outstanding PasswordReset
         // token(s) for this user before issuing the new one, so only the most recently requested link
-        // ever works. Only unexpired rows need an explicit Consume() — UserSecurityToken.Consume throws
+        // ever works. Only unexpired rows need an explicit Consume() — USER_SECURITY_TOKEN.Consume throws
         // on an already-expired token (by design, see its own doc comment), and an expired-but-still-
         // unconsumed row is already unusable on its own, so touching it here would add nothing.
         var outstandingTokens = await dbContext.UserSecurityTokens()
@@ -148,7 +148,7 @@ public sealed class ForgotPasswordHandler(
         }
 
         var (rawToken, tokenHash) = tokenGenerator.Generate();
-        var resetToken = UserSecurityToken.Issue(
+        var resetToken = USER_SECURITY_TOKEN.Issue(
             user.Id,
             UserSecurityTokenPurpose.PasswordReset,
             tokenHash,

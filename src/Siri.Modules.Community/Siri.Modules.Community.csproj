@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
     <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,15 +1,15 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Identity.Domain;
 
 namespace Siri.Modules.Identity.Infrastructure;
 
-/// <summary>EF Core mapping for <see cref="SecurityAudit"/> — see docs/DATABASE.md's "identity" section.</summary>
-public sealed class SecurityAuditConfiguration : IEntityTypeConfiguration<SecurityAudit>
+/// <summary>EF Core mapping for <see cref="SECURITY_AUDIT"/> — see docs/DATABASE.md's "identity" section.</summary>
+public sealed class SecurityAuditConfiguration : IEntityTypeConfiguration<SECURITY_AUDIT>
 {
-    public void Configure(EntityTypeBuilder<SecurityAudit> builder)
+    public void Configure(EntityTypeBuilder<SECURITY_AUDIT> builder)
     {
-        builder.ToTable("SecurityAudits", "identity");
+        builder.ToTable("SECURITY_AUDITS", "IDENTITY");
 
         builder.HasKey(a => a.Id);
 
@@ -25,7 +25,7 @@ public sealed class SecurityAuditConfiguration : IEntityTypeConfiguration<Securi
 
         // UserId is nullable (event may have no resolved user, e.g. failed login against an unknown
         // email) — Restrict so an audit row is never silently dropped by a cascade off its user.
-        builder.HasOne<User>()
+        builder.HasOne<USER>()
             .WithMany()
             .HasForeignKey(a => a.UserId)
             .OnDelete(DeleteBehavior.Restrict);

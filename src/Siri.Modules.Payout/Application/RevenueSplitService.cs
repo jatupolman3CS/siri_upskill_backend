@@ -26,6 +26,7 @@ public sealed class RevenueSplitService(IRevenueSplitRepository repository)
             command.PaymentFeeAmount,
             command.PlatformFeeAmount,
             command.InstructorAmount,
+            command.RevenueSharePercent,
             command.PeriodKey);
 
         repository.Add(split);
@@ -112,6 +113,7 @@ public sealed class RevenueSplitService(IRevenueSplitRepository repository)
             r.PAYMENT_FEE_AMOUNT,
             r.PLATFORM_FEE_AMOUNT,
             r.INSTRUCTOR_AMOUNT,
+            r.REVENUE_SHARE_PERCENT,
             r.PERIOD_KEY,
             r.STATUS,
             r.CreatedAtUtc);

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Features.Admin.GetAdminAuditLogs;
 using Siri.Modules.Identity.Features.Admin.GetAdminUsers;
+using Siri.Modules.Identity.Features.Admin.InviteUser;
 using Siri.Modules.Identity.Features.Admin.ReactivateUser;
 using Siri.Modules.Identity.Features.Admin.SuspendUser;
 using Siri.Modules.Identity.Features.Admin.UpdateUserRoles;
@@ -24,6 +25,13 @@ public static class AdminUserEndpoints
             .WithName("GetAdminUsers")
             .WithSummary("ค้นหาและกรองรายชื่อผู้ใช้สำหรับผู้ดูแลระบบ")
             .Produces<GetAdminUsersResult>(StatusCodes.Status200OK);
+
+        group.MapPost("/users/invite", InviteUserAsync)
+            .WithName("InviteUser")
+            .WithSummary("เชิญผู้ใช้ใหม่เข้าสู่ระบบ")
+            .Produces<InviteUserResult>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
+            .Produces<ProblemDetails>(StatusCodes.Status409Conflict);
 
         group.MapPost("/users/{userId:guid}/suspend", SuspendUserAsync)
             .WithName("SuspendUser")
@@ -65,6 +73,20 @@ public static class AdminUserEndpoints
     {
         var result = await handler.HandleAsync(query, role, status, page, pageSize, cancellationToken).ConfigureAwait(false);
         return Results.Ok(result);
+    }
+
+    private static async Task<IResult> InviteUserAsync(
+        InviteUserCommand command,
+        InviteUserHandler handler,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } adminId) return Results.Unauthorized();
+
+        var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString();
+        var result = await handler.HandleAsync(adminId, command, ipAddress, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
     }
 
     private static async Task<IResult> SuspendUserAsync(

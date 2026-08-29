@@ -13,7 +13,7 @@ public static class AutosaveCourseEndpoint
         endpoints.MapPut("/{courseId:guid}/autosave", HandleAsync)
             .AddEndpointFilter<ValidationEndpointFilter<AutosaveCourseCommand>>()
             .WithName("CatalogAutosaveCourse")
-            .WithSummary("บันทึกอัตโนมัติ/อัปเดตข้อมูลโครงสร้างคอร์สทั้งหมด (Course Builder)")
+            .WithSummary("บันทึกอัตโนมัติ/อัปเดตข้อมูลโครงสร้างคอร์สทั้งหมด (COURSE Builder)")
             .Produces<AutosaveCourseResponse>(StatusCodes.Status200OK)
             .ProducesValidationProblem()
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden)

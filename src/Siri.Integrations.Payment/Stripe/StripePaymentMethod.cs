@@ -141,6 +141,57 @@ public sealed class StripePaymentMethod : IPaymentMethod
         }
     }
 
+    /// <inheritdoc/>
+    public async Task<Result<PaymentRefundResult>> CreateRefundAsync(
+        CreateRefundRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.ProviderPaymentIntentId);
+
+        if (request.Amount <= 0)
+        {
+            return Result.Failure<PaymentRefundResult>(DomainError.Validation("Refund amount must be greater than zero."));
+        }
+
+        var amountInSatang = (long)Math.Round(request.Amount * 100m, MidpointRounding.AwayFromZero);
+
+        var options = new global::Stripe.RefundCreateOptions
+        {
+            PaymentIntent = request.ProviderPaymentIntentId,
+            Amount = amountInSatang,
+            Reason = request.Reason switch
+            {
+                "duplicate" => "duplicate",
+                "fraudulent" => "fraudulent",
+                _ => "requested_by_customer"
+            }
+        };
+
+        var service = new global::Stripe.RefundService(_stripeClient);
+
+        try
+        {
+            var refund = await ExecuteWithRetryAsync<global::Stripe.Refund>(
+                () => service.CreateAsync(options, cancellationToken: cancellationToken),
+                "CreateRefund",
+                cancellationToken).ConfigureAwait(false);
+
+            var decimalAmount = refund.Amount / 100m;
+            return Result.Success(new PaymentRefundResult(refund.Id, refund.Status, decimalAmount, refund.Currency));
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogError(ex, "Stripe API error creating refund for PaymentIntent {PaymentIntentId}: {Message}", request.ProviderPaymentIntentId, ex.Message);
+            return Result.Failure<PaymentRefundResult>(new DomainError("payment.provider_error", ex.StripeError?.Message ?? ex.Message));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Unexpected error creating refund for PaymentIntent {PaymentIntentId}", request.ProviderPaymentIntentId);
+            return Result.Failure<PaymentRefundResult>(new DomainError("payment.unexpected_error", "An unexpected error occurred while processing refund."));
+        }
+    }
+
     private static PaymentIntentResult MapPaymentIntent(PaymentIntent intent)
     {
         var decimalAmount = intent.Amount / 100m;

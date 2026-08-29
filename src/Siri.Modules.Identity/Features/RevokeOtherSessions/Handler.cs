@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Infrastructure;
@@ -8,7 +8,7 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Identity.Features.RevokeOtherSessions;
 
 /// <summary>
-/// Revokes every currently-active <see cref="UserSession"/> belonging to the authenticated caller
+/// Revokes every currently-active <see cref="USER_SESSION"/> belonging to the authenticated caller
 /// EXCEPT the one making this very request — the "sign out all my other devices, keep me logged in
 /// here" pattern (task instruction's own example: "many apps offer 'sign out all other sessions'
 /// specifically as a security action after noticing something suspicious").
@@ -39,7 +39,7 @@ namespace Siri.Modules.Identity.Features.RevokeOtherSessions;
 /// sessions in one query — not N, database.md: "ห้าม N+1" — revoke both, one atomic
 /// <see cref="AppDbContext.SaveChangesAsync"/>, then post-commit, fail-open Redis mirror cleanup per
 /// revoked session), the only difference being the extra <c>s.Id != CurrentSessionId</c> filter this
-/// endpoint's whole purpose is built around. A distinct <see cref="SecurityAudit"/> row is written for
+/// endpoint's whole purpose is built around. A distinct <see cref="SECURITY_AUDIT"/> row is written for
 /// the whole action — one summary row listing every revoked session id, the same "one row per bulk
 /// action, not one per session" granularity <c>ResetPasswordHandler</c>'s own bulk revoke already uses
 /// (as opposed to SE-03 eviction's "one row per evicted session": that one is per-session because each
@@ -95,7 +95,7 @@ public sealed class RevokeOtherSessionsHandler(
         }
 
         var detail = $$"""{"revokedSessionIds":[{{string.Join(",", sessionIds.Select(id => $"\"{id}\""))}}]}""";
-        dbContext.SecurityAudits().Add(SecurityAudit.Record(EventType, command.UserId, detail, ipAddress, clock));
+        dbContext.SecurityAudits().Add(SECURITY_AUDIT.Record(EventType, command.UserId, detail, ipAddress, clock));
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

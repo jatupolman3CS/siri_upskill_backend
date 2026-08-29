@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Infrastructure;
@@ -8,7 +8,7 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Identity.Features.RevokeAllSessions;
 
 /// <summary>
-/// Revokes EVERY currently-active <see cref="UserSession"/> belonging to the authenticated caller,
+/// Revokes EVERY currently-active <see cref="USER_SESSION"/> belonging to the authenticated caller,
 /// including the one making this very request — the literal "sign out everywhere" action, as opposed to
 /// <c>RevokeOtherSessions.RevokeOtherSessionsHandler</c>'s "everywhere except here".
 /// <para>
@@ -81,7 +81,7 @@ public sealed class RevokeAllSessionsHandler(
         }
 
         var detail = $$"""{"revokedSessionIds":[{{string.Join(",", sessionIds.Select(id => $"\"{id}\""))}}]}""";
-        dbContext.SecurityAudits().Add(SecurityAudit.Record(EventType, command.UserId, detail, ipAddress, clock));
+        dbContext.SecurityAudits().Add(SECURITY_AUDIT.Record(EventType, command.UserId, detail, ipAddress, clock));
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

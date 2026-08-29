@@ -1,15 +1,15 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Identity.Domain;
 
 namespace Siri.Modules.Identity.Infrastructure;
 
-/// <summary>EF Core mapping for <see cref="UserSecurityToken"/> — see docs/DATABASE.md's "identity" section.</summary>
-public sealed class UserSecurityTokenConfiguration : IEntityTypeConfiguration<UserSecurityToken>
+/// <summary>EF Core mapping for <see cref="USER_SECURITY_TOKEN"/> — see docs/DATABASE.md's "identity" section.</summary>
+public sealed class UserSecurityTokenConfiguration : IEntityTypeConfiguration<USER_SECURITY_TOKEN>
 {
-    public void Configure(EntityTypeBuilder<UserSecurityToken> builder)
+    public void Configure(EntityTypeBuilder<USER_SECURITY_TOKEN> builder)
     {
-        builder.ToTable("UserSecurityTokens", "identity");
+        builder.ToTable("USER_SECURITY_TOKENS", "IDENTITY");
 
         builder.HasKey(t => t.Id);
 
@@ -38,12 +38,12 @@ public sealed class UserSecurityTokenConfiguration : IEntityTypeConfiguration<Us
         // look up-or-invalidate an existing token rather than only ever inserting new ones) — same
         // filtered-index shape as UserSessionConfiguration's "IX_UserSessions_Active".
         builder.HasIndex(t => new { t.UserId, t.Purpose })
-            .HasDatabaseName("IX_UserSecurityTokens_Active")
-            .HasFilter("[ConsumedAtUtc] IS NULL");
+            .HasDatabaseName("IX_USER_SECURITY_TOKENS_ACTIVE")
+            .HasFilter("[CONSUMED_AT_UTC] IS NULL");
 
         // Restrict (not the EF default Cascade) — same reasoning as every other Identity FK to
         // Users: an auth/security row must never disappear via a cascade off some other delete.
-        builder.HasOne<User>()
+        builder.HasOne<USER>()
             .WithMany()
             .HasForeignKey(t => t.UserId)
             .OnDelete(DeleteBehavior.Restrict);

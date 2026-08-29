@@ -4,8 +4,8 @@ namespace Siri.UnitTests.Catalog;
 
 public class CourseTests
 {
-    private static Course CreateDraftCourse() =>
-        Course.Create("web-development", "Web Development", Guid.NewGuid(), Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+    private static COURSE CreateDraftCourse() =>
+        COURSE.Create("web-development", "Web Development", Guid.NewGuid(), Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, 990m);
 
     [Fact]
     public void Create_ValidInput_ReturnsDraftCourseWithGivenFields()
@@ -13,7 +13,7 @@ public class CourseTests
         var instructorId = Guid.NewGuid();
         var categoryId = Guid.NewGuid();
 
-        var course = Course.Create("web-development", "Web Development", instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var course = COURSE.Create("web-development", "Web Development", instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
 
         Assert.NotEqual(Guid.Empty, course.Id);
         Assert.Equal("web-development", course.Slug);
@@ -37,14 +37,14 @@ public class CourseTests
     public void Create_MissingRequiredField_ThrowsArgumentException(string slug, string title)
     {
         Assert.Throws<ArgumentException>(() =>
-            Course.Create(slug, title, Guid.NewGuid(), Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, 990m));
+            COURSE.Create(slug, title, Guid.NewGuid(), Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, 990m));
     }
 
     [Fact]
     public void Create_NegativePrice_ThrowsArgumentOutOfRangeException()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() =>
-            Course.Create("web-development", "Web Development", Guid.NewGuid(), Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, -1m));
+            COURSE.Create("web-development", "Web Development", Guid.NewGuid(), Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, -1m));
     }
 
     [Fact]

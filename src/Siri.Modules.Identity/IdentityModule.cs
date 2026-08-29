@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -6,6 +6,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Siri.Modules.Identity.Features.ConfirmEmail;
 using Siri.Modules.Identity.Features.Admin;
+using Siri.Modules.Identity.Features.AnonymizeAccount;
+using Siri.Modules.Identity.Features.DataExport;
 using Siri.Modules.Identity.Features.ForgotPassword;
 using Siri.Modules.Identity.Features.ListSessions;
 using Siri.Modules.Identity.Features.Login;
@@ -34,7 +36,7 @@ namespace Siri.Modules.Identity;
 /// Login's success path; P0-22 adds the real, JWT-backed AdminOnly/InstructorOnly authorization
 /// policies + default-deny at this module's route group; P0-21 adds the "forgot password" flow
 /// (ForgotPassword issues a <see cref="Domain.UserSecurityTokenPurpose.PasswordReset"/> token,
-/// ResetPassword redeems it — reusing the exact <see cref="Domain.UserSecurityToken"/>/token-generator
+/// ResetPassword redeems it — reusing the exact <see cref="Domain.USER_SECURITY_TOKEN"/>/token-generator
 /// mechanism ConfirmEmail already established, not a second one); P0-18 (this task) adds the
 /// device-management API (ListSessions, RevokeSession, RevokeOtherSessions, RevokeAllSessions) — the
 /// backend for docs/SECURITY.md §2's "ผู้ใช้ดู/ถอดอุปกรณ์เองได้ที่หน้า 'อุปกรณ์ที่เข้าสู่ระบบ'" — and, to
@@ -85,7 +87,7 @@ public static class IdentityModule
         services.AddScoped<IdentitySeeder>();
 
         // P0-17 (SE-03): system-wide default concurrent-session limit — see ConcurrentSessionOptions'
-        // own doc comment for how this combines with User.MaxConcurrentSessionsOverride.
+        // own doc comment for how this combines with USER.MaxConcurrentSessionsOverride.
         services.AddOptions<ConcurrentSessionOptions>()
             .Bind(configuration.GetSection(ConcurrentSessionOptions.SectionName))
             .ValidateDataAnnotations()
@@ -115,6 +117,7 @@ public static class IdentityModule
         services.AddScoped<IValidator<LoginCommand>, LoginValidator>();
         services.AddScoped<IValidator<ForgotPasswordCommand>, ForgotPasswordValidator>();
         services.AddScoped<IValidator<ResetPasswordCommand>, ResetPasswordValidator>();
+        services.AddScoped<IValidator<AnonymizeAccountCommand>, AnonymizeAccountValidator>();
 
         // P0-18's four device-management handlers have no FluentValidation validators registered here,
         // unlike every handler above — none of their commands are bound from a client-supplied JSON
@@ -135,9 +138,12 @@ public static class IdentityModule
         services.AddScoped<RevokeSessionHandler>();
         services.AddScoped<RevokeOtherSessionsHandler>();
         services.AddScoped<RevokeAllSessionsHandler>();
+        services.AddScoped<DataExportHandler>();
+        services.AddScoped<AnonymizeAccountHandler>();
 
         // Admin ops handlers (P6-06)
         services.AddScoped<Features.Admin.GetAdminUsers.GetAdminUsersHandler>();
+        services.AddScoped<Features.Admin.InviteUser.InviteUserHandler>();
         services.AddScoped<Features.Admin.SuspendUser.SuspendUserHandler>();
         services.AddScoped<Features.Admin.ReactivateUser.ReactivateUserHandler>();
         services.AddScoped<Features.Admin.UpdateUserRoles.UpdateUserRolesHandler>();
@@ -156,6 +162,15 @@ public static class IdentityModule
 
         // Admin stats contract (P6-07)
         services.AddScoped<IIdentityStatsContract, Infrastructure.Contracts.IdentityStatsContract>();
+
+        // Security audit contract (P2-06)
+        services.AddScoped<ISecurityAuditContract, Infrastructure.Contracts.SecurityAuditContract>();
+
+        // Repositories
+        services.AddScoped<Application.IUserRepository, Infrastructure.UserRepository>();
+        services.AddScoped<Application.IUserSessionRepository, Infrastructure.UserSessionRepository>();
+        services.AddScoped<Application.IRefreshTokenRepository, Infrastructure.RefreshTokenRepository>();
+        services.AddScoped<Application.IUserSecurityTokenRepository, Infrastructure.UserSecurityTokenRepository>();
 
         return services;
     }
@@ -177,6 +192,8 @@ public static class IdentityModule
         group.MapRevokeSessionEndpoint();
         group.MapRevokeOtherSessionsEndpoint();
         group.MapRevokeAllSessionsEndpoint();
+        group.MapDataExportEndpoint();
+        group.MapAnonymizeAccountEndpoint();
 
         // Admin ops endpoints (P6-06)
         endpoints.MapAdminUserEndpoints();

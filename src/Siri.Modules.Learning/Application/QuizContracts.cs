@@ -40,3 +40,26 @@ public sealed record QuizQuestionResponse(
     IReadOnlyList<QuizOptionResponse> Options);
 
 public sealed record QuizOptionResponse(Guid Id, string Text, bool IsCorrect, int SortOrder);
+
+/// <summary>
+/// Learner-safe quiz projection for taking quizzes — deliberately excludes <c>IsCorrect</c> and <c>Explanation</c>
+/// so answer keys are never leaked to the client before submission.
+/// </summary>
+public sealed record LearnerQuizResponse(
+    Guid Id,
+    Guid EpisodeId,
+    string Title,
+    int PassingScorePercent,
+    int MaxAttempts,
+    bool IsActive,
+    IReadOnlyList<LearnerQuizQuestionResponse> Questions);
+
+public sealed record LearnerQuizQuestionResponse(
+    Guid Id,
+    QuizQuestionType Type,
+    string Text,
+    int Points,
+    int SortOrder,
+    IReadOnlyList<LearnerQuizOptionResponse> Options);
+
+public sealed record LearnerQuizOptionResponse(Guid Id, string Text, int SortOrder);

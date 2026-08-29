@@ -33,6 +33,16 @@ public static class BundleEndpoints
             .WithSummary("รายการชุดคอร์สทั้งหมด")
             .Produces<PagedResult<BundleResponse>>(StatusCodes.Status200OK);
 
+        endpoints.MapGet("/by-course/{courseId:guid}", async (Guid courseId, BundleService bundleService, CancellationToken cancellationToken) =>
+        {
+            var result = await bundleService.GetBundlesByCourseIdAsync(courseId, cancellationToken).ConfigureAwait(false);
+            return Results.Ok(result);
+        })
+        .AllowAnonymous()
+        .WithName("CommerceGetBundlesByCourse")
+        .WithSummary("ดึงรายการชุดคอร์สที่เกี่ยวข้องกับคอร์สนี้ (Frequently Bought Together)")
+        .Produces<IReadOnlyList<BundleResponse>>(StatusCodes.Status200OK);
+
         return endpoints;
     }
 

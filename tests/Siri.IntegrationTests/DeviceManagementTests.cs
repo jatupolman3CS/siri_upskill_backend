@@ -135,15 +135,15 @@ public sealed class DeviceManagementTests : IAsyncLifetime
         await _app.DisposeAsync();
     }
 
-    private static async Task<User> CreateActiveUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
+    private static async Task<USER> CreateActiveUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, password);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         dbContext.Users().Add(user);

@@ -75,7 +75,7 @@ public sealed class PAYMENT
     public void MarkSucceeded(IClock clock)
     {
         ArgumentNullException.ThrowIfNull(clock);
-        if (STATUS is not (PaymentStatus.Pending or PaymentStatus.Processing))
+        if (STATUS is not (PaymentStatus.Pending or PaymentStatus.Processing or PaymentStatus.Expired))
         {
             throw new InvalidOperationException($"Cannot mark a payment in {STATUS} status as succeeded.");
         }
@@ -104,5 +104,16 @@ public sealed class PAYMENT
         }
 
         STATUS = PaymentStatus.Expired;
+    }
+
+    public void MarkRefunded(IClock clock)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        if (STATUS is not (PaymentStatus.Succeeded or PaymentStatus.Pending or PaymentStatus.Processing))
+        {
+            throw new InvalidOperationException($"Cannot mark a payment in {STATUS} status as refunded.");
+        }
+
+        STATUS = PaymentStatus.Refunded;
     }
 }

@@ -1,7 +1,7 @@
-namespace Siri.Modules.Identity.Infrastructure;
+﻿namespace Siri.Modules.Identity.Infrastructure;
 
 /// <summary>
-/// The Redis mirror of active <see cref="Domain.UserSession"/>s (ARCHITECTURE.md §5:
+/// The Redis mirror of active <see cref="Domain.USER_SESSION"/>s (ARCHITECTURE.md §5:
 /// <c>session:{userId}:{sessionId}</c>, TTL = refresh token lifetime). Deliberately thin — two
 /// methods, no query/read surface — because nothing in this codebase reads this data back yet
 /// (see this interface's own "phased design" note below and <c>RedisSessionRegistry</c>'s doc
@@ -30,13 +30,13 @@ public interface ISessionRegistry
 {
     /// <summary>Writes/refreshes the mirror key for one active session, expiring after
     /// <paramref name="ttl"/> (callers pass the same refresh-token lifetime the corresponding
-    /// <see cref="Domain.RefreshToken"/> was issued with, so the two never drift apart). Best-effort —
+    /// <see cref="Domain.REFRESH_TOKEN"/> was issued with, so the two never drift apart). Best-effort —
     /// see <c>RedisSessionRegistry</c>'s doc comment for why a Redis failure here must never
     /// propagate to the caller.</summary>
     Task RegisterAsync(Guid userId, Guid sessionId, TimeSpan ttl, CancellationToken cancellationToken);
 
     /// <summary>Removes one session's mirror key — called on every path that revokes a
-    /// <see cref="Domain.UserSession"/> in MSSQL (SE-03 eviction, and Refresh's reuse-detection
+    /// <see cref="Domain.USER_SESSION"/> in MSSQL (SE-03 eviction, and Refresh's reuse-detection
     /// family-revocation), so the mirror never lags a revocation that already happened at the
     /// authoritative source. Best-effort, same reasoning as <see cref="RegisterAsync"/>.</summary>
     Task RemoveAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken);

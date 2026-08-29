@@ -1,14 +1,14 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Catalog.Domain;
 
 namespace Siri.Modules.Catalog.Infrastructure;
 
-public sealed class LearningPathItemConfiguration : IEntityTypeConfiguration<LearningPathItem>
+public sealed class LearningPathItemConfiguration : IEntityTypeConfiguration<LEARNING_PATH_ITEM>
 {
-    public void Configure(EntityTypeBuilder<LearningPathItem> builder)
+    public void Configure(EntityTypeBuilder<LEARNING_PATH_ITEM> builder)
     {
-        builder.ToTable("LearningPathItems", "catalog");
+        builder.ToTable("LEARNING_PATH_ITEMS", "CATALOG");
 
         builder.HasKey(i => new { i.PathId, i.CourseId });
 
@@ -23,7 +23,7 @@ public sealed class LearningPathItemConfiguration : IEntityTypeConfiguration<Lea
 
         builder.HasIndex(i => new { i.PathId, i.SortOrder });
 
-        builder.HasOne<Course>()
+        builder.HasOne<COURSE>()
             .WithMany()
             .HasForeignKey(i => i.CourseId)
             .OnDelete(DeleteBehavior.Restrict);

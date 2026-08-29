@@ -14,7 +14,7 @@ public sealed class RedirectConfiguration : IEntityTypeConfiguration<REDIRECT>
 {
     public void Configure(EntityTypeBuilder<REDIRECT> builder)
     {
-        builder.ToTable("REDIRECTS", "cms");
+        builder.ToTable("REDIRECTS", "CMS");
 
         builder.HasKey(r => r.REDIRECT_ID);
 

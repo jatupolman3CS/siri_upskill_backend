@@ -1,14 +1,14 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Catalog.Domain;
 
 namespace Siri.Modules.Catalog.Infrastructure;
 
-public sealed class EpisodeAttachmentConfiguration : IEntityTypeConfiguration<EpisodeAttachment>
+public sealed class EpisodeAttachmentConfiguration : IEntityTypeConfiguration<EPISODE_ATTACHMENT>
 {
-    public void Configure(EntityTypeBuilder<EpisodeAttachment> builder)
+    public void Configure(EntityTypeBuilder<EPISODE_ATTACHMENT> builder)
     {
-        builder.ToTable("EpisodeAttachments", "catalog");
+        builder.ToTable("EPISODE_ATTACHMENTS", "CATALOG");
 
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id).ValueGeneratedNever();
@@ -26,7 +26,7 @@ public sealed class EpisodeAttachmentConfiguration : IEntityTypeConfiguration<Ep
 
         builder.HasIndex(a => a.EpisodeId);
 
-        builder.HasOne<CourseEpisode>()
+        builder.HasOne<COURSE_EPISODE>()
             .WithMany()
             .HasForeignKey(a => a.EpisodeId)
             .OnDelete(DeleteBehavior.Cascade);

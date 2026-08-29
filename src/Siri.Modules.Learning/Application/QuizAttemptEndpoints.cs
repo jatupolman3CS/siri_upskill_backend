@@ -55,7 +55,30 @@ public static class QuizAttemptEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .Produces<ProblemDetails>(StatusCodes.Status409Conflict);
 
+        group.MapGet("/by-quiz/{quizId:guid}", ListByQuizAsync)
+            .WithName("LearningListQuizAttemptsByQuiz")
+            .WithSummary("ดูประวัติการทำแบบทดสอบทั้งหมดของตัวเองในแบบทดสอบนี้")
+            .Produces<IReadOnlyList<QuizAttemptResponse>>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
         return endpoints;
+    }
+
+    private static async Task<IResult> ListByQuizAsync(
+        Guid quizId,
+        QuizAttemptService service,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await service.ListAttemptsByQuizAsync(userId, quizId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
     }
 
     private static async Task<IResult> StartAsync(

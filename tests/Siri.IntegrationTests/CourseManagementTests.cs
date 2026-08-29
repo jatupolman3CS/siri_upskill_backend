@@ -36,9 +36,9 @@ namespace Siri.IntegrationTests;
 /// <see cref="InstructorApplicationTests"/> already established (see those classes' own doc comments for
 /// why). Requires Docker locally; see <see cref="ContainersFixture"/>'s own doc comment.
 /// <para>
-/// Fixture setup (an approved <see cref="InstructorProfile"/>, a <see cref="Category"/>) is built directly
+/// Fixture setup (an approved <see cref="INSTRUCTOR_PROFILE"/>, a <see cref="CATEGORY"/>) is built directly
 /// against <see cref="AppDbContext"/> rather than through P1-01's/P1-03's own HTTP endpoints — this
-/// file's actual subject is the five Course endpoints, and those flows already have their own dedicated
+/// file's actual subject is the five COURSE endpoints, and those flows already have their own dedicated
 /// integration tests (<see cref="CategoryManagementTests"/>, <see cref="InstructorApplicationTests"/>);
 /// re-driving them here through HTTP would only slow this file down without adding coverage.
 /// </para>
@@ -131,15 +131,15 @@ public sealed class CourseManagementTests : IAsyncLifetime
 
     // ---- Fixture setup (direct-domain, not HTTP — see class doc comment) ------------------------
 
-    private static async Task<User> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
+    private static async Task<USER> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, password);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         dbContext.Users().Add(user);
@@ -159,20 +159,20 @@ public sealed class CourseManagementTests : IAsyncLifetime
     }
 
     /// <summary>Creates a user, grants them the Instructor role directly (same
-    /// <c>user.AssignRole(new Role(Role.InstructorId, Role.InstructorName))</c> pattern
+    /// <c>user.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName))</c> pattern
     /// <see cref="CategoryManagementTests"/> uses for its Admin fixture), and gives them an Approved
-    /// <see cref="InstructorProfile"/> — everything <see cref="CreateCourseHandler"/> requires to let
+    /// <see cref="INSTRUCTOR_PROFILE"/> — everything <see cref="CreateCourseHandler"/> requires to let
     /// them create a course, built directly rather than through P1-03's real apply/approve HTTP flow (see
     /// class doc comment).</summary>
-    private async Task<(InstructorProfile Profile, string AccessToken)> CreateApprovedInstructorAndLoginAsync(
+    private async Task<(INSTRUCTOR_PROFILE Profile, string AccessToken)> CreateApprovedInstructorAndLoginAsync(
         IServiceProvider services, AppDbContext dbContext)
     {
         var clock = services.GetRequiredService<IClock>();
         var email = $"instructor-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email, KnownPassword);
 
-        user.AssignRole(new Role(Role.InstructorId, Role.InstructorName));
-        var profile = InstructorProfile.Apply(user.Id, "Test Instructor", "Headline", "Bio");
+        user.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        var profile = INSTRUCTOR_PROFILE.Apply(user.Id, "Test Instructor", "Headline", "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
         await dbContext.SaveChangesAsync();
@@ -188,9 +188,9 @@ public sealed class CourseManagementTests : IAsyncLifetime
         return await LoginAndGetAccessTokenAsync(services, email);
     }
 
-    private static async Task<Category> CreateCategoryAsync(AppDbContext dbContext)
+    private static async Task<CATEGORY> CreateCategoryAsync(AppDbContext dbContext)
     {
-        var category = Category.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test Category", null, null, 0);
+        var category = CATEGORY.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test CATEGORY", null, null, 0);
         dbContext.Categories().Add(category);
         await dbContext.SaveChangesAsync();
         return category;
@@ -199,12 +199,12 @@ public sealed class CourseManagementTests : IAsyncLifetime
     /// <summary>Fabricates a Published course (section + episode with media, then Publish) purely to test
     /// UpdateCourse/DeleteCourse's Draft-only gate — P1-04 has no endpoint that can reach a non-Draft
     /// status itself (Publish workflow is P1-05's), so this drives the domain directly the same way
-    /// Siri.UnitTests.Catalog.CourseTests already proves <c>Course.Publish</c> works.</summary>
-    private static async Task<Course> CreatePublishedCourseAsync(
+    /// Siri.UnitTests.Catalog.CourseTests already proves <c>COURSE.Publish</c> works.</summary>
+    private static async Task<COURSE> CreatePublishedCourseAsync(
         IServiceProvider services, AppDbContext dbContext, Guid instructorProfileId, Guid categoryId)
     {
         var clock = services.GetRequiredService<IClock>();
-        var course = Course.Create($"published-{Guid.NewGuid():N}", "Published Course", instructorProfileId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var course = COURSE.Create($"published-{Guid.NewGuid():N}", "Published COURSE", instructorProfileId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
         course.Publish(clock);
@@ -285,18 +285,18 @@ public sealed class CourseManagementTests : IAsyncLifetime
     {
         await using var scope = _app.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        // Admin role passes the group-level InstructorOnly policy but has no InstructorProfile of their
+        // Admin role passes the group-level InstructorOnly policy but has no INSTRUCTOR_PROFILE of their
         // own — proves CreateCourseHandler's own "must be Approved" check independently defends the rule
         // (defense in depth), not just the role-claim gate.
         var email = $"admin-{Guid.NewGuid():N}@example.test";
         var adminUser = await CreateUserAsync(scope.ServiceProvider, dbContext, email, KnownPassword);
-        adminUser.AssignRole(new Role(Role.AdminId, Role.AdminName));
+        adminUser.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
         await dbContext.SaveChangesAsync();
         var adminToken = await LoginAndGetAccessTokenAsync(scope.ServiceProvider, email);
         var category = await CreateCategoryAsync(dbContext);
 
         using var request = AuthenticatedRequest(HttpMethod.Post, "/api/catalog/instructor/courses", adminToken);
-        request.Content = JsonContent.Create(new CreateCourseCommand("Some Course", category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m));
+        request.Content = JsonContent.Create(new CreateCourseCommand("Some COURSE", category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m));
         using var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -310,7 +310,7 @@ public sealed class CourseManagementTests : IAsyncLifetime
         var (_, instructorToken) = await CreateApprovedInstructorAndLoginAsync(scope.ServiceProvider, dbContext);
 
         using var request = AuthenticatedRequest(HttpMethod.Post, "/api/catalog/instructor/courses", instructorToken);
-        request.Content = JsonContent.Create(new CreateCourseCommand("Some Course", Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, 990m));
+        request.Content = JsonContent.Create(new CreateCourseCommand("Some COURSE", Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, 990m));
         using var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
@@ -324,7 +324,7 @@ public sealed class CourseManagementTests : IAsyncLifetime
         var plainToken = await CreatePlainUserAndLoginAsync(scope.ServiceProvider, dbContext);
 
         using var request = AuthenticatedRequest(HttpMethod.Post, "/api/catalog/instructor/courses", plainToken);
-        request.Content = JsonContent.Create(new CreateCourseCommand("Some Course", Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, 990m));
+        request.Content = JsonContent.Create(new CreateCourseCommand("Some COURSE", Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai, 990m));
         using var response = await _client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -357,14 +357,14 @@ public sealed class CourseManagementTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (_, instructorToken) = await CreateApprovedInstructorAndLoginAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var created = await CreateCourseAsync(instructorToken, category.Id, "Detail Course");
+        var created = await CreateCourseAsync(instructorToken, category.Id, "Detail COURSE");
 
         using var response = await _client.SendAsync(
             AuthenticatedRequest(HttpMethod.Get, $"/api/catalog/instructor/courses/{created.Id}", instructorToken));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var body = await response.Content.ReadFromJsonAsync<CourseResponse>(JsonOptions);
-        Assert.Equal("Detail Course", body!.Title);
+        Assert.Equal("Detail COURSE", body!.Title);
     }
 
     [Fact]

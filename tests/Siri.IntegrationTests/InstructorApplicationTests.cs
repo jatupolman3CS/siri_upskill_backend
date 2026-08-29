@@ -41,7 +41,7 @@ namespace Siri.IntegrationTests;
 /// The headline scenario this file exists to prove end-to-end, not just at the handler-unit level:
 /// approving an application actually grants the <c>Instructor</c> role through
 /// <c>Siri.Modules.Identity.Contracts.IInstructorRoleGrantor</c> — this codebase's first real
-/// cross-module <c>Contracts</c> call — atomically with <see cref="InstructorProfile"/>'s own status
+/// cross-module <c>Contracts</c> call — atomically with <see cref="INSTRUCTOR_PROFILE"/>'s own status
 /// change. <c>AddIdentityModule</c>/<c>AddNotificationModule</c> are both registered (same reasoning
 /// <see cref="CategoryManagementTests"/> gives) even though this file never maps or calls Identity's own
 /// HTTP endpoints directly.
@@ -134,23 +134,23 @@ public sealed class InstructorApplicationTests : IAsyncLifetime
         await _app.DisposeAsync();
     }
 
-    private static async Task<User> CreateUserAsync(
+    private static async Task<USER> CreateUserAsync(
         IServiceProvider services, AppDbContext dbContext, string email, string password, bool isAdmin)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, password);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         if (isAdmin)
         {
             // Roles are migration-seeded fixed reference data (RoleConfiguration.HasData) — constructed
             // directly from the well-known id/name constants, same as CategoryManagementTests.
-            user.AssignRole(new Role(Role.AdminId, Role.AdminName));
+            user.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
         }
 
         dbContext.Users().Add(user);
@@ -169,7 +169,7 @@ public sealed class InstructorApplicationTests : IAsyncLifetime
         return result.Value.AccessToken;
     }
 
-    private async Task<(User User, string AccessToken)> CreateUserAndLoginAsync(
+    private async Task<(USER USER, string AccessToken)> CreateUserAndLoginAsync(
         IServiceProvider services, AppDbContext dbContext, bool isAdmin = false)
     {
         var email = $"user-{Guid.NewGuid():N}@example.test";
@@ -211,7 +211,7 @@ public sealed class InstructorApplicationTests : IAsyncLifetime
         var response = await ApplyAsInstructorAsync(token);
 
         Assert.Equal(InstructorApplicationStatus.Pending, response.Status);
-        Assert.Equal(InstructorProfile.DefaultRevenueSharePercent, response.RevenueSharePercent);
+        Assert.Equal(INSTRUCTOR_PROFILE.DefaultRevenueSharePercent, response.RevenueSharePercent);
         Assert.Null(response.ApprovedAtUtc);
     }
 
@@ -340,7 +340,7 @@ public sealed class InstructorApplicationTests : IAsyncLifetime
 
     /// <summary>The headline test for this task's cross-module design (Handler.cs's own doc comment) —
     /// proves approving over real HTTP actually grants the Instructor role through Identity's
-    /// IInstructorRoleGrantor contract, not just that InstructorProfile's own status flips.</summary>
+    /// IInstructorRoleGrantor contract, not just that INSTRUCTOR_PROFILE's own status flips.</summary>
     [Fact]
     public async Task ApproveInstructorApplication_AsAdmin_SetsApprovedStatusAndGrantsInstructorRoleToUser()
     {
@@ -362,7 +362,7 @@ public sealed class InstructorApplicationTests : IAsyncLifetime
             .AsNoTracking()
             .Where(u => u.Id == applicant.Id)
             .SelectMany(u => u.Roles)
-            .AnyAsync(r => r.Name == Role.InstructorName);
+            .AnyAsync(r => r.Name == ROLE.InstructorName);
         Assert.True(hasInstructorRole);
     }
 
@@ -432,7 +432,7 @@ public sealed class InstructorApplicationTests : IAsyncLifetime
             .AsNoTracking()
             .Where(u => u.Id == applicant.Id)
             .SelectMany(u => u.Roles)
-            .AnyAsync(r => r.Name == Role.InstructorName);
+            .AnyAsync(r => r.Name == ROLE.InstructorName);
         Assert.False(hasInstructorRole);
     }
 

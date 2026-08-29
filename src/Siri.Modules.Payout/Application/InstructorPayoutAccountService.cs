@@ -7,7 +7,10 @@ namespace Siri.Modules.Payout.Application;
 /// <summary>
 /// Business logic for <see cref="INSTRUCTOR_PAYOUT_ACCOUNT"/>, backing <c>InstructorPayoutAccountEndpoints</c>.
 /// </summary>
-public sealed class InstructorPayoutAccountService(IInstructorPayoutAccountRepository repository, ISensitiveDataProtector dataProtector)
+public sealed class InstructorPayoutAccountService(
+    IInstructorPayoutAccountRepository repository,
+    ISensitiveDataProtector dataProtector,
+    IClock clock)
 {
     public async Task<Result<InstructorPayoutAccountResponse>> CreateForCurrentUserAsync(
         Guid userId, CreateInstructorPayoutAccountCommand command, CancellationToken cancellationToken)
@@ -28,7 +31,8 @@ public sealed class InstructorPayoutAccountService(IInstructorPayoutAccountRepos
             command.BankCode,
             accountNoEncrypted,
             command.AccountName,
-            taxIdEncrypted);
+            taxIdEncrypted,
+            command.TaxPayerType);
 
         repository.Add(account);
         await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -54,6 +58,20 @@ public sealed class InstructorPayoutAccountService(IInstructorPayoutAccountRepos
         {
             return Result.Failure<InstructorPayoutAccountResponse>(DomainError.NotFound("ไม่พบข้อมูลบัญชีธนาคาร"));
         }
+
+        return Result.Success(ToResponse(account));
+    }
+
+    public async Task<Result<InstructorPayoutAccountResponse>> VerifyAsync(Guid instructorId, CancellationToken cancellationToken)
+    {
+        var account = await repository.GetByInstructorIdAsync(instructorId, cancellationToken).ConfigureAwait(false);
+        if (account is null)
+        {
+            return Result.Failure<InstructorPayoutAccountResponse>(DomainError.NotFound("ไม่พบข้อมูลบัญชีธนาคาร"));
+        }
+
+        account.Verify(clock);
+        await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return Result.Success(ToResponse(account));
     }
@@ -91,6 +109,7 @@ public sealed class InstructorPayoutAccountService(IInstructorPayoutAccountRepos
             maskedAccountNo,
             a.ACCOUNT_NAME,
             maskedTaxId,
+            a.TAX_PAYER_TYPE,
             a.VERIFIED_AT_UTC);
     }
 }

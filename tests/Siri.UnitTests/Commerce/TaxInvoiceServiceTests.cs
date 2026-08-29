@@ -19,6 +19,9 @@ public sealed class TaxInvoiceServiceTests
         public Task<TAX_INVOICE?> GetByIdAsync(Guid taxInvoiceId, CancellationToken cancellationToken) =>
             Task.FromResult(Invoices.TryGetValue(taxInvoiceId, out var inv) ? inv : null);
 
+        public Task<TAX_INVOICE?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken) =>
+            Task.FromResult(Invoices.Values.FirstOrDefault(i => i.ORDER_ID == orderId));
+
         public Task AddAsync(TAX_INVOICE taxInvoice, CancellationToken cancellationToken)
         {
             Invoices[taxInvoice.TAX_INVOICE_ID] = taxInvoice;
@@ -48,9 +51,28 @@ public sealed class TaxInvoiceServiceTests
         public Task<IReadOnlyList<ORDER>> GetActiveByUserIdAsync(Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ORDER>>(Orders.Values.Where(o => o.USER_ID == userId && o.STATUS == OrderStatus.Pending).ToList());
 
+        public Task<(IReadOnlyList<ORDER> Items, int TotalCount)> ListByUserIdAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken)
+        {
+            var userOrders = Orders.Values.Where(o => o.USER_ID == userId).OrderByDescending(o => o.CreatedAtUtc).ToList();
+            var items = userOrders.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult<(IReadOnlyList<ORDER> Items, int TotalCount)>((items, userOrders.Count));
+        }
+
+        public Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken)
+        {
+            var result = Orders.Values
+                .Where(o => o.STATUS == OrderStatus.AwaitingPayment && o.CreatedAtUtc <= cutoffUtc)
+                .OrderBy(o => o.CreatedAtUtc)
+                .Take(batchSize)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<ORDER>>(result);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken) => operation();
+
+        public Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken) => operation();
     }
 
     [Fact]
@@ -120,6 +142,55 @@ public sealed class TaxInvoiceServiceTests
         var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
 
         var result = await service.GetByIdAsync(strangerId, invoice.TAX_INVOICE_ID, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("not_found", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetByOrderIdAsync_WhenOwnerRequests_ReturnsTaxInvoice()
+    {
+        var invoiceRepo = new FakeTaxInvoiceRepository();
+        var orderRepo = new FakeOrderRepository();
+        var clock = new FakeClock(DateTime.UtcNow);
+
+        var ownerId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-123", ownerId, 1000m, 0m, 70m, 1070m);
+        order.MarkAwaitingPayment();
+        order.MarkPaid(clock);
+        await orderRepo.AddAsync(order, CancellationToken.None);
+
+        var invoice = TAX_INVOICE.Issue(order.ORDER_ID, "0105558123456", "บริษัท ตัวอย่าง จำกัด", "INV-123", clock);
+        invoiceRepo.Invoices[invoice.TAX_INVOICE_ID] = invoice;
+
+        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var result = await service.GetByOrderIdAsync(ownerId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("INV-123", result.Value.InvoiceNo);
+        Assert.Equal("บริษัท ตัวอย่าง จำกัด", result.Value.BuyerName);
+    }
+
+    [Fact]
+    public async Task GetByOrderIdAsync_IDOR_WhenStrangerRequests_ReturnsNotFound()
+    {
+        var invoiceRepo = new FakeTaxInvoiceRepository();
+        var orderRepo = new FakeOrderRepository();
+        var clock = new FakeClock(DateTime.UtcNow);
+
+        var ownerId = Guid.NewGuid();
+        var strangerId = Guid.NewGuid();
+
+        var order = ORDER.Create("ORD-123", ownerId, 1000m, 0m, 70m, 1070m);
+        order.MarkAwaitingPayment();
+        order.MarkPaid(clock);
+        await orderRepo.AddAsync(order, CancellationToken.None);
+
+        var invoice = TAX_INVOICE.Issue(order.ORDER_ID, "0105558123456", "บริษัท ตัวอย่าง จำกัด", "INV-123", clock);
+        invoiceRepo.Invoices[invoice.TAX_INVOICE_ID] = invoice;
+
+        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var result = await service.GetByOrderIdAsync(strangerId, order.ORDER_ID, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("not_found", result.Error.Code);

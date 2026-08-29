@@ -27,6 +27,15 @@ public sealed class FlashSaleRepository(AppDbContext dbContext) : IFlashSaleRepo
             .ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<FLASH_SALE>> GetActiveFlashSalesAsync(DateTime nowUtc, CancellationToken cancellationToken)
+    {
+        return await dbContext.FlashSales()
+            .Include(f => f.FLASH_SALE_ITEMS)
+            .Where(f => f.IS_ACTIVE && f.STARTS_AT_UTC <= nowUtc && f.ENDS_AT_UTC >= nowUtc)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public Task<int> CountAsync(CancellationToken cancellationToken) =>
         dbContext.FlashSales().CountAsync(cancellationToken);
 }

@@ -13,7 +13,7 @@ public sealed class ReportConfiguration : IEntityTypeConfiguration<REPORT>
 {
     public void Configure(EntityTypeBuilder<REPORT> builder)
     {
-        builder.ToTable("REPORTS", "community");
+        builder.ToTable("REPORTS", "COMMUNITY");
 
         builder.HasKey(r => r.REPORT_ID);
 

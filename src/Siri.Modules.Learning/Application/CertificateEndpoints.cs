@@ -25,6 +25,13 @@ public static class CertificateEndpoints
             .Produces<CertificateVerificationResponse>(StatusCodes.Status200OK)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
+        mine.MapGet("/verify/{verifyCode}/download", DownloadPdfByVerifyCodeAsync)
+            .AllowAnonymous()
+            .WithName("LearningDownloadCertificatePdfByVerifyCode")
+            .WithSummary("ดาวน์โหลดไฟล์ PDF ใบประกาศนียบัตรด้วยรหัสยืนยัน (ไม่ต้องล็อกอิน)")
+            .Produces(StatusCodes.Status200OK, contentType: "application/pdf")
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
         mine.MapGet("/me", ListMineAsync)
             .WithName("LearningListMyCertificates")
             .WithSummary("รายการใบประกาศนียบัตรของตัวเอง")
@@ -44,6 +51,20 @@ public static class CertificateEndpoints
             .Produces(StatusCodes.Status200OK, contentType: "application/pdf")
             .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
+        mine.MapGet("/by-enrollment/{enrollmentId:guid}", GetByEnrollmentAsync)
+            .WithName("LearningGetCertificateByEnrollment")
+            .WithSummary("ดูใบประกาศนียบัตรตามการลงทะเบียนเรียน")
+            .Produces<CertificateDetailResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
+        mine.MapGet("/by-course/{courseId:guid}", GetByCourseAsync)
+            .WithName("LearningGetCertificateByCourse")
+            .WithSummary("ดูใบประกาศนียบัตรตามคอร์สเรียน")
+            .Produces<CertificateDetailResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
         var admin = group.MapGroup("/admin/certificates").RequireAuthorization(AuthorizationPolicyNames.AdminOnly);
@@ -136,6 +157,38 @@ public static class CertificateEndpoints
         return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
     }
 
+    private static async Task<IResult> GetByEnrollmentAsync(
+        Guid enrollmentId,
+        CertificateService service,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await service.GetByEnrollmentIdAsync(userId, enrollmentId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+    }
+
+    private static async Task<IResult> GetByCourseAsync(
+        Guid courseId,
+        CertificateService service,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await service.GetByCourseIdAsync(userId, courseId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+    }
+
     private static async Task<IResult> DownloadPdfAsync(
         Guid id,
         CertificateService service,
@@ -144,9 +197,24 @@ public static class CertificateEndpoints
         CancellationToken cancellationToken)
     {
         var userId = userContext.UserId;
-        var isAdmin = userContext.Roles.Contains("Admin") || userContext.Roles.Contains("SuperAdmin");
+        var isAdmin = userContext.Roles.Contains(RoleNames.Admin) || userContext.Roles.Contains(RoleNames.SuperAdmin);
 
         var result = await service.GeneratePdfAsync(id, userId, isAdmin, cancellationToken).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            return result.Error.ToProblemHttpResult(httpContext);
+        }
+
+        return Results.File(result.Value.Bytes, "application/pdf", result.Value.FileName);
+    }
+
+    private static async Task<IResult> DownloadPdfByVerifyCodeAsync(
+        string verifyCode,
+        CertificateService service,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.GeneratePdfByVerifyCodeAsync(verifyCode, cancellationToken).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return result.Error.ToProblemHttpResult(httpContext);

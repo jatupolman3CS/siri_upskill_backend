@@ -1,9 +1,9 @@
-using Siri.Modules.Identity.Domain;
+﻿using Siri.Modules.Identity.Domain;
 
 namespace Siri.Modules.Identity.Features.ListSessions;
 
 /// <summary>
-/// One of the caller's own <see cref="UserSession"/>s, shaped for a "signed-in devices" UI
+/// One of the caller's own <see cref="USER_SESSION"/>s, shaped for a "signed-in devices" UI
 /// (docs/SECURITY.md §2: "ผู้ใช้ดู/ถอดอุปกรณ์เองได้ที่หน้า 'อุปกรณ์ที่เข้าสู่ระบบ'"). Never returned for
 /// any session but the caller's own — see <see cref="ListSessionsHandler"/>'s doc comment for the
 /// ownership-scoped query this is always built from.
@@ -17,8 +17,8 @@ namespace Siri.Modules.Identity.Features.ListSessions;
 /// <see cref="ListSessionsHandler"/>), so that concern does not apply here. security.md's
 /// masking/encryption rules target data that is sensitive <em>to someone else</em> seeing it (bank
 /// account numbers, tax ids, card numbers) or is a secret in its own right (password, token, OTP) — an
-/// IP address is neither, and it is already stored unmasked/unencrypted in <see cref="UserSession"/>/
-/// <see cref="SecurityAudit"/> today with no masking precedent (P0-16/P0-17). The entire reason
+/// IP address is neither, and it is already stored unmasked/unencrypted in <see cref="USER_SESSION"/>/
+/// <see cref="SECURITY_AUDIT"/> today with no masking precedent (P0-16/P0-17). The entire reason
 /// SECURITY.md calls for this page to exist is so the account owner can notice "that login was NOT from
 /// my home/office network" — a masked "203.0.***.***" would defeat exactly that use case.</item>
 /// <item><see cref="UserAgent"/> — the raw stored string, not parsed into a friendly "Chrome on
@@ -27,7 +27,7 @@ namespace Siri.Modules.Identity.Features.ListSessions;
 /// build, and getting it subtly wrong would show the user an incorrect device label — worse than no
 /// label at all. <see cref="DeviceName"/> already exists as exactly the human-friendly label this field
 /// would otherwise approximate (the client supplies it once at login — see
-/// <see cref="Login.LoginCommand.DeviceName"/>'s own doc comment); a raw, honest User-Agent string is
+/// <see cref="Login.LoginCommand.DeviceName"/>'s own doc comment); a raw, honest USER-Agent string is
 /// strictly more useful to a security-conscious user auditing this page than a possibly-wrong guess, so
 /// this task adds no parsing.</item>
 /// </list>
@@ -58,7 +58,7 @@ public static class UserSessionMappingExtensions
     /// <param name="currentSessionId">The caller's own current session id (from
     /// <see cref="ListSessionsCommand.CurrentSessionId"/>), or <c>null</c> if unknown — determines
     /// <see cref="SessionSummary.IsCurrentSession"/>.</param>
-    public static SessionSummary ToSummary(this UserSession session, Guid? currentSessionId) =>
+    public static SessionSummary ToSummary(this USER_SESSION session, Guid? currentSessionId) =>
         new(
             session.Id,
             session.DeviceName,

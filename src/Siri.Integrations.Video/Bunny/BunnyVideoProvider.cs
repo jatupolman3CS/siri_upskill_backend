@@ -186,10 +186,24 @@ public sealed class BunnyVideoProvider : IVideoProvider
     }
 
     /// <summary>
-    /// Generates a token-authenticated playback URL for Bunny Stream.
+    /// Generates a token-authenticated playback URL for Bunny Stream using the Advanced Token
+    /// Authentication algorithm (HS256 / HMAC-SHA256).
     /// <para>
-    /// Algorithm: <c>SHA256(TokenAuthenticationKey + VideoPath + ExpirationTimestamp)</c> converted
-    /// to lowercase hex. The result is appended as <c>?token={hash}&amp;expires={timestamp}</c>.
+    /// <b>Algorithm</b> (per docs.bunny.net/stream/token-authentication):
+    /// <list type="number">
+    ///   <item>token_path = directory containing the HLS segments (e.g. <c>/{libraryId}/{videoId}/</c>)</item>
+    ///   <item>message = TokenAuthenticationKey + token_path + expires</item>
+    ///   <item>hash = HMAC-SHA256(key: TokenAuthenticationKey, data: message)</item>
+    ///   <item>token = "HS256-" + Base64UrlEncode(hash)  (no padding, + → -, / → _)</item>
+    /// </list>
+    /// The final URL is:
+    /// <c>https://{CdnHostname}/{libraryId}/{videoId}/playlist.m3u8?token={token}&amp;expires={ts}&amp;token_path={tokenPath}</c>
+    /// </para>
+    /// <para>
+    /// Using a directory-level <c>token_path</c> (ending with <c>/</c>) allows the same token to
+    /// authorize all HLS segment requests (<c>*.ts</c>) that the player makes after loading the
+    /// playlist — without it, every segment would result in a 403 because Bunny validates the path
+    /// against the signed path for each subrequest.
     /// </para>
     /// <para>
     /// This method is intentionally <c>internal</c> so unit tests can verify the signing logic
@@ -198,14 +212,25 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// </summary>
     internal string GenerateSignedPlaybackUrl(string providerVideoId, long expirationTimestamp)
     {
-        // Bunny playback URL path: /{libraryId}/{videoId}/playlist.m3u8
-        var videoPath = $"/{_options.LibraryId}/{providerVideoId}/playlist.m3u8";
+        // Directory-level token_path so the token covers playlist + all .ts segment requests.
+        var tokenPath = $"/{_options.LibraryId}/{providerVideoId}/";
 
-        var hashInput = $"{_options.TokenAuthenticationKey}{videoPath}{expirationTimestamp}";
-        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(hashInput));
-        var token = Convert.ToHexStringLower(hashBytes);
+        // HMAC-SHA256: key = TokenAuthenticationKey, message = key + tokenPath + expires
+        var message = $"{_options.TokenAuthenticationKey}{tokenPath}{expirationTimestamp}";
+        using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_options.TokenAuthenticationKey));
+        var hashBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(message));
 
-        return $"https://{_options.CdnHostname}{videoPath}?token={token}&expires={expirationTimestamp}";
+        // Base64URL encode (no padding, RFC 4648 §5)
+        var base64 = Convert.ToBase64String(hashBytes)
+            .Replace('+', '-')
+            .Replace('/', '_')
+            .TrimEnd('=');
+
+        var token = $"HS256-{base64}";
+
+        // Full playback URL for the HLS playlist
+        var playlistPath = $"/{_options.LibraryId}/{providerVideoId}/playlist.m3u8";
+        return $"https://{_options.CdnHostname}{playlistPath}?token={token}&expires={expirationTimestamp}&token_path={Uri.EscapeDataString(tokenPath)}";
     }
 
     private HttpClient CreateClient()

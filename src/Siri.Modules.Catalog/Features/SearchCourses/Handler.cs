@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -9,30 +10,11 @@ namespace Siri.Modules.Catalog.Features.SearchCourses;
 /// <summary>
 /// Searches and filters <see cref="CourseStatus.Published"/> courses — never any other status, regardless
 /// of caller, since this endpoint is public (security.md: only the server decides what's visible).
-/// <para>
-/// <b>Full-text search — kept deliberately narrow and isolated</b>: the only SQL-Server-specific surface
-/// this handler touches is one simple, self-contained <c>FREETEXTTABLE</c> query via
-/// <c>Database.SqlQuery&lt;T&gt;</c> (provider-agnostic API, raw SQL text — database.md's own sanctioned
-/// escape hatch, same as <c>FromSqlInterpolated</c>) that resolves to nothing more than a
-/// <c>(CourseId, Rank)</c> lookup, fully materialized into memory before anything else happens.
-/// <c>FREETEXTTABLE</c> was chosen over <c>CONTAINSTABLE</c> specifically because it accepts arbitrary
-/// natural-language text with no boolean-operator predicate syntax to get wrong — a user's raw search
-/// box input is exactly that. Every other query in this handler (filtering, faceting, sorting,
-/// pagination) is completely ordinary LINQ-to-Entities with no FTS-specific composition — deliberately,
-/// so the one piece of this handler that cannot be verified without a live, FTS-enabled SQL Server (this
-/// dev environment has neither) stays as small and simple as it can be.
-/// </para>
-/// <para>
-/// <b>Relevance sort</b> needs special handling because of that same isolation: <c>Rank</c> only exists
-/// in the in-memory dictionary from the FTS query, not as a column the database can <c>ORDER BY</c>
-/// directly through LINQ. So when sorting by <see cref="CourseSearchSort.Relevance"/>, this handler
-/// fetches the *filtered* id set only (cheap — just ids), sorts those ids by rank in memory, slices the
-/// requested page of ids, then fetches full rows for exactly that page and re-orders them to match.
-/// Every other sort order (price, rating, newest) is a normal database-level <c>ORDER BY</c> +
-/// <c>OFFSET/FETCH</c>, same as every other paginated handler in this module.
-/// </para>
 /// </summary>
-public sealed class SearchCoursesHandler(AppDbContext dbContext)
+public sealed class SearchCoursesHandler(
+    AppDbContext dbContext,
+    IUserContext userContext,
+    ILogger<SearchCoursesHandler> logger)
 {
     public const int DefaultPageSize = 20;
     public const int MaxPageSize = 100;
@@ -56,15 +38,46 @@ public sealed class SearchCoursesHandler(AppDbContext dbContext)
 
         if (hasSearchText)
         {
-            var matches = await dbContext.Database
-                .SqlQuery<CourseSearchMatch>(
-                    $"SELECT [KEY] AS CourseId, [RANK] AS Rank FROM FREETEXTTABLE(catalog.Courses, (Title, Subtitle, Description), {query.Q})")
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
+            var queryText = query.Q!.Trim();
+            try
+            {
+                var matches = await dbContext.Database
+                    .SqlQuery<CourseSearchMatch>(
+                        $"SELECT [KEY] AS CourseId, [RANK] AS Rank FROM FREETEXTTABLE(CATALOG.COURSES, (Title, Subtitle, Description), {queryText})")
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false);
 
-            rankByCourseId = matches.ToDictionary(m => m.CourseId, m => m.Rank);
-            var matchedIds = rankByCourseId.Keys.ToList();
-            baseCourses = baseCourses.Where(c => matchedIds.Contains(c.Id));
+                rankByCourseId = matches.ToDictionary(m => m.CourseId, m => m.Rank);
+                var matchedIds = rankByCourseId.Keys.ToList();
+                baseCourses = baseCourses.Where(c => matchedIds.Contains(c.Id));
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "FTS query execution failed; falling back to LIKE predicate search for query: {QueryText}", queryText);
+
+                // Fallback for environments where SQL Server Full-Text Search is not installed or enabled (P0-09)
+                var pattern = $"%{queryText}%";
+                baseCourses = baseCourses.Where(c =>
+                    EF.Functions.Like(c.Title, pattern) ||
+                    (c.Subtitle != null && EF.Functions.Like(c.Subtitle, pattern)) ||
+                    (c.Description != null && EF.Functions.Like(c.Description, pattern)));
+
+                var matchedCourses = await baseCourses
+                    .Select(c => new { c.Id, c.Title, c.Subtitle, c.Description })
+                    .ToListAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                rankByCourseId = matchedCourses.ToDictionary(
+                    c => c.Id,
+                    c =>
+                    {
+                        var rank = 0;
+                        if (c.Title.Contains(queryText, StringComparison.OrdinalIgnoreCase)) rank += 100;
+                        if (c.Subtitle is not null && c.Subtitle.Contains(queryText, StringComparison.OrdinalIgnoreCase)) rank += 50;
+                        if (c.Description is not null && c.Description.Contains(queryText, StringComparison.OrdinalIgnoreCase)) rank += 10;
+                        return rank;
+                    });
+            }
         }
 
         // Facets read from baseCourses (search-matched + Published) — before category/level/price/
@@ -141,12 +154,22 @@ public sealed class SearchCoursesHandler(AppDbContext dbContext)
             .Select(g => new InstructorFacet(g.InstructorId, instructorNames.GetValueOrDefault(g.InstructorId, string.Empty), g.Count))
             .ToList();
 
+        var pageCourseIds = pageCourses.Select(c => c.Id).ToList();
+        var wishlistedSet = userContext.UserId.HasValue && pageCourseIds.Count > 0
+            ? (await dbContext.Wishlists()
+                .AsNoTracking()
+                .Where(w => w.UserId == userContext.UserId.Value && pageCourseIds.Contains(w.CourseId))
+                .Select(w => w.CourseId)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)).ToHashSet()
+            : [];
+
         var items = pageCourses
             .Select(c => new CourseSearchResultItem(
                 c.Id, c.Slug, c.Title, c.Subtitle, c.ThumbnailUrl, c.Price, c.ComparePrice, c.Currency,
                 c.Level, c.Language, c.RatingAverage, c.RatingCount, c.EnrollmentCount, c.EpisodeCount,
                 c.TotalDurationSeconds, c.InstructorId, instructorNames.GetValueOrDefault(c.InstructorId, string.Empty),
-                c.CategoryId))
+                c.CategoryId, wishlistedSet.Contains(c.Id)))
             .ToList();
 
         return new SearchCoursesResponse(
@@ -154,8 +177,8 @@ public sealed class SearchCoursesHandler(AppDbContext dbContext)
             new CourseSearchFacets(categoryFacets, levelFacets, instructorFacets));
     }
 
-    private async Task<List<Course>> FetchPageByRelevanceAsync(
-        IQueryable<Course> filtered, Dictionary<Guid, int> rankByCourseId, int page, int pageSize, CancellationToken cancellationToken)
+    private async Task<List<COURSE>> FetchPageByRelevanceAsync(
+        IQueryable<COURSE> filtered, Dictionary<Guid, int> rankByCourseId, int page, int pageSize, CancellationToken cancellationToken)
     {
         var filteredIds = await filtered.Select(c => c.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
 
@@ -174,8 +197,8 @@ public sealed class SearchCoursesHandler(AppDbContext dbContext)
         return pageIds.Select(id => byId[id]).ToList();
     }
 
-    private static async Task<List<Course>> FetchPageBySortAsync(
-        IQueryable<Course> filtered, CourseSearchSort sort, int page, int pageSize, CancellationToken cancellationToken)
+    private static async Task<List<COURSE>> FetchPageBySortAsync(
+        IQueryable<COURSE> filtered, CourseSearchSort sort, int page, int pageSize, CancellationToken cancellationToken)
     {
         // Relevance falls through to here only when there was no search text to rank by — Newest is the
         // reasonable default for "browse with filters, no search term" (same as GetPendingCourseReviews'

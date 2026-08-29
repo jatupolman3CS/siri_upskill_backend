@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Siri.Modules.Catalog.Domain;
 using Siri.Persistence;
@@ -15,17 +15,17 @@ namespace Siri.Modules.Catalog.Infrastructure.Seeding;
 /// Instructor accounts' real user ids, which only <c>IdentitySeeder</c> can hand it).
 /// <para>
 /// <b>Idempotent per-row, same shape <c>IdentitySeeder</c> already establishes</b>: categories are
-/// looked up by <see cref="Category.Slug"/>, instructor profiles by <see cref="InstructorProfile.UserId"/>,
-/// courses by their generated <see cref="Course.Slug"/> — each checked individually before creating,
+/// looked up by <see cref="CATEGORY.Slug"/>, instructor profiles by <see cref="INSTRUCTOR_PROFILE.UserId"/>,
+/// courses by their generated <see cref="COURSE.Slug"/> — each checked individually before creating,
 /// never enumerating/wiping a whole table. Running this twice against the same database creates zero
 /// duplicate rows the second time.
 /// </para>
 /// <para>
 /// <b>Deliberately bypasses the real apply/approve and create/submit/publish flows</b> (seed/sample data
 /// only, same explicit exception <c>IdentitySeeder</c>'s own doc comment takes for account creation):
-/// builds each <see cref="InstructorProfile"/> via <see cref="InstructorProfile.Apply"/> then immediately
-/// <see cref="InstructorProfile.Approve"/>s it, and each <see cref="Course"/> via <see cref="Course.Create"/>
-/// plus its own public Add*/Update*/Set* methods, then immediately <see cref="Course.Publish"/>es it —
+/// builds each <see cref="INSTRUCTOR_PROFILE"/> via <see cref="INSTRUCTOR_PROFILE.Apply"/> then immediately
+/// <see cref="INSTRUCTOR_PROFILE.Approve"/>s it, and each <see cref="COURSE"/> via <see cref="COURSE.Create"/>
+/// plus its own public Add*/Update*/Set* methods, then immediately <see cref="COURSE.Publish"/>es it —
 /// sample catalog data sitting in Draft/Pending would not actually be visible anywhere, defeating the
 /// point of seeding it.
 /// </para>
@@ -65,12 +65,28 @@ public sealed class CatalogSeeder(AppDbContext dbContext, IClock clock, ILogger<
     {
         var specs = CatalogSeedData.BuildCategories();
         var slugs = specs.Select(s => s.Slug).ToArray();
+        var namesTh = specs.Select(s => s.NameTh).ToArray();
+        var namesEn = specs.Select(s => s.NameEn).ToArray();
 
-        var categoryIdBySlug = await dbContext.Categories()
+        var existingCategories = await dbContext.Categories()
             .AsNoTracking()
-            .Where(c => slugs.Contains(c.Slug))
-            .ToDictionaryAsync(c => c.Slug, c => c.Id, cancellationToken)
+            .Where(c => slugs.Contains(c.Slug) || namesTh.Contains(c.NameTh) || namesEn.Contains(c.NameEn))
+            .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        var categoryIdBySlug = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+        foreach (var existing in existingCategories)
+        {
+            categoryIdBySlug[existing.Slug] = existing.Id;
+            var matchingSpec = specs.FirstOrDefault(s =>
+                string.Equals(s.Slug, existing.Slug, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.NameTh, existing.NameTh, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.NameEn, existing.NameEn, StringComparison.OrdinalIgnoreCase));
+            if (matchingSpec is not null)
+            {
+                categoryIdBySlug[matchingSpec.Slug] = existing.Id;
+            }
+        }
 
         var createdCount = 0;
 
@@ -81,7 +97,7 @@ public sealed class CatalogSeeder(AppDbContext dbContext, IClock clock, ILogger<
                 continue;
             }
 
-            var category = Category.Create(spec.Slug, spec.NameTh, spec.NameEn, spec.IconKey, parentId: null, sortOrder: categoryIdBySlug.Count);
+            var category = CATEGORY.Create(spec.Slug, spec.NameTh, spec.NameEn, spec.IconKey, parentId: null, sortOrder: categoryIdBySlug.Count);
             dbContext.Categories().Add(category);
             categoryIdBySlug[spec.Slug] = category.Id;
             createdCount++;
@@ -120,7 +136,7 @@ public sealed class CatalogSeeder(AppDbContext dbContext, IClock clock, ILogger<
                 continue;
             }
 
-            var profile = InstructorProfile.Apply(userId, spec.DisplayName, spec.Headline, spec.Bio);
+            var profile = INSTRUCTOR_PROFILE.Apply(userId, spec.DisplayName, spec.Headline, spec.Bio);
             profile.Approve(clock);
 
             dbContext.InstructorProfiles().Add(profile);
@@ -179,7 +195,7 @@ public sealed class CatalogSeeder(AppDbContext dbContext, IClock clock, ILogger<
                     $"CatalogSeedData course '{spec.Title}' references instructor email '{spec.InstructorEmail}', which CatalogSeedData.BuildInstructors does not define.");
             }
 
-            var course = Course.Create(slug, spec.Title, instructorId, categoryId, spec.Level, CourseLanguage.Thai, spec.Price);
+            var course = COURSE.Create(slug, spec.Title, instructorId, categoryId, spec.Level, CourseLanguage.Thai, spec.Price);
             course.UpdateBasicInfo(spec.Title, spec.Subtitle, spec.Description);
             course.SetPricing(spec.Price, spec.ComparePrice);
 
@@ -205,7 +221,7 @@ public sealed class CatalogSeeder(AppDbContext dbContext, IClock clock, ILogger<
                 {
                     var episode = section.AddEpisode(episodeSpec.Title, description: null, isFreePreview: isFirstEpisode);
                     // Placeholder media — see CatalogSeedData's own doc comment for why (no real Bunny
-                    // Stream asset exists yet). Only here to satisfy Course.Publish's "≥1 episode with
+                    // Stream asset exists yet). Only here to satisfy COURSE.Publish's "≥1 episode with
                     // media" invariant with a believable duration.
                     episode.AttachMedia(UuidV7.NewId(), episodeSpec.DurationSeconds);
                     isFirstEpisode = false;

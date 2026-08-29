@@ -10,7 +10,7 @@ public sealed class LearningPathTests
     [Fact]
     public void LearningPath_Create_SetsPropertiesCorrectly()
     {
-        var path = LearningPath.Create("fullstack-developer", "Fullstack Developer", "Roadmap to become a fullstack developer", 1, true);
+        var path = LEARNING_PATH.Create("fullstack-developer", "Fullstack Developer", "Roadmap to become a fullstack developer", 1, true);
 
         Assert.NotEqual(Guid.Empty, path.Id);
         Assert.Equal("fullstack-developer", path.Slug);
@@ -24,7 +24,7 @@ public sealed class LearningPathTests
     [Fact]
     public void LearningPath_SetCourses_OrdersSequentially()
     {
-        var path = LearningPath.Create("backend-mastery", "Backend Mastery", null, 2);
+        var path = LEARNING_PATH.Create("backend-mastery", "Backend Mastery", null, 2);
         var course1 = Guid.NewGuid();
         var course2 = Guid.NewGuid();
         var course3 = Guid.NewGuid();
@@ -44,7 +44,7 @@ public sealed class LearningPathTests
     [Fact]
     public void LearningPath_Update_UpdatesProperties()
     {
-        var path = LearningPath.Create("ai-engineer", "AI Engineer", "Old desc", 1);
+        var path = LEARNING_PATH.Create("ai-engineer", "AI Engineer", "Old desc", 1);
         path.Update("ai-ml-engineer", "AI & ML Engineer", "New desc", 3, false);
 
         Assert.Equal("ai-ml-engineer", path.Slug);

@@ -120,6 +120,42 @@ public sealed class CertificateService(
             verifyUrl));
     }
 
+    public async Task<Result<CertificateDetailResponse>> GetByEnrollmentIdAsync(Guid userId, Guid enrollmentId, CancellationToken cancellationToken)
+    {
+        var enrollment = await enrollmentRepository.GetByIdAsync(enrollmentId, cancellationToken).ConfigureAwait(false);
+        if (enrollment is null || enrollment.USER_ID != userId)
+        {
+            return Result.Failure<CertificateDetailResponse>(DomainError.NotFound("ไม่พบข้อมูลการลงทะเบียน"));
+        }
+
+        var cert = await certificateRepository.GetByEnrollmentIdAsync(enrollmentId, cancellationToken).ConfigureAwait(false);
+        if (cert is null)
+        {
+            if (enrollment.PROGRESS_PERCENT >= 100m)
+            {
+                var issueResult = await CreateAsync(new IssueCertificateCommand(enrollmentId, null), cancellationToken).ConfigureAwait(false);
+                if (issueResult.IsSuccess)
+                {
+                    return await GetOwnAsync(userId, issueResult.Value.Id, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            return Result.Failure<CertificateDetailResponse>(DomainError.NotFound("ยังไม่มีใบประกาศนียบัตรสำหรับการลงทะเบียนนี้"));
+        }
+
+        return await GetOwnAsync(userId, cert.CERTIFICATE_ID, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Result<CertificateDetailResponse>> GetByCourseIdAsync(Guid userId, Guid courseId, CancellationToken cancellationToken)
+    {
+        var enrollment = await enrollmentRepository.GetByUserAndCourseAsync(userId, courseId, cancellationToken).ConfigureAwait(false);
+        if (enrollment is null)
+        {
+            return Result.Failure<CertificateDetailResponse>(DomainError.NotFound("ไม่พบข้อมูลการลงทะเบียนเรียนคอร์สนี้"));
+        }
+
+        return await GetByEnrollmentIdAsync(userId, enrollment.ENROLLMENT_ID, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<Result<(byte[] Bytes, string FileName)>> GeneratePdfAsync(
         Guid certificateId,
         Guid? requestedUserId,
@@ -141,6 +177,45 @@ public sealed class CertificateService(
         if (!isAdmin && (requestedUserId is null || enrollment.USER_ID != requestedUserId.Value))
         {
             return Result.Failure<(byte[], string)>(DomainError.Forbidden("คุณไม่มีสิทธิ์เข้าถึงใบประกาศนียบัตรนี้"));
+        }
+
+        var contact = await userContactReader.GetUserContactInfoAsync(enrollment.USER_ID, cancellationToken).ConfigureAwait(false);
+        var titles = await catalogPriceContract.GetCourseTitlesAsync([enrollment.COURSE_ID], cancellationToken).ConfigureAwait(false);
+
+        var learnerName = contact.DisplayName ?? contact.Email ?? "ผู้เรียน Siri UpSkill";
+        titles.TryGetValue(enrollment.COURSE_ID, out var courseTitle);
+        courseTitle ??= "คอร์สเรียนออนไลน์";
+
+        var verifyUrl = $"https://siriupskill.com/certificates/verify/{cert.VERIFY_CODE}";
+
+        var pdfData = new CertificatePdfData(
+            learnerName,
+            courseTitle,
+            cert.SERIAL_NO,
+            cert.VERIFY_CODE,
+            cert.ISSUED_AT_UTC,
+            verifyUrl);
+
+        var bytes = CertificatePdfGenerator.GeneratePdf(pdfData);
+        var fileName = $"Certificate-{cert.SERIAL_NO}.pdf";
+
+        return Result.Success((bytes, fileName));
+    }
+
+    public async Task<Result<(byte[] Bytes, string FileName)>> GeneratePdfByVerifyCodeAsync(
+        string verifyCode,
+        CancellationToken cancellationToken)
+    {
+        var cert = await certificateRepository.GetByVerifyCodeAsync(verifyCode, cancellationToken).ConfigureAwait(false);
+        if (cert is null)
+        {
+            return Result.Failure<(byte[], string)>(DomainError.NotFound("ไม่พบใบประกาศนียบัตร"));
+        }
+
+        var enrollment = await enrollmentRepository.GetByIdAsync(cert.ENROLLMENT_ID, cancellationToken).ConfigureAwait(false);
+        if (enrollment is null)
+        {
+            return Result.Failure<(byte[], string)>(DomainError.NotFound("ไม่พบข้อมูลการลงทะเบียนเรียน"));
         }
 
         var contact = await userContactReader.GetUserContactInfoAsync(enrollment.USER_ID, cancellationToken).ConfigureAwait(false);

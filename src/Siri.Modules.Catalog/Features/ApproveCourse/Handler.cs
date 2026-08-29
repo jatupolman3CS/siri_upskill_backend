@@ -9,10 +9,10 @@ namespace Siri.Modules.Catalog.Features.ApproveCourse;
 
 /// <summary>
 /// Approves a course under review — publishes it. Checks <see cref="CourseStatus.InReview"/> before
-/// calling the existing <see cref="Course.Publish"/> (built in P1-02) rather than adding a separate
+/// calling the existing <see cref="COURSE.Publish"/> (built in P1-02) rather than adding a separate
 /// "approve" domain method: <c>Publish</c> already does exactly what an approval needs (sets Published +
 /// <c>PublishedAtUtc</c> + re-validates the "has media" invariant as a backstop), and this handler is
-/// what actually enforces "only from InReview" — see <c>Course.Publish</c>'s own doc comment for why that
+/// what actually enforces "only from InReview" — see <c>COURSE.Publish</c>'s own doc comment for why that
 /// split is deliberate.
 /// <para>
 /// <b>Output-cache invalidation (task P1-07)</b>: this is the only handler in the module that currently
@@ -31,7 +31,7 @@ public sealed class ApproveCourseHandler(AppDbContext dbContext, IClock clock, I
 
     public async Task<Result<ApproveCourseResponse>> HandleAsync(Guid courseId, CancellationToken cancellationToken)
     {
-        // Include Sections/Episodes: Course.Publish's own internal "has media" backstop walks that
+        // Include Sections/Episodes: COURSE.Publish's own internal "has media" backstop walks that
         // in-memory graph — same reasoning SubmitCourseForReviewHandler's own comment gives.
         var course = await dbContext.Courses()
             .Include(c => c.Sections).ThenInclude(s => s.Episodes)

@@ -1,14 +1,14 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Catalog.Domain;
 
 namespace Siri.Modules.Catalog.Infrastructure;
 
-public sealed class LearningPathConfiguration : IEntityTypeConfiguration<LearningPath>
+public sealed class LearningPathConfiguration : IEntityTypeConfiguration<LEARNING_PATH>
 {
-    public void Configure(EntityTypeBuilder<LearningPath> builder)
+    public void Configure(EntityTypeBuilder<LEARNING_PATH> builder)
     {
-        builder.ToTable("LearningPaths", "catalog");
+        builder.ToTable("LEARNING_PATHS", "CATALOG");
 
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).ValueGeneratedNever();

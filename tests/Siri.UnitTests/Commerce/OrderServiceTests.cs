@@ -33,7 +33,11 @@ public sealed class OrderServiceTests
         public Task<int> GetPendingReviewsCountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
         public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
     }
+
+
 
     private sealed class FakeLearningAccessContract : ILearningAccessContract
     {
@@ -68,15 +72,34 @@ public sealed class OrderServiceTests
         public Task<IReadOnlyList<ORDER>> GetActiveByUserIdAsync(Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ORDER>>(Orders.Values.Where(o => o.USER_ID == userId).ToList());
 
+        public Task<(IReadOnlyList<ORDER> Items, int TotalCount)> ListByUserIdAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken)
+        {
+            var userOrders = Orders.Values.Where(o => o.USER_ID == userId).OrderByDescending(o => o.CreatedAtUtc).ToList();
+            var items = userOrders.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult<(IReadOnlyList<ORDER> Items, int TotalCount)>((items, userOrders.Count));
+        }
+
         public Task AddAsync(ORDER order, CancellationToken cancellationToken)
         {
             Orders[order.ORDER_ID] = order;
             return Task.CompletedTask;
         }
 
+        public Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken)
+        {
+            var result = Orders.Values
+                .Where(o => o.STATUS == OrderStatus.AwaitingPayment && o.CreatedAtUtc <= cutoffUtc)
+                .OrderBy(o => o.CreatedAtUtc)
+                .Take(batchSize)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<ORDER>>(result);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken) => operation();
+
+        public Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken) => operation();
     }
 
     private sealed class FakePromoCodeRepository : IPromoCodeRepository
@@ -123,6 +146,55 @@ public sealed class OrderServiceTests
             Task.FromResult(Codes.Count);
     }
 
+    private sealed class FakeFlashSaleRepository : IFlashSaleRepository
+    {
+        public readonly Dictionary<Guid, FLASH_SALE> FlashSales = [];
+        public Task<FLASH_SALE?> GetByIdAsync(Guid flashSaleId, CancellationToken cancellationToken) =>
+            Task.FromResult(FlashSales.TryGetValue(flashSaleId, out var f) ? f : null);
+        public Task AddAsync(FLASH_SALE flashSale, CancellationToken cancellationToken)
+        {
+            FlashSales[flashSale.FLASH_SALE_ID] = flashSale;
+            return Task.CompletedTask;
+        }
+        public Task<IReadOnlyList<FLASH_SALE>> ListAsync(int page, int pageSize, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FLASH_SALE>>(FlashSales.Values.ToList());
+        public Task<IReadOnlyList<FLASH_SALE>> GetActiveFlashSalesAsync(DateTime nowUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<FLASH_SALE>>(FlashSales.Values.Where(f => f.IS_ACTIVE && f.STARTS_AT_UTC <= nowUtc && f.ENDS_AT_UTC >= nowUtc).ToList());
+        public Task<int> CountAsync(CancellationToken cancellationToken) => Task.FromResult(FlashSales.Count);
+    }
+
+    private sealed class FakeBundleRepository : IBundleRepository
+    {
+        public readonly Dictionary<Guid, BUNDLE> Bundles = [];
+        public Task<BUNDLE?> GetByIdAsync(Guid bundleId, CancellationToken cancellationToken) =>
+            Task.FromResult(Bundles.TryGetValue(bundleId, out var b) ? b : null);
+        public Task AddAsync(BUNDLE bundle, CancellationToken cancellationToken)
+        {
+            Bundles[bundle.BUNDLE_ID] = bundle;
+            return Task.CompletedTask;
+        }
+        public Task<IReadOnlyList<BUNDLE>> ListAsync(int page, int pageSize, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BUNDLE>>(Bundles.Values.ToList());
+        public Task<IReadOnlyList<BUNDLE>> GetActiveBundlesAsync(DateTime nowUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BUNDLE>>(Bundles.Values.Where(b => b.IS_ACTIVE && (!b.STARTS_AT_UTC.HasValue || b.STARTS_AT_UTC <= nowUtc) && (!b.ENDS_AT_UTC.HasValue || b.ENDS_AT_UTC >= nowUtc)).ToList());
+        public Task<IReadOnlyList<BUNDLE>> GetBundlesByCourseIdAsync(Guid courseId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<BUNDLE>>(Bundles.Values.Where(b => b.IS_ACTIVE && b.BUNDLE_ITEMS.Any(i => i.COURSE_ID == courseId)).ToList());
+        public Task<int> CountAsync(CancellationToken cancellationToken) => Task.FromResult(Bundles.Count);
+    }
+
+    private static OrderService CreateOrderService(
+        FakeOrderRepository orderRepo,
+        FakePromoCodeRepository promoRepo,
+        FakeCatalogPriceContract catalog,
+        FakeLearningAccessContract learning,
+        IClock clock)
+    {
+        var flashRepo = new FakeFlashSaleRepository();
+        var bundleRepo = new FakeBundleRepository();
+        var pricingEngine = new PricingEngine(catalog, flashRepo, bundleRepo, promoRepo, clock);
+        return new OrderService(orderRepo, promoRepo, catalog, learning, pricingEngine, clock);
+    }
+
     [Fact]
     public async Task CreateAsync_WithoutPromoCode_CreatesOrderWithZeroDiscount()
     {
@@ -133,9 +205,9 @@ public sealed class OrderServiceTests
         var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
 
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 1070m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1070m, Guid.NewGuid(), null);
 
-        var service = new OrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
         var result = await service.CreateAsync(Guid.NewGuid(), new CreateOrderCommand([courseId]), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -159,13 +231,13 @@ public sealed class OrderServiceTests
         var clock = new FakeClock(now);
 
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 1000m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
 
         var promo = PROMO_CODE.Create("DISCOUNT300", PromoCodeDiscountType.Fixed, 300m, 10, 1, 0m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
         await promoRepo.AddAsync(promo, CancellationToken.None);
 
         var userId = Guid.NewGuid();
-        var service = new OrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
         var result = await service.CreateAsync(userId, new CreateOrderCommand([courseId], "discount300"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -192,13 +264,13 @@ public sealed class OrderServiceTests
         var clock = new FakeClock(now);
 
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 1000m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
 
         var promo = PROMO_CODE.Create("FREE100", PromoCodeDiscountType.Percentage, 100m, 10, 1, 0m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
         await promoRepo.AddAsync(promo, CancellationToken.None);
 
         var userId = Guid.NewGuid();
-        var service = new OrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
         var result = await service.CreateAsync(userId, new CreateOrderCommand([courseId], "free100"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -223,13 +295,13 @@ public sealed class OrderServiceTests
         var clock = new FakeClock(now);
 
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 1000m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
 
         var promo = PROMO_CODE.Create("DISCOUNT300", PromoCodeDiscountType.Fixed, 300m, 10, 1, 0m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
         await promoRepo.AddAsync(promo, CancellationToken.None);
 
         var userId = Guid.NewGuid();
-        var service = new OrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
         var createResult = await service.CreateAsync(userId, new CreateOrderCommand([courseId], "discount300"), CancellationToken.None);
 
         Assert.True(createResult.IsSuccess);
@@ -252,16 +324,71 @@ public sealed class OrderServiceTests
         var clock = new FakeClock(now);
 
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 1000m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
 
         var promo = PROMO_CODE.Create("EXPIRED", PromoCodeDiscountType.Fixed, 300m, 10, 1, 0m, now.AddDays(-10), now.AddDays(-1), PromoCodeScope.AllCourses, null);
         await promoRepo.AddAsync(promo, CancellationToken.None);
 
-        var service = new OrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
         var result = await service.CreateAsync(Guid.NewGuid(), new CreateOrderCommand([courseId], "expired"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("validation", result.Error.Code);
         Assert.Empty(orderRepo.Orders);
+    }
+
+    [Fact]
+    public async Task ListUserOrdersAsync_ReturnsPagedOrdersForSpecificUserOnly()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+
+        var user1 = Guid.NewGuid();
+        var user2 = Guid.NewGuid();
+
+        var order1 = ORDER.Create("ORD-001", user1, 1000m, 0m, 65.42m, 1000m);
+        order1.AddItem(Guid.NewGuid(), "COURSE 1", 1000m, 1000m);
+        var order2 = ORDER.Create("ORD-002", user1, 2000m, 500m, 98.13m, 1500m);
+        order2.AddItem(Guid.NewGuid(), "COURSE 2", 2000m, 1500m);
+        var orderOtherUser = ORDER.Create("ORD-003", user2, 500m, 0m, 32.71m, 500m);
+        orderOtherUser.AddItem(Guid.NewGuid(), "COURSE 3", 500m, 500m);
+
+        await orderRepo.AddAsync(order1, CancellationToken.None);
+        await orderRepo.AddAsync(order2, CancellationToken.None);
+        await orderRepo.AddAsync(orderOtherUser, CancellationToken.None);
+
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var pagedResult = await service.ListUserOrdersAsync(user1, 1, 10, CancellationToken.None);
+
+        Assert.Equal(2, pagedResult.TotalCount);
+        Assert.Equal(2, pagedResult.Items.Count);
+        Assert.All(pagedResult.Items, o => Assert.True(o.OrderNo is "ORD-001" or "ORD-002"));
+        Assert.Contains(pagedResult.Items, o => o.Items.Count == 1 && o.Items[0].TitleSnapshot == "COURSE 1");
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenOrderBelongsToOtherUser_ReturnsNotFound()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var clock = new FakeClock(DateTime.UtcNow);
+
+        var ownerUserId = Guid.NewGuid();
+        var attackerUserId = Guid.NewGuid();
+
+        var order = ORDER.Create("ORD-OWNER", ownerUserId, 1000m, 0m, 65.42m, 1000m);
+        await orderRepo.AddAsync(order, CancellationToken.None);
+
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var result = await service.GetByIdAsync(attackerUserId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("not_found", result.Error.Code);
     }
 }

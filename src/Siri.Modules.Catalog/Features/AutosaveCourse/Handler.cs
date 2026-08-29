@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -90,7 +90,7 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
             // 2. Add or update sections & episodes
             foreach (var sectionItem in command.Sections.OrderBy(s => s.SortOrder))
             {
-                CourseSection section;
+                COURSE_SECTION section;
                 if (sectionItem.Id.HasValue && sectionItem.Id.Value != Guid.Empty &&
                     course.Sections.FirstOrDefault(s => s.Id == sectionItem.Id.Value) is { } existingSection)
                 {

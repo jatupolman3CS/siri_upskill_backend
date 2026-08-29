@@ -124,7 +124,7 @@ public sealed class PostService(IPostRepository repository, IClock clock)
             p.SLUG,
             p.TITLE,
             p.EXCERPT,
-            p.CONTENT_HTML,
+            HtmlSanitizerHelper.Sanitize(p.CONTENT_HTML),
             p.COVER_IMAGE_URL,
             p.AUTHOR_USER_ID,
             p.STATUS,

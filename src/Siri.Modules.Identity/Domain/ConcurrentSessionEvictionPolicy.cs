@@ -1,4 +1,4 @@
-namespace Siri.Modules.Identity.Domain;
+﻿namespace Siri.Modules.Identity.Domain;
 
 /// <summary>
 /// Pure selection logic for SE-03 concurrent-login enforcement — no EF/DB, HTTP, clock, or config
@@ -10,8 +10,8 @@ namespace Siri.Modules.Identity.Domain;
 /// within limit.
 /// <para>
 /// <b>Oldest-first</b> (security.md's literal "เกิน limit → revoke session เก่าสุด" — oldest by
-/// <see cref="UserSession.CreatedAtUtc"/>, i.e. when the session started, not
-/// <see cref="UserSession.LastSeenAtUtc"/>/least-recently-used). The task instructions call this out
+/// <see cref="USER_SESSION.CreatedAtUtc"/>, i.e. when the session started, not
+/// <see cref="USER_SESSION.LastSeenAtUtc"/>/least-recently-used). The task instructions call this out
 /// explicitly as the interpretation to use absent a strong reason to deviate — there isn't one here:
 /// "oldest login" is simple, predictable from a user's point of view (the device that logged in
 /// longest ago is the one that goes), and matches the literal Thai wording exactly.
@@ -21,13 +21,13 @@ public static class ConcurrentSessionEvictionPolicy
 {
     /// <summary>
     /// Returns the sessions that must be evicted from <paramref name="activeSessions"/> so that at
-    /// most <paramref name="effectiveLimit"/> remain — oldest (by <see cref="UserSession.CreatedAtUtc"/>)
+    /// most <paramref name="effectiveLimit"/> remain — oldest (by <see cref="USER_SESSION.CreatedAtUtc"/>)
     /// first. Empty if the count is already within the limit. Does not mutate/revoke anything itself
-    /// (<see cref="UserSession.Revoke"/> needs an <c>IClock</c>, which this pure policy deliberately
+    /// (<see cref="USER_SESSION.Revoke"/> needs an <c>IClock</c>, which this pure policy deliberately
     /// does not take — the caller drives the actual revocation).
     /// </summary>
-    public static IReadOnlyList<UserSession> SelectSessionsToEvict(
-        IReadOnlyCollection<UserSession> activeSessions, int effectiveLimit)
+    public static IReadOnlyList<USER_SESSION> SelectSessionsToEvict(
+        IReadOnlyCollection<USER_SESSION> activeSessions, int effectiveLimit)
     {
         ArgumentNullException.ThrowIfNull(activeSessions);
 

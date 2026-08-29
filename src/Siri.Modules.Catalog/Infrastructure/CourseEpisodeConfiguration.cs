@@ -1,14 +1,14 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Catalog.Domain;
 
 namespace Siri.Modules.Catalog.Infrastructure;
 
 /// <summary>
-/// EF Core mapping for <see cref="CourseEpisode"/>.
+/// EF Core mapping for <see cref="COURSE_EPISODE"/>.
 /// <para>
-/// <see cref="CourseEpisode.CourseId"/> and <see cref="CourseEpisode.SectionId"/> both ultimately root
-/// at <see cref="Course"/> — <c>SectionId → CourseSections.Id</c> is the real ownership edge
+/// <see cref="COURSE_EPISODE.CourseId"/> and <see cref="COURSE_EPISODE.SectionId"/> both ultimately root
+/// at <see cref="COURSE"/> — <c>SectionId → CourseSections.Id</c> is the real ownership edge
 /// (<c>Cascade</c>), but the denormalized <c>CourseId → Courses.Id</c> FK <em>must</em> be
 /// <c>Restrict</c>/<c>NoAction</c>, not <c>Cascade</c>: SQL Server rejects a schema where two different
 /// <c>Cascade</c> paths both reach the same descendant table ("may cause cycles or multiple cascade
@@ -17,15 +17,15 @@ namespace Siri.Modules.Catalog.Infrastructure;
 /// cascading — episode rows still get removed through the real Section→Episode chain within the same
 /// cascading delete statement.
 /// </para>
-/// <see cref="CourseEpisode.MediaAssetId"/> has no FK constraint at all — see
-/// <see cref="CourseEpisode"/>'s own doc comment and <c>CourseConfiguration</c>'s (same reasoning as
+/// <see cref="COURSE_EPISODE.MediaAssetId"/> has no FK constraint at all — see
+/// <see cref="COURSE_EPISODE"/>'s own doc comment and <c>CourseConfiguration</c>'s (same reasoning as
 /// <c>TrailerMediaAssetId</c>: cross-module, never gets a DB-level FK).
 /// </summary>
-public sealed class CourseEpisodeConfiguration : IEntityTypeConfiguration<CourseEpisode>
+public sealed class CourseEpisodeConfiguration : IEntityTypeConfiguration<COURSE_EPISODE>
 {
-    public void Configure(EntityTypeBuilder<CourseEpisode> builder)
+    public void Configure(EntityTypeBuilder<COURSE_EPISODE> builder)
     {
-        builder.ToTable("CourseEpisodes", "catalog");
+        builder.ToTable("COURSE_EPISODES", "CATALOG");
 
         builder.HasKey(e => e.Id);
 
@@ -37,17 +37,17 @@ public sealed class CourseEpisodeConfiguration : IEntityTypeConfiguration<Course
         builder.Property(e => e.IsFreePreview).IsRequired();
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
 
-        // .WithMany(s => s.Episodes), not a bare .WithMany() — CourseSection.Episodes is a real
+        // .WithMany(s => s.Episodes), not a bare .WithMany() — COURSE_SECTION.Episodes is a real
         // navigation property; see CourseSectionConfiguration's matching note for why an unreferenced
         // navigation makes EF invent a phantom second relationship with its own shadow FK.
-        builder.HasOne<CourseSection>()
+        builder.HasOne<COURSE_SECTION>()
             .WithMany(s => s.Episodes)
             .HasForeignKey(e => e.SectionId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // NoAction, not Cascade — see this class's own doc comment for why (avoids the dual-cascade-path
         // DDL failure with the SectionId FK above).
-        builder.HasOne<Course>()
+        builder.HasOne<COURSE>()
             .WithMany()
             .HasForeignKey(e => e.CourseId)
             .OnDelete(DeleteBehavior.NoAction);

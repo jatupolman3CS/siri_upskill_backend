@@ -17,8 +17,8 @@ public sealed record InstructorSeedSpec(string IdentityEmail, string DisplayName
 /// <summary>One video lesson to seed inside a <see cref="CourseSectionSeedSpec"/>. <see cref="DurationSeconds"/>
 /// backs a placeholder <c>MediaAssetId</c> <see cref="CatalogSeeder"/> attaches (task P1-30: no real Bunny
 /// Stream video exists — <c>Siri.Modules.Media</c> is still an empty stub, the same forward-reference gap
-/// <c>Course.TrailerMediaAssetId</c>'s own doc comment already describes) — only there so
-/// <c>Course.Publish</c>'s "≥1 episode with media" invariant is satisfied with a believable duration, never
+/// <c>COURSE.TrailerMediaAssetId</c>'s own doc comment already describes) — only there so
+/// <c>COURSE.Publish</c>'s "≥1 episode with media" invariant is satisfied with a believable duration, never
 /// a real playable asset.</summary>
 public sealed record CourseEpisodeSeedSpec(string Title, int DurationSeconds);
 

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -8,7 +8,7 @@ namespace Siri.Modules.Catalog.Features.RejectInstructorApplication;
 
 /// <summary>Rejects a pending instructor application. No role to revoke — a
 /// <see cref="InstructorApplicationStatus.Pending"/> application never held the Instructor role in the
-/// first place (see <see cref="InstructorProfile.Reject"/>'s own doc comment).</summary>
+/// first place (see <see cref="INSTRUCTOR_PROFILE.Reject"/>'s own doc comment).</summary>
 public sealed class RejectInstructorApplicationHandler(AppDbContext dbContext)
 {
     public async Task<Result<RejectInstructorApplicationResponse>> HandleAsync(Guid id, CancellationToken cancellationToken)

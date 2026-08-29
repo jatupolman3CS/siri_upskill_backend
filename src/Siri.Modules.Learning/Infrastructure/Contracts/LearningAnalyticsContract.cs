@@ -31,7 +31,6 @@ public sealed class LearningAnalyticsContract(AppDbContext dbContext) : ILearnin
                 var completeCount = g.Count(w => w.EVENT_TYPE == WatchEventType.Ended);
                 var avgSeconds = g.Average(w => (double)w.POSITION_SECONDS);
 
-                // Progress percentage is normalized: if avgSeconds > 0, calculate estimated watch %
                 var avgWatchPercent = g.Any(w => w.EVENT_TYPE == WatchEventType.Ended)
                     ? Math.Min(100m, (decimal)(completeCount * 100.0 / Math.Max(1, startCount)))
                     : Math.Min(100m, (decimal)(avgSeconds > 0 ? 50.0 : 0.0));
@@ -102,5 +101,35 @@ public sealed class LearningAnalyticsContract(AppDbContext dbContext) : ILearnin
         }
 
         return 0;
+    }
+
+    public async Task<IReadOnlyList<StudentCourseProgressRecord>> GetStudentProgressByCoursesAsync(
+        IEnumerable<Guid> courseIds,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var idList = courseIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return [];
+        }
+
+        var effectiveLimit = limit <= 0 ? 50 : Math.Min(limit, 100);
+
+        var enrollments = await dbContext.Enrollments()
+            .AsNoTracking()
+            .Where(e => idList.Contains(e.COURSE_ID))
+            .OrderByDescending(e => e.ENROLLED_AT_UTC)
+            .Take(effectiveLimit)
+            .Select(e => new StudentCourseProgressRecord(
+                e.ENROLLMENT_ID,
+                e.USER_ID,
+                e.COURSE_ID,
+                e.PROGRESS_PERCENT,
+                e.COMPLETED_AT_UTC ?? e.ENROLLED_AT_UTC))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return enrollments;
     }
 }

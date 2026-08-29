@@ -204,8 +204,8 @@ public sealed class AuthorizationPolicyHttpTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(Role.LearnerName)]
-    [InlineData(Role.InstructorName)]
+    [InlineData(ROLE.LearnerName)]
+    [InlineData(ROLE.InstructorName)]
     public async Task AdminOnlyEndpoint_TokenWithoutAdminRole_Returns403(string role)
     {
         AuthenticateAs(role);
@@ -216,8 +216,8 @@ public sealed class AuthorizationPolicyHttpTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(Role.AdminName)]
-    [InlineData(Role.SuperAdminName)]
+    [InlineData(ROLE.AdminName)]
+    [InlineData(ROLE.SuperAdminName)]
     public async Task AdminOnlyEndpoint_TokenWithAdminOrSuperAdminRole_Returns200(string role)
     {
         AuthenticateAs(role);
@@ -238,7 +238,7 @@ public sealed class AuthorizationPolicyHttpTests : IAsyncLifetime
     [Fact]
     public async Task InstructorOnlyEndpoint_TokenWithOnlyLearnerRole_Returns403()
     {
-        AuthenticateAs(Role.LearnerName);
+        AuthenticateAs(ROLE.LearnerName);
 
         using var response = await _client.GetAsync("/__test/instructor-only");
 
@@ -246,9 +246,9 @@ public sealed class AuthorizationPolicyHttpTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(Role.InstructorName)]
-    [InlineData(Role.AdminName)]
-    [InlineData(Role.SuperAdminName)]
+    [InlineData(ROLE.InstructorName)]
+    [InlineData(ROLE.AdminName)]
+    [InlineData(ROLE.SuperAdminName)]
     public async Task InstructorOnlyEndpoint_TokenWithInstructorOrAdminOrSuperAdminRole_Returns200(string role)
     {
         AuthenticateAs(role);

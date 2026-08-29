@@ -1,16 +1,16 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Notification.Domain;
 
 namespace Siri.Modules.Notification.Infrastructure;
 
-/// <summary>EF Core mapping for <see cref="EmailOutboxMessage"/> — see docs/DATABASE.md's
+/// <summary>EF Core mapping for <see cref="EMAIL_OUTBOX_MESSAGE"/> — see docs/DATABASE.md's
 /// "cms / community / notify / analytics" section, <c>notify.EmailOutbox</c>.</summary>
-public sealed class EmailOutboxMessageConfiguration : IEntityTypeConfiguration<EmailOutboxMessage>
+public sealed class EmailOutboxMessageConfiguration : IEntityTypeConfiguration<EMAIL_OUTBOX_MESSAGE>
 {
-    public void Configure(EntityTypeBuilder<EmailOutboxMessage> builder)
+    public void Configure(EntityTypeBuilder<EMAIL_OUTBOX_MESSAGE> builder)
     {
-        builder.ToTable("EmailOutbox", "notify");
+        builder.ToTable("EMAIL_OUTBOX", "NOTIFY");
 
         builder.HasKey(m => m.Id);
 
@@ -44,6 +44,6 @@ public sealed class EmailOutboxMessageConfiguration : IEntityTypeConfiguration<E
         // supports the range scan for the Failed-but-retryable branch. Per database.md: "เขียน query
         // ใหม่ที่แตะตารางใหญ่ ... ต้องบอกได้ว่าใช้ index ตัวไหน ถ้าไม่มีให้เพิ่ม index มาใน migration เดียวกัน".
         builder.HasIndex(m => new { m.Status, m.NextRetryAtUtc })
-            .HasDatabaseName("IX_EmailOutbox_Status_NextRetryAtUtc");
+            .HasDatabaseName("IX_EMAIL_OUTBOX_STATUS_NEXT_RETRY_AT_UTC");
     }
 }

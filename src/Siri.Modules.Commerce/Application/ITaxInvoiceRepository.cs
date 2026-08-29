@@ -6,6 +6,8 @@ public interface ITaxInvoiceRepository
 {
     Task<TAX_INVOICE?> GetByIdAsync(Guid taxInvoiceId, CancellationToken cancellationToken);
 
+    Task<TAX_INVOICE?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken);
+
     Task AddAsync(TAX_INVOICE taxInvoice, CancellationToken cancellationToken);
 
     /// <summary>Admin-facing paginated list — left as a stub; same deferred-filter reasoning as

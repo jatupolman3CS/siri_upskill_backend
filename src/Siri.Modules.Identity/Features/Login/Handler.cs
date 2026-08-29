@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,8 +11,8 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Identity.Features.Login;
 
 /// <summary>
-/// Verifies an email/password pair and, on success, starts a new <see cref="UserSession"/> +
-/// <see cref="RefreshToken"/> + access token for it.
+/// Verifies an email/password pair and, on success, starts a new <see cref="USER_SESSION"/> +
+/// <see cref="REFRESH_TOKEN"/> + access token for it.
 /// <para>
 /// <b>Anti user-enumeration</b> (security.md's spirit, and P0-15's Register/ConfirmEmail set the bar
 /// this task is held to — task instruction: "verify this holds by reading your own code before
@@ -36,13 +36,13 @@ namespace Siri.Modules.Identity.Features.Login;
 /// Register's handler already documents.
 /// </para>
 /// <para>
-/// On success: <see cref="User.RecordLogin"/>, a new <see cref="UserSession"/>
-/// (<see cref="UserSession.Start"/>) capturing device/UA/IP, a new <see cref="RefreshToken"/>
-/// (<see cref="RefreshToken.Issue"/>) linked to that session via its raw-token-hash pair from
+/// On success: <see cref="USER.RecordLogin"/>, a new <see cref="USER_SESSION"/>
+/// (<see cref="USER_SESSION.Start"/>) capturing device/UA/IP, a new <see cref="REFRESH_TOKEN"/>
+/// (<see cref="REFRESH_TOKEN.Issue"/>) linked to that session via its raw-token-hash pair from
 /// <see cref="ISecurityTokenGenerator"/> (the exact same "generate random, hash before storing"
-/// pattern P0-15 already established for <see cref="UserSecurityToken"/> — reused here rather than
+/// pattern P0-15 already established for <see cref="USER_SECURITY_TOKEN"/> — reused here rather than
 /// inventing a second one, per docs/DATABASE.md's "RefreshTokens.TokenHash" being documented the same
-/// way), a new access token (<see cref="IAccessTokenGenerator"/>), and a <see cref="SecurityAudit"/>
+/// way), a new access token (<see cref="IAccessTokenGenerator"/>), and a <see cref="SECURITY_AUDIT"/>
 /// entry — all added to the same <see cref="AppDbContext"/> and committed in one
 /// <see cref="AppDbContext.SaveChangesAsync"/> call (database.md: atomic multi-table writes).
 /// </para>
@@ -50,12 +50,12 @@ namespace Siri.Modules.Identity.Features.Login;
 /// <b>SE-03 concurrent-session enforcement</b> (P0-17, security.md §2/ARCHITECTURE.md §5) also runs
 /// here, after the new session/refresh-token/audit rows above are staged but before that same
 /// <see cref="AppDbContext.SaveChangesAsync"/> call: <see cref="EnforceConcurrentSessionLimitAsync"/>
-/// loads every other currently-active <see cref="UserSession"/> for this user, combines them with the
+/// loads every other currently-active <see cref="USER_SESSION"/> for this user, combines them with the
 /// one just created, and — via the pure <see cref="ConcurrentSessionEvictionPolicy"/> — decides which
 /// (if any) must be evicted to stay within the effective limit
-/// (<see cref="User.MaxConcurrentSessionsOverride"/> if set, else
+/// (<see cref="USER.MaxConcurrentSessionsOverride"/> if set, else
 /// <see cref="ConcurrentSessionOptions.MaxConcurrentSessions"/>). Each eviction revokes the session +
-/// its still-active refresh token(s), writes a distinct <see cref="SecurityAudit"/> row, and queues a
+/// its still-active refresh token(s), writes a distinct <see cref="SECURITY_AUDIT"/> row, and queues a
 /// "signed out on another device" email — all staged on the very same <see cref="AppDbContext"/>
 /// instance, so eviction is atomic with the login it was triggered by (task instruction: one
 /// <c>SaveChangesAsync</c> for the whole operation, not a separate one for eviction). Only once that
@@ -81,12 +81,12 @@ public sealed class LoginHandler(
     /// token)"), reused as the exact same constant rather than a second copy that could drift.</summary>
     private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(30);
 
-    /// <summary><see cref="UserSession.RevokeReason"/> for an SE-03 eviction — distinct from
+    /// <summary><see cref="USER_SESSION.RevokeReason"/> for an SE-03 eviction — distinct from
     /// Refresh's "suspected_refresh_token_reuse" so <c>UserSessions</c> rows are self-explanatory
-    /// without joining out to <see cref="SecurityAudit"/>.</summary>
+    /// without joining out to <see cref="SECURITY_AUDIT"/>.</summary>
     private const string ConcurrentSessionLimitRevokeReason = "concurrent_session_limit_exceeded";
 
-    /// <summary><see cref="SecurityAudit.EventType"/> for an SE-03 eviction — distinct from plain
+    /// <summary><see cref="SECURITY_AUDIT.EventType"/> for an SE-03 eviction — distinct from plain
     /// "login.succeeded" (this handler's own normal-path audit entry) and Refresh's
     /// "refresh_token.reuse_detected", so this specific event is filterable in <c>SecurityAudits</c>.</summary>
     private const string ConcurrentSessionLimitEventType = "session.evicted_concurrent_limit";
@@ -151,16 +151,16 @@ public sealed class LoginHandler(
         user.RecordLogin(clock);
 
         var deviceId = string.IsNullOrWhiteSpace(command.DeviceId) ? Guid.NewGuid().ToString() : command.DeviceId.Trim();
-        var session = UserSession.Start(user.Id, deviceId, command.DeviceName?.Trim(), userAgent, ipAddress, clock);
+        var session = USER_SESSION.Start(user.Id, deviceId, command.DeviceName?.Trim(), userAgent, ipAddress, clock);
 
         var (rawRefreshToken, refreshTokenHash) = refreshTokenGenerator.Generate();
-        var refreshToken = RefreshToken.Issue(user.Id, session.Id, refreshTokenHash, clock.UtcNow.Add(RefreshTokenLifetime));
+        var refreshToken = REFRESH_TOKEN.Issue(user.Id, session.Id, refreshTokenHash, clock.UtcNow.Add(RefreshTokenLifetime));
 
         var (accessToken, accessTokenExpiresAtUtc) = accessTokenGenerator.Generate(user, session.Id);
 
         dbContext.UserSessions().Add(session);
         dbContext.RefreshTokens().Add(refreshToken);
-        dbContext.SecurityAudits().Add(SecurityAudit.Record("login.succeeded", user.Id, null, ipAddress, clock));
+        dbContext.SecurityAudits().Add(SECURITY_AUDIT.Record("login.succeeded", user.Id, null, ipAddress, clock));
 
         var evictedSessionIds = await EnforceConcurrentSessionLimitAsync(user, session, ipAddress, cancellationToken)
             .ConfigureAwait(false);
@@ -185,7 +185,7 @@ public sealed class LoginHandler(
 
     private void VerifyAgainstDummyHash(string password)
     {
-        var dummyUser = User.Register("dummy@example.invalid", "DUMMY@EXAMPLE.INVALID", "placeholder", "placeholder");
+        var dummyUser = USER.Register("dummy@example.invalid", "DUMMY@EXAMPLE.INVALID", "placeholder", "placeholder");
         passwordHasher.VerifyPassword(dummyUser, DummyPasswordHash, password);
     }
 
@@ -197,7 +197,7 @@ public sealed class LoginHandler(
     /// can remove their Redis mirror keys once that save has actually committed.
     /// </summary>
     private async Task<IReadOnlyList<Guid>> EnforceConcurrentSessionLimitAsync(
-        User user, UserSession newSession, string? ipAddress, CancellationToken cancellationToken)
+        USER user, USER_SESSION newSession, string? ipAddress, CancellationToken cancellationToken)
     {
         // newSession was already added to dbContext's change tracker by the caller but not yet saved,
         // so this query — translated to SQL against the DB as it currently stands — does not return
@@ -235,7 +235,7 @@ public sealed class LoginHandler(
             foreach (var token in tokensOfEvictedSessions.Where(t => t.SessionId == sessionToEvict.Id))
             {
                 // null replacedByTokenId: an outright revoke, not a rotation — same distinction
-                // RefreshToken.Revoke's own doc comment draws for Refresh's reuse-detection path.
+                // REFRESH_TOKEN.Revoke's own doc comment draws for Refresh's reuse-detection path.
                 token.Revoke(null, clock);
             }
 
@@ -244,7 +244,7 @@ public sealed class LoginHandler(
             var detail =
                 $$"""{"evictedSessionId":"{{sessionToEvict.Id}}","newSessionId":"{{newSession.Id}}","effectiveLimit":{{effectiveLimit}}}""";
             dbContext.SecurityAudits().Add(
-                SecurityAudit.Record(ConcurrentSessionLimitEventType, user.Id, detail, ipAddress, clock));
+                SECURITY_AUDIT.Record(ConcurrentSessionLimitEventType, user.Id, detail, ipAddress, clock));
 
             var bodyHtml = ConcurrentSessionEvictedEmailContent.Render(user.DisplayName, effectiveLimit);
             emailOutbox.Enqueue(user.Email, ConcurrentSessionEvictedEmailContent.Subject, bodyHtml, ConcurrentSessionEvictedEmailContent.TemplateKey);

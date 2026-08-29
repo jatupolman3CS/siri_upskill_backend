@@ -14,6 +14,10 @@ public interface IOrderRepository
     /// pass should guess.</summary>
     Task<IReadOnlyList<ORDER>> GetActiveByUserIdAsync(Guid userId, CancellationToken cancellationToken);
 
+    Task<(IReadOnlyList<ORDER> Items, int TotalCount)> ListByUserIdAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 
     /// <summary>
@@ -21,4 +25,6 @@ public interface IOrderRepository
     /// Automatically commits if the operation succeeds (or returns a successful Result), and rolls back on failure or exception.
     /// </summary>
     Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken);
+
+    Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken);
 }

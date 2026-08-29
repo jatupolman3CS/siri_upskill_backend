@@ -71,7 +71,11 @@ public sealed class CertificateServiceTests
             var dict = courseIds.ToDictionary(id => id, id => "Fullstack Web Development with Angular & .NET");
             return Task.FromResult<IReadOnlyDictionary<Guid, string>>(dict);
         }
+
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
     }
+
 
     private sealed class FakeUserContactReader : IUserContactReader
     {

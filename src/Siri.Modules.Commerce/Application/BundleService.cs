@@ -74,6 +74,12 @@ public sealed class BundleService(IBundleRepository bundleRepository)
         return PagedResult<BundleResponse>.Create(mapped, totalCount, effectivePage, effectivePageSize);
     }
 
+    public async Task<IReadOnlyList<BundleResponse>> GetBundlesByCourseIdAsync(Guid courseId, CancellationToken cancellationToken)
+    {
+        var bundles = await bundleRepository.GetBundlesByCourseIdAsync(courseId, cancellationToken).ConfigureAwait(false);
+        return bundles.Select(ToResponse).ToList();
+    }
+
     private static BundleResponse ToResponse(BUNDLE bundle) =>
         new(
             bundle.BUNDLE_ID, bundle.SLUG, bundle.TITLE, bundle.DESCRIPTION, bundle.PRICE, bundle.IS_ACTIVE,

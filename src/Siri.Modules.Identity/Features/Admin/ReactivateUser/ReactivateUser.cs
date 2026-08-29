@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Infrastructure;
 using Siri.Persistence;
@@ -29,7 +29,7 @@ public sealed class ReactivateUserHandler(AppDbContext dbContext, IClock clock)
 
         user.Reactivate();
 
-        var audit = SecurityAudit.Record("AdminReactivateUser", user.Id, $"Reactivated by {adminUserId}", null, clock);
+        var audit = SECURITY_AUDIT.Record("AdminReactivateUser", user.Id, $"Reactivated by {adminUserId}", null, clock);
         dbContext.SecurityAudits().Add(audit);
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

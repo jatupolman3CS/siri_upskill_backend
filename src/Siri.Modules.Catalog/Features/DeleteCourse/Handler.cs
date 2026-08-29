@@ -7,10 +7,10 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Catalog.Features.DeleteCourse;
 
 /// <summary>
-/// Deletes a draft course — soft, not hard: <see cref="Course"/> implements
+/// Deletes a draft course — soft, not hard: <see cref="COURSE"/> implements
 /// <see cref="Siri.Persistence.Conventions.ISoftDelete"/>, so <c>AuditableEntityInterceptor</c> turns this
 /// <c>Remove()</c> call into an <c>IsDeleted</c> flag update automatically (see that interceptor's own
-/// doc comment) — no explicit domain "delete" method needed on <see cref="Course"/> itself.
+/// doc comment) — no explicit domain "delete" method needed on <see cref="COURSE"/> itself.
 /// <para>
 /// Same ownership check and Draft-only gate as <c>UpdateCourseHandler</c> — see that class's own doc
 /// comment for the full reasoning (distinct 404/403, no admin-bypass since course moderation is P6-06's

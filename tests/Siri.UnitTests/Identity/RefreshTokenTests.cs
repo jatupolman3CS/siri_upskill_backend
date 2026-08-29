@@ -11,7 +11,7 @@ public class RefreshTokenTests
         var sessionId = Guid.NewGuid();
         var expiresAtUtc = new DateTime(2026, 9, 16, 0, 0, 0, DateTimeKind.Utc);
 
-        var token = RefreshToken.Issue(userId, sessionId, "sha256-hash-of-raw-token", expiresAtUtc);
+        var token = REFRESH_TOKEN.Issue(userId, sessionId, "sha256-hash-of-raw-token", expiresAtUtc);
 
         Assert.NotEqual(Guid.Empty, token.Id);
         Assert.Equal(userId, token.UserId);
@@ -25,7 +25,7 @@ public class RefreshTokenTests
     [Fact]
     public void Revoke_SetsRevokedAtUtcAndReplacedByTokenId()
     {
-        var token = RefreshToken.Issue(Guid.NewGuid(), Guid.NewGuid(), "old-hash", DateTime.UtcNow.AddDays(30));
+        var token = REFRESH_TOKEN.Issue(Guid.NewGuid(), Guid.NewGuid(), "old-hash", DateTime.UtcNow.AddDays(30));
         var replacementId = Guid.NewGuid();
         var clock = new FakeClock(new DateTime(2026, 8, 17, 9, 0, 0, DateTimeKind.Utc));
 
@@ -38,7 +38,7 @@ public class RefreshTokenTests
     [Fact]
     public void Revoke_WithoutReplacement_SetsRevokedAtUtcAndLeavesReplacedByTokenIdNull()
     {
-        var token = RefreshToken.Issue(Guid.NewGuid(), Guid.NewGuid(), "old-hash", DateTime.UtcNow.AddDays(30));
+        var token = REFRESH_TOKEN.Issue(Guid.NewGuid(), Guid.NewGuid(), "old-hash", DateTime.UtcNow.AddDays(30));
 
         token.Revoke(null, new FakeClock(DateTime.UtcNow));
 

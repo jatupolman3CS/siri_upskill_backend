@@ -74,11 +74,49 @@ public sealed class PAYOUT_BATCH : IAuditable
         };
     }
 
-    public PAYOUT_BATCH_ITEM AddItem(Guid instructorId, decimal amount, decimal withholdingTaxAmount, decimal netAmount)
+    public PAYOUT_BATCH_ITEM AddItem(
+        Guid instructorId,
+        decimal amount,
+        decimal withholdingTaxPercent,
+        decimal withholdingTaxAmount,
+        decimal netAmount)
     {
-        var item = PAYOUT_BATCH_ITEM.Create(PAYOUT_BATCH_ID, instructorId, amount, withholdingTaxAmount, netAmount);
+        var item = PAYOUT_BATCH_ITEM.Create(
+            PAYOUT_BATCH_ID,
+            instructorId,
+            amount,
+            withholdingTaxPercent,
+            withholdingTaxAmount,
+            netAmount);
+
         _items.Add(item);
         TOTAL_AMOUNT += netAmount;
         return item;
+    }
+
+    public void MarkExecuted(Guid executedByUserId, IClock clock)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        if (STATUS != PayoutBatchStatus.Draft)
+        {
+            throw new InvalidOperationException($"Cannot execute a payout batch in {STATUS} status.");
+        }
+
+        STATUS = PayoutBatchStatus.Executed;
+        EXECUTED_BY_USER_ID = executedByUserId;
+        EXECUTED_AT_UTC = clock.UtcNow;
+
+        foreach (var item in _items)
+        {
+            if (item.STATUS == PayoutBatchItemStatus.Pending)
+            {
+                item.MarkTransferred();
+            }
+        }
+    }
+
+    public void MarkFailed()
+    {
+        STATUS = PayoutBatchStatus.Failed;
     }
 }

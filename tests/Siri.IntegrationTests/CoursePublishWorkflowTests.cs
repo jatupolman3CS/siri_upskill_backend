@@ -132,15 +132,15 @@ public sealed class CoursePublishWorkflowTests : IAsyncLifetime
 
     // ---- Fixture setup (direct-domain, not HTTP — see class doc comment) ------------------------
 
-    private static async Task<User> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
+    private static async Task<USER> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, password);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         dbContext.Users().Add(user);
@@ -159,15 +159,15 @@ public sealed class CoursePublishWorkflowTests : IAsyncLifetime
         return result.Value.AccessToken;
     }
 
-    private async Task<(InstructorProfile Profile, string AccessToken)> CreateApprovedInstructorAndLoginAsync(
+    private async Task<(INSTRUCTOR_PROFILE Profile, string AccessToken)> CreateApprovedInstructorAndLoginAsync(
         IServiceProvider services, AppDbContext dbContext)
     {
         var clock = services.GetRequiredService<IClock>();
         var email = $"instructor-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email, KnownPassword);
 
-        user.AssignRole(new Role(Role.InstructorId, Role.InstructorName));
-        var profile = InstructorProfile.Apply(user.Id, "Test Instructor", "Headline", "Bio");
+        user.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        var profile = INSTRUCTOR_PROFILE.Apply(user.Id, "Test Instructor", "Headline", "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
         await dbContext.SaveChangesAsync();
@@ -180,14 +180,14 @@ public sealed class CoursePublishWorkflowTests : IAsyncLifetime
     {
         var email = $"admin-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email, KnownPassword);
-        user.AssignRole(new Role(Role.AdminId, Role.AdminName));
+        user.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
         await dbContext.SaveChangesAsync();
         return await LoginAndGetAccessTokenAsync(services, email);
     }
 
-    private static async Task<Category> CreateCategoryAsync(AppDbContext dbContext)
+    private static async Task<CATEGORY> CreateCategoryAsync(AppDbContext dbContext)
     {
-        var category = Category.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test Category", null, null, 0);
+        var category = CATEGORY.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test CATEGORY", null, null, 0);
         dbContext.Categories().Add(category);
         await dbContext.SaveChangesAsync();
         return category;
@@ -204,7 +204,7 @@ public sealed class CoursePublishWorkflowTests : IAsyncLifetime
     {
         using var request = AuthenticatedRequest(HttpMethod.Post, "/api/catalog/instructor/courses", instructorToken);
         request.Content = JsonContent.Create(new CreateCourseCommand(
-            $"Course {Guid.NewGuid():N}", categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m));
+            $"COURSE {Guid.NewGuid():N}", categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m));
 
         using var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);

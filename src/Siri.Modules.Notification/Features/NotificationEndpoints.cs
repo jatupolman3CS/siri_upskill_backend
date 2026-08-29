@@ -50,7 +50,73 @@ public static class NotificationEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden);
 
+        // Public Contact Form
+        endpoints.MapPost("/api/contact", SubmitContactMessageAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting("default")
+            .WithTags("Contact")
+            .WithName("SubmitContactMessage")
+            .WithSummary("ส่งข้อความติดต่อทีมงาน")
+            .Produces<SubmitContactMessage.SubmitContactMessageResponse>(StatusCodes.Status200OK)
+            .ProducesValidationProblem();
+
+        // Admin Contact Messages
+        var adminGroup = endpoints.MapGroup("/api/admin/contact-messages")
+            .WithTags("Admin Contact")
+            .RequireAuthorization(AuthorizationPolicyNames.AdminOnly);
+
+        adminGroup.MapGet("", GetContactMessagesAsync)
+            .WithName("GetAdminContactMessages")
+            .WithSummary("ผู้ดูแลระบบดึงรายการข้อความติดต่อทั้งหมด")
+            .Produces<PagedResult<GetContactMessages.ContactMessageListItemResponse>>(StatusCodes.Status200OK);
+
+        adminGroup.MapPost("/{id:guid}/resolve", ResolveContactMessageAsync)
+            .WithName("ResolveAdminContactMessage")
+            .WithSummary("ผู้ดูแลระบบทำเครื่องหมายว่าจัดการข้อความติดต่อแล้ว")
+            .Produces(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
         return endpoints;
+    }
+
+    private static async Task<IResult> SubmitContactMessageAsync(
+        SubmitContactMessage.SubmitContactMessageCommand command,
+        SubmitContactMessage.SubmitContactMessageHandler handler,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var result = await handler.HandleAsync(command, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(httpContext);
+    }
+
+    private static async Task<IResult> GetContactMessagesAsync(
+        [FromQuery] int page,
+        [FromQuery] int pageSize,
+        [FromQuery] Domain.ContactMessageStatus? status,
+        GetContactMessages.GetContactMessagesHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var query = new GetContactMessages.GetContactMessagesQuery(page <= 0 ? 1 : page, pageSize <= 0 ? 20 : pageSize, status);
+        var result = await handler.HandleAsync(query, cancellationToken).ConfigureAwait(false);
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> ResolveContactMessageAsync(
+        Guid id,
+        ResolveContactMessage.ResolveContactMessageCommand command,
+        ResolveContactMessage.ResolveContactMessageHandler handler,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } adminUserId) return Results.Unauthorized();
+
+        var result = await handler.HandleAsync(id, adminUserId, command, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess
+            ? Results.Ok(new { success = true })
+            : result.Error.ToProblemHttpResult(httpContext);
     }
 
     private static async Task<IResult> GetInstructorAnnouncementsAsync(

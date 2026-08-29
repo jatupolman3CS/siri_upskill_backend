@@ -31,6 +31,38 @@ public sealed class PlaybackSessionRepository(AppDbContext dbContext) : IPlaybac
         return (items, totalCount);
     }
 
+    public async Task<IReadOnlyList<PlaybackUserActivity>> GetUserActivitySinceAsync(
+        DateTime sinceUtc, CancellationToken cancellationToken)
+    {
+        var rawSessions = await dbContext.PlaybackSessions()
+            .AsNoTracking()
+            .Where(p => p.ISSUED_AT_UTC >= sinceUtc)
+            .Select(p => new { p.USER_ID, p.IP_ADDRESS, p.ISSUED_AT_UTC })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var activities = rawSessions
+            .GroupBy(s => s.USER_ID)
+            .Select(g =>
+            {
+                var ips = g.Select(s => s.IP_ADDRESS)
+                    .Where(ip => !string.IsNullOrWhiteSpace(ip))
+                    .Select(ip => ip!)
+                    .Distinct()
+                    .ToList();
+                var lastSession = g.OrderByDescending(s => s.ISSUED_AT_UTC).FirstOrDefault();
+                return new PlaybackUserActivity(
+                    UserId: g.Key,
+                    SessionCount: g.Count(),
+                    DistinctIpCount: ips.Count,
+                    LastIpAddress: lastSession?.IP_ADDRESS,
+                    IpAddresses: ips);
+            })
+            .ToList();
+
+        return activities;
+    }
+
     public void Add(PLAYBACK_SESSION playbackSession) => dbContext.PlaybackSessions().Add(playbackSession);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);

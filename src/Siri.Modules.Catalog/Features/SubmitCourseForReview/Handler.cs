@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -10,11 +10,11 @@ namespace Siri.Modules.Catalog.Features.SubmitCourseForReview;
 /// Submits one of the caller's own draft (or previously-rejected) courses for admin review. Same
 /// ownership check shape as <c>UpdateCourseHandler</c>/<c>DeleteCourseHandler</c> (distinct 404/403, no
 /// admin-bypass — see that class's own doc comment). Re-checks the same from-status and "has episode with
-/// media" conditions <see cref="Course.SubmitForReview"/> itself guards, purely to turn what would
+/// media" conditions <see cref="COURSE.SubmitForReview"/> itself guards, purely to turn what would
 /// otherwise be an uncaught <see cref="InvalidOperationException"/> into a friendly
 /// <see cref="Result{TValue}"/> — the exact same "handler checks first for a friendly response, domain
 /// method re-checks as its own backstop" split <c>ApproveInstructorApplicationHandler</c> already
-/// establishes for <c>InstructorProfile.Approve</c>.
+/// establishes for <c>INSTRUCTOR_PROFILE.Approve</c>.
 /// </summary>
 public sealed class SubmitCourseForReviewHandler(AppDbContext dbContext)
 {
@@ -28,7 +28,7 @@ public sealed class SubmitCourseForReviewHandler(AppDbContext dbContext)
     public async Task<Result<SubmitCourseForReviewResponse>> HandleAsync(Guid userId, Guid courseId, CancellationToken cancellationToken)
     {
         // Include Sections/Episodes: both this handler's own "has media" pre-check and
-        // Course.SubmitForReview's internal backstop walk that same in-memory graph — without loading
+        // COURSE.SubmitForReview's internal backstop walk that same in-memory graph — without loading
         // it, both would see an empty collection (no lazy-loading configured in this codebase) and
         // incorrectly reject a course that genuinely does have media attached.
         var course = await dbContext.Courses()

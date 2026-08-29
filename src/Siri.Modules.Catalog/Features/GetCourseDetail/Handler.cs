@@ -12,7 +12,7 @@ namespace Siri.Modules.Catalog.Features.GetCourseDetail;
 /// Rejected course's slug returns the exact same 404 as a slug that was never registered at all, so
 /// nothing about an unpublished course's existence leaks through this endpoint either.
 /// </summary>
-public sealed class GetCourseDetailHandler(AppDbContext dbContext)
+public sealed class GetCourseDetailHandler(AppDbContext dbContext, IUserContext userContext)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
 
@@ -53,11 +53,16 @@ public sealed class GetCourseDetailHandler(AppDbContext dbContext)
         var outcomes = course.Outcomes.OrderBy(o => o.SortOrder).Select(o => o.Text).ToList();
         var requirements = course.Requirements.OrderBy(r => r.SortOrder).Select(r => r.Text).ToList();
 
+        var isWishlisted = userContext.UserId.HasValue && await dbContext.Wishlists()
+            .AsNoTracking()
+            .AnyAsync(w => w.UserId == userContext.UserId.Value && w.CourseId == course.Id, cancellationToken)
+            .ConfigureAwait(false);
+
         return new CourseDetailResponse(
             course.Id, course.Slug, course.Title, course.Subtitle, course.Description,
             course.Level, course.Language, course.ThumbnailUrl, course.Price, course.ComparePrice, course.Currency,
             course.AccessDurationDays, course.RatingAverage, course.RatingCount, course.EnrollmentCount,
             course.EpisodeCount, course.TotalDurationSeconds, course.SeoTitle, course.SeoDescription,
-            course.PublishedAtUtc, course.CategoryId, instructor, outcomes, requirements, sections);
+            course.PublishedAtUtc, course.CategoryId, instructor, outcomes, requirements, sections, isWishlisted);
     }
 }

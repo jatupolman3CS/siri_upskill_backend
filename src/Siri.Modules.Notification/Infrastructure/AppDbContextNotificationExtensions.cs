@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Notification.Domain;
 using Siri.Persistence;
 
@@ -10,9 +10,11 @@ namespace Siri.Modules.Notification.Infrastructure;
 /// </summary>
 public static class AppDbContextNotificationExtensions
 {
-    public static DbSet<EmailOutboxMessage> EmailOutboxMessages(this AppDbContext context) => context.Set<EmailOutboxMessage>();
+    public static DbSet<EMAIL_OUTBOX_MESSAGE> EmailOutboxMessages(this AppDbContext context) => context.Set<EMAIL_OUTBOX_MESSAGE>();
 
-    public static DbSet<Announcement> Announcements(this AppDbContext context) => context.Set<Announcement>();
+    public static DbSet<ANNOUNCEMENT> Announcements(this AppDbContext context) => context.Set<ANNOUNCEMENT>();
 
-    public static DbSet<UserNotification> UserNotifications(this AppDbContext context) => context.Set<UserNotification>();
+    public static DbSet<USER_NOTIFICATION> UserNotifications(this AppDbContext context) => context.Set<USER_NOTIFICATION>();
+
+    public static DbSet<CONTACT_MESSAGE> ContactMessages(this AppDbContext context) => context.Set<CONTACT_MESSAGE>();
 }

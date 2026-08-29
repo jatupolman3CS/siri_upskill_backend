@@ -22,6 +22,11 @@ public interface IPaymentMethod
     Task<Result> CancelPaymentIntentAsync(
         string providerPaymentIntentId,
         CancellationToken cancellationToken);
+
+    /// <summary>Creates a refund for a payment on the provider.</summary>
+    Task<Result<PaymentRefundResult>> CreateRefundAsync(
+        CreateRefundRequest request,
+        CancellationToken cancellationToken);
 }
 
 public sealed record CreatePaymentIntentRequest(
@@ -40,3 +45,14 @@ public sealed record PaymentIntentResult(
     string Currency,
     string? QrCodeUrl,
     string? QrCodeData);
+
+public sealed record CreateRefundRequest(
+    string ProviderPaymentIntentId,
+    decimal Amount,
+    string? Reason = null);
+
+public sealed record PaymentRefundResult(
+    string RefundId,
+    string Status,
+    decimal Amount,
+    string Currency);

@@ -11,6 +11,7 @@ public sealed class OrderService(
     IPromoCodeRepository promoCodeRepository,
     ICatalogPriceContract catalogPriceContract,
     ILearningAccessContract learningAccessContract,
+    IPricingEngine pricingEngine,
     IClock clock)
 {
     public async Task<Result<OrderResponse>> GetByIdAsync(Guid userId, Guid orderId, CancellationToken cancellationToken)
@@ -43,114 +44,35 @@ public sealed class OrderService(
             }
         }
 
-        // Server-side price calculation from Catalog contract
-        var coursePrices = await catalogPriceContract.GetPublishedCoursePricesAsync(command.CourseIds, cancellationToken).ConfigureAwait(false);
-        if (coursePrices.Count != command.CourseIds.Distinct().Count())
+        var pricingResult = await pricingEngine.CalculatePricingAsync(
+            new PricingCalculationRequest(userId, command.CourseIds, command.BundleId, command.PromoCode),
+            cancellationToken).ConfigureAwait(false);
+
+        if (pricingResult.IsFailure)
         {
-            return Result.Failure<OrderResponse>(DomainError.NotFound("พบคอร์สเรียนบางรายการที่ไม่มีอยู่หรือยังไม่เปิดจำหน่าย"));
+            return Result.Failure<OrderResponse>(pricingResult.Error);
         }
 
-        var subtotal = coursePrices.Values.Sum(c => c.Price);
-        var discount = 0m;
-        PROMO_CODE? appliedPromo = null;
-
-        if (!string.IsNullOrWhiteSpace(command.PromoCode))
-        {
-            var normalizedCode = command.PromoCode.Trim().ToUpperInvariant();
-            var promo = await promoCodeRepository.GetByCodeAsync(normalizedCode, cancellationToken).ConfigureAwait(false);
-            if (promo is null || !promo.IS_ACTIVE)
-            {
-                return Result.Failure<OrderResponse>(DomainError.Validation("โค้ดส่วนลดไม่ถูกต้องหรือถูกปิดใช้งาน"));
-            }
-
-            var now = clock.UtcNow;
-            if (now < promo.STARTS_AT_UTC || now > promo.ENDS_AT_UTC)
-            {
-                return Result.Failure<OrderResponse>(DomainError.Validation("โค้ดส่วนลดหมดอายุหรือไม่สามารถใช้งานได้ในขณะนี้"));
-            }
-
-            if (promo.REDEEMED_COUNT >= promo.MAX_REDEMPTIONS)
-            {
-                return Result.Failure<OrderResponse>(DomainError.Conflict("โค้ดส่วนลดถูกใช้งานจนครบโควตาแล้ว"));
-            }
-
-            var userRedemptions = await promoCodeRepository.GetUserRedemptionCountAsync(promo.PROMO_CODE_ID, userId, cancellationToken).ConfigureAwait(false);
-            if (userRedemptions >= promo.MAX_PER_USER)
-            {
-                return Result.Failure<OrderResponse>(DomainError.Validation("คุณได้ใช้โค้ดส่วนลดนี้ครบตามจำนวนสิทธิ์ที่กำหนดแล้ว"));
-            }
-
-            decimal applicableSubtotal;
-            switch (promo.SCOPE)
-            {
-                case PromoCodeScope.AllCourses:
-                    applicableSubtotal = subtotal;
-                    break;
-                case PromoCodeScope.Course:
-                    applicableSubtotal = promo.SCOPE_REF_ID.HasValue && command.CourseIds.Contains(promo.SCOPE_REF_ID.Value) && coursePrices.TryGetValue(promo.SCOPE_REF_ID.Value, out var coursePrice)
-                        ? coursePrice.Price
-                        : 0m;
-                    if (applicableSubtotal == 0m)
-                    {
-                        return Result.Failure<OrderResponse>(DomainError.Validation("โค้ดส่วนลดนี้ใช้ได้เฉพาะคอร์สที่กำหนด"));
-                    }
-                    break;
-                default:
-                    applicableSubtotal = subtotal;
-                    break;
-            }
-
-            if (applicableSubtotal < promo.MIN_ORDER_AMOUNT)
-            {
-                return Result.Failure<OrderResponse>(DomainError.Validation($"ยอดสั่งซื้อขั้นต่ำสำหรับโค้ดนี้คือ ฿{promo.MIN_ORDER_AMOUNT:N0}"));
-            }
-
-            discount = promo.DISCOUNT_TYPE switch
-            {
-                PromoCodeDiscountType.Fixed => Math.Min(applicableSubtotal, promo.DISCOUNT_VALUE),
-                PromoCodeDiscountType.Percentage => Math.Round(applicableSubtotal * (promo.DISCOUNT_VALUE / 100m), 2),
-                _ => 0m,
-            };
-
-            appliedPromo = promo;
-        }
-
-        var total = Math.Max(0m, subtotal - discount);
-        var tax = Math.Round(total * 7m / 107m, 2);
+        var pricing = pricingResult.Value;
+        var totalDiscount = (pricing.OriginalSubtotal - pricing.SubtotalAfterItemDiscounts) + pricing.PromoDiscount;
 
         var randomSuffix = Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
         var orderNo = $"SU-{clock.UtcNow:yyMMdd}-{randomSuffix}";
 
-        var order = ORDER.Create(orderNo, userId, subtotal, discount, tax, total, appliedPromo?.PROMO_CODE_ID);
-        foreach (var courseId in command.CourseIds)
+        var order = ORDER.Create(orderNo, userId, pricing.OriginalSubtotal, totalDiscount, pricing.TaxAmount, pricing.TotalAmount, pricing.AppliedPromoCode?.PROMO_CODE_ID);
+        foreach (var item in pricing.Items)
         {
-            var courseInfo = coursePrices[courseId];
-            decimal lineTotal;
-            if (appliedPromo is not null && appliedPromo.SCOPE == PromoCodeScope.Course && appliedPromo.SCOPE_REF_ID == courseId)
-            {
-                lineTotal = Math.Max(0m, courseInfo.Price - discount);
-            }
-            else if (subtotal > 0 && discount > 0)
-            {
-                var proportion = courseInfo.Price / subtotal;
-                lineTotal = Math.Max(0m, Math.Round(courseInfo.Price - (discount * proportion), 2));
-            }
-            else
-            {
-                lineTotal = courseInfo.Price;
-            }
-
-            order.AddItem(courseInfo.CourseId, courseInfo.Title, courseInfo.Price, lineTotal);
+            order.AddItem(item.CourseId, item.Title, item.OriginalBaselinePrice, item.FinalLineTotal);
         }
 
         return await orderRepository.ExecuteInTransactionAsync(async () =>
         {
             await orderRepository.AddAsync(order, cancellationToken).ConfigureAwait(false);
 
-            if (appliedPromo is not null)
+            if (pricing.AppliedPromoCode is not null)
             {
                 var redeemed = await promoCodeRepository.TryRedeemAsync(
-                    appliedPromo.PROMO_CODE_ID, order.ORDER_ID, userId, appliedPromo.MAX_PER_USER, clock, cancellationToken).ConfigureAwait(false);
+                    pricing.AppliedPromoCode.PROMO_CODE_ID, order.ORDER_ID, userId, pricing.AppliedPromoCode.MAX_PER_USER, clock, cancellationToken).ConfigureAwait(false);
                 if (!redeemed)
                 {
                     return Result.Failure<OrderResponse>(DomainError.Conflict("โค้ดส่วนลดถูกใช้งานจนครบโควตาหรือสิทธิ์ต่อผู้ใช้แล้ว"));
@@ -158,16 +80,17 @@ public sealed class OrderService(
             }
 
             // If total is 0 (e.g. 100% discount promo code), mark paid immediately and enroll
-            if (total == 0m)
+            if (pricing.TotalAmount == 0m)
             {
                 order.MarkAwaitingPayment();
                 order.MarkPaid(clock);
                 await orderRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
+                var coursePrices = await catalogPriceContract.GetPublishedCoursePricesAsync(command.CourseIds, cancellationToken).ConfigureAwait(false);
                 foreach (var courseId in command.CourseIds)
                 {
-                    var courseInfo = coursePrices[courseId];
-                    DateTime? expiresAt = courseInfo.AccessDurationDays.HasValue
+                    coursePrices.TryGetValue(courseId, out var courseInfo);
+                    DateTime? expiresAt = courseInfo?.AccessDurationDays.HasValue == true
                         ? clock.UtcNow.AddDays(courseInfo.AccessDurationDays.Value)
                         : null;
 
@@ -210,10 +133,49 @@ public sealed class OrderService(
         return Result.Success(ToResponse(order));
     }
 
+    public async Task<PagedResult<OrderResponse>> ListUserOrdersAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken)
+    {
+        var effectivePageSize = pageSize is <= 0 or > 100 ? 20 : pageSize;
+        var effectivePage = page <= 0 ? 1 : page;
+
+        var (items, totalCount) = await orderRepository.ListByUserIdAsync(userId, effectivePage, effectivePageSize, cancellationToken).ConfigureAwait(false);
+        var mapped = items.Select(ToResponse).ToList();
+        return PagedResult<OrderResponse>.Create(mapped, totalCount, effectivePage, effectivePageSize);
+    }
+
     private static OrderResponse ToResponse(ORDER order) =>
-        new(order.ORDER_ID, order.ORDER_NO, order.TOTAL_AMOUNT, order.CURRENCY, order.STATUS);
+        new(
+            order.ORDER_ID,
+            order.ORDER_NO,
+            order.SUBTOTAL_AMOUNT,
+            order.DISCOUNT_AMOUNT,
+            order.TAX_AMOUNT,
+            order.TOTAL_AMOUNT,
+            order.CURRENCY,
+            order.STATUS,
+            order.CreatedAtUtc,
+            order.PAID_AT_UTC,
+            order.ORDER_ITEMS.Select(i => new OrderItemResponse(i.ORDER_ITEM_ID, i.COURSE_ID, i.TITLE_SNAPSHOT, i.UNIT_PRICE, i.LINE_TOTAL)).ToList());
 }
 
-public sealed record OrderResponse(Guid Id, string OrderNo, decimal TotalAmount, string Currency, OrderStatus Status);
+public sealed record OrderItemResponse(
+    Guid Id,
+    Guid? CourseId,
+    string TitleSnapshot,
+    decimal UnitPrice,
+    decimal LineTotal);
 
-public sealed record CreateOrderCommand(IReadOnlyList<Guid> CourseIds, string? PromoCode = null);
+public sealed record OrderResponse(
+    Guid Id,
+    string OrderNo,
+    decimal SubtotalAmount,
+    decimal DiscountAmount,
+    decimal TaxAmount,
+    decimal TotalAmount,
+    string Currency,
+    OrderStatus Status,
+    DateTime CreatedAtUtc,
+    DateTime? PaidAtUtc,
+    IReadOnlyList<OrderItemResponse> Items);
+
+public sealed record CreateOrderCommand(IReadOnlyList<Guid> CourseIds, string? PromoCode = null, Guid? BundleId = null);

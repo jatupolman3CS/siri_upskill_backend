@@ -10,7 +10,7 @@ public class UserSecurityTokenTests
         var userId = Guid.NewGuid();
         var expiresAtUtc = new DateTime(2026, 8, 18, 9, 0, 0, DateTimeKind.Utc);
 
-        var token = UserSecurityToken.Issue(userId, UserSecurityTokenPurpose.EmailConfirmation, "sha256-hash", expiresAtUtc);
+        var token = USER_SECURITY_TOKEN.Issue(userId, UserSecurityTokenPurpose.EmailConfirmation, "sha256-hash", expiresAtUtc);
 
         Assert.NotEqual(Guid.Empty, token.Id);
         Assert.Equal(userId, token.UserId);
@@ -25,14 +25,14 @@ public class UserSecurityTokenTests
     public void Issue_MissingTokenHash_ThrowsArgumentException()
     {
         Assert.Throws<ArgumentException>(() =>
-            UserSecurityToken.Issue(Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "", DateTime.UtcNow.AddHours(24)));
+            USER_SECURITY_TOKEN.Issue(Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "", DateTime.UtcNow.AddHours(24)));
     }
 
     [Fact]
     public void IsExpired_ClockBeforeExpiry_ReturnsFalse()
     {
         var issuedClock = new FakeClock(new DateTime(2026, 8, 17, 9, 0, 0, DateTimeKind.Utc));
-        var token = UserSecurityToken.Issue(
+        var token = USER_SECURITY_TOKEN.Issue(
             Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "hash", issuedClock.UtcNow.AddHours(24));
 
         var checkClock = new FakeClock(issuedClock.UtcNow.AddHours(23));
@@ -45,7 +45,7 @@ public class UserSecurityTokenTests
     public void IsExpired_ClockAtOrAfterExpiry_ReturnsTrue()
     {
         var expiresAtUtc = new DateTime(2026, 8, 18, 9, 0, 0, DateTimeKind.Utc);
-        var token = UserSecurityToken.Issue(Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "hash", expiresAtUtc);
+        var token = USER_SECURITY_TOKEN.Issue(Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "hash", expiresAtUtc);
 
         var checkClock = new FakeClock(expiresAtUtc);
 
@@ -57,7 +57,7 @@ public class UserSecurityTokenTests
     public void IsValid_ConsumedToken_ReturnsFalseEvenIfNotExpired()
     {
         var clock = new FakeClock(new DateTime(2026, 8, 17, 9, 0, 0, DateTimeKind.Utc));
-        var token = UserSecurityToken.Issue(
+        var token = USER_SECURITY_TOKEN.Issue(
             Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "hash", clock.UtcNow.AddHours(24));
 
         token.Consume(clock);
@@ -69,7 +69,7 @@ public class UserSecurityTokenTests
     public void Consume_ValidToken_SetsConsumedAtUtcFromClock()
     {
         var clock = new FakeClock(new DateTime(2026, 8, 17, 9, 0, 0, DateTimeKind.Utc));
-        var token = UserSecurityToken.Issue(
+        var token = USER_SECURITY_TOKEN.Issue(
             Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "hash", clock.UtcNow.AddHours(24));
 
         token.Consume(clock);
@@ -82,7 +82,7 @@ public class UserSecurityTokenTests
     public void Consume_AlreadyConsumedToken_ThrowsInvalidOperationException()
     {
         var clock = new FakeClock(new DateTime(2026, 8, 17, 9, 0, 0, DateTimeKind.Utc));
-        var token = UserSecurityToken.Issue(
+        var token = USER_SECURITY_TOKEN.Issue(
             Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "hash", clock.UtcNow.AddHours(24));
         token.Consume(clock);
 
@@ -93,7 +93,7 @@ public class UserSecurityTokenTests
     public void Consume_ExpiredToken_ThrowsInvalidOperationException()
     {
         var expiresAtUtc = new DateTime(2026, 8, 17, 9, 0, 0, DateTimeKind.Utc);
-        var token = UserSecurityToken.Issue(Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "hash", expiresAtUtc);
+        var token = USER_SECURITY_TOKEN.Issue(Guid.NewGuid(), UserSecurityTokenPurpose.EmailConfirmation, "hash", expiresAtUtc);
         var afterExpiryClock = new FakeClock(expiresAtUtc.AddSeconds(1));
 
         Assert.Throws<InvalidOperationException>(() => token.Consume(afterExpiryClock));

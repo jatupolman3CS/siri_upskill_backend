@@ -9,11 +9,11 @@ namespace Siri.Modules.Identity.Infrastructure;
 /// This is genuinely part of the schema (fixed lookup data), unlike developer/demo test data —
 /// seeding real test users/courses is a separate, later task.
 /// </summary>
-public sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
+public sealed class RoleConfiguration : IEntityTypeConfiguration<ROLE>
 {
-    public void Configure(EntityTypeBuilder<Role> builder)
+    public void Configure(EntityTypeBuilder<ROLE> builder)
     {
-        builder.ToTable("Roles", "identity");
+        builder.ToTable("ROLES", "IDENTITY");
 
         builder.HasKey(r => r.Id);
 
@@ -26,9 +26,9 @@ public sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
         // which has no public constructor) so this works regardless of Role's own property
         // accessibility.
         builder.HasData(
-            new { Id = Role.LearnerId, Name = Role.LearnerName },
-            new { Id = Role.InstructorId, Name = Role.InstructorName },
-            new { Id = Role.AdminId, Name = Role.AdminName },
-            new { Id = Role.SuperAdminId, Name = Role.SuperAdminName });
+            new { Id = ROLE.LearnerId, Name = ROLE.LearnerName },
+            new { Id = ROLE.InstructorId, Name = ROLE.InstructorName },
+            new { Id = ROLE.AdminId, Name = ROLE.AdminName },
+            new { Id = ROLE.SuperAdminId, Name = ROLE.SuperAdminName });
     }
 }

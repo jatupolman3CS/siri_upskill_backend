@@ -29,13 +29,34 @@ public sealed class EnrollmentServiceTests
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
+    private sealed class FakeCertificateRepository : ICertificateRepository
+    {
+        public readonly Dictionary<Guid, CERTIFICATE> Certificates = [];
+
+        public Task<CERTIFICATE?> GetByIdAsync(Guid certificateId, CancellationToken cancellationToken) =>
+            Task.FromResult(Certificates.TryGetValue(certificateId, out var c) ? c : null);
+
+        public Task<CERTIFICATE?> GetByEnrollmentIdAsync(Guid enrollmentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Certificates.Values.FirstOrDefault(c => c.ENROLLMENT_ID == enrollmentId));
+
+        public Task<CERTIFICATE?> GetByVerifyCodeAsync(string verifyCode, CancellationToken cancellationToken) =>
+            Task.FromResult(Certificates.Values.FirstOrDefault(c => c.VERIFY_CODE == verifyCode));
+
+        public IQueryable<CERTIFICATE> Query() => Certificates.Values.AsQueryable();
+
+        public void Add(CERTIFICATE certificate) => Certificates[certificate.CERTIFICATE_ID] = certificate;
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
     [Fact]
     public async Task CreateAsync_WhenNotEnrolled_CreatesActiveEnrollment()
     {
         var repo = new FakeEnrollmentRepository();
+        var certRepo = new FakeCertificateRepository();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var service = new EnrollmentService(repo, clock);
+        var service = new EnrollmentService(repo, certRepo, clock);
 
         var userId = Guid.NewGuid();
         var courseId = Guid.NewGuid();
@@ -55,8 +76,9 @@ public sealed class EnrollmentServiceTests
     public async Task CreateAsync_WhenAlreadyActive_ReturnsConflict()
     {
         var repo = new FakeEnrollmentRepository();
+        var certRepo = new FakeCertificateRepository();
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new EnrollmentService(repo, clock);
+        var service = new EnrollmentService(repo, certRepo, clock);
 
         var userId = Guid.NewGuid();
         var courseId = Guid.NewGuid();
@@ -73,8 +95,9 @@ public sealed class EnrollmentServiceTests
     public async Task GetOwnAsync_WithDifferentUser_ReturnsNotFound()
     {
         var repo = new FakeEnrollmentRepository();
+        var certRepo = new FakeCertificateRepository();
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new EnrollmentService(repo, clock);
+        var service = new EnrollmentService(repo, certRepo, clock);
 
         var ownerId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
@@ -88,12 +111,13 @@ public sealed class EnrollmentServiceTests
     }
 
     [Fact]
-    public async Task UpdateOwnProgressAsync_WhenReaches100_SetsCompletedAtUtc()
+    public async Task UpdateOwnProgressAsync_WhenReaches100_SetsCompletedAtUtcAndAutoIssuesCertificate()
     {
         var repo = new FakeEnrollmentRepository();
+        var certRepo = new FakeCertificateRepository();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var service = new EnrollmentService(repo, clock);
+        var service = new EnrollmentService(repo, certRepo, clock);
 
         var userId = Guid.NewGuid();
         var enrollment = ENROLLMENT.Create(userId, Guid.NewGuid(), null, EnrollmentSource.Purchase, null, clock);
@@ -105,5 +129,11 @@ public sealed class EnrollmentServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(100m, result.Value.ProgressPercent);
         Assert.Equal(now, result.Value.CompletedAtUtc);
+
+        Assert.Single(certRepo.Certificates);
+        var cert = certRepo.Certificates.Values.First();
+        Assert.Equal(enrollment.ENROLLMENT_ID, cert.ENROLLMENT_ID);
+        Assert.StartsWith("CERT-2026-", cert.SERIAL_NO);
     }
 }
+

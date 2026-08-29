@@ -7,10 +7,7 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Payout.Application;
 
 /// <summary>
-/// Maps every <c>INSTRUCTOR_PAYOUT_ACCOUNT</c> HTTP endpoint — same file-per-entity/group-composed-by-caller
-/// shape as <see cref="RevenueSplitEndpoints"/>'s own doc comment. Every handler delegate below calls
-/// straight into <see cref="InstructorPayoutAccountService"/>, which is fully stubbed for this scaffold
-/// pass.
+/// Maps every <c>INSTRUCTOR_PAYOUT_ACCOUNT</c> HTTP endpoint.
 /// </summary>
 public static class InstructorPayoutAccountEndpoints
 {
@@ -47,6 +44,18 @@ public static class InstructorPayoutAccountEndpoints
         endpoints.MapGet("/{instructorId:guid}", HandleGetByInstructorIdAsync)
             .WithName("PayoutGetInstructorPayoutAccountByInstructorId")
             .WithSummary("ดูบัญชีรับเงินของผู้สอนรายใดรายหนึ่ง (แอดมิน)")
+            .Produces<InstructorPayoutAccountResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
+        return endpoints;
+    }
+
+    /// <summary>Maps POST /api/payout/admin/payout-accounts/{instructorId}/verify.</summary>
+    public static IEndpointRouteBuilder MapVerifyInstructorPayoutAccountEndpoint(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapPost("/{instructorId:guid}/verify", HandleVerifyAsync)
+            .WithName("PayoutVerifyInstructorPayoutAccount")
+            .WithSummary("ยืนยันความถูกต้องของบัญชีรับเงินผู้สอน (แอดมิน)")
             .Produces<InstructorPayoutAccountResponse>(StatusCodes.Status200OK)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
@@ -106,6 +115,17 @@ public static class InstructorPayoutAccountEndpoints
         CancellationToken cancellationToken)
     {
         var result = await service.GetByInstructorIdAsync(instructorId, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+    }
+
+    private static async Task<IResult> HandleVerifyAsync(
+        Guid instructorId,
+        InstructorPayoutAccountService service,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.VerifyAsync(instructorId, cancellationToken).ConfigureAwait(false);
 
         return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
     }

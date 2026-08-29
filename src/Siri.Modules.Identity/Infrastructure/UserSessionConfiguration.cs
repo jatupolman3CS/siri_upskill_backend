@@ -1,15 +1,15 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Identity.Domain;
 
 namespace Siri.Modules.Identity.Infrastructure;
 
-/// <summary>EF Core mapping for <see cref="UserSession"/> — see docs/DATABASE.md's "identity" section.</summary>
-public sealed class UserSessionConfiguration : IEntityTypeConfiguration<UserSession>
+/// <summary>EF Core mapping for <see cref="USER_SESSION"/> — see docs/DATABASE.md's "identity" section.</summary>
+public sealed class UserSessionConfiguration : IEntityTypeConfiguration<USER_SESSION>
 {
-    public void Configure(EntityTypeBuilder<UserSession> builder)
+    public void Configure(EntityTypeBuilder<USER_SESSION> builder)
     {
-        builder.ToTable("UserSessions", "identity");
+        builder.ToTable("USER_SESSIONS", "IDENTITY");
 
         builder.HasKey(s => s.Id);
 
@@ -29,19 +29,19 @@ public sealed class UserSessionConfiguration : IEntityTypeConfiguration<UserSess
         // DATABASE.md calls this composite index out by name: "IX(UserId, RevokedAtUtc) -- ใช้บังคับ
         // concurrent login limit" (used by the later concurrent-session-limit enforcement task).
         builder.HasIndex(s => new { s.UserId, s.RevokedAtUtc })
-            .HasDatabaseName("IX_UserSessions_UserId_RevokedAtUtc");
+            .HasDatabaseName("IX_USER_SESSIONS_USER_ID_REVOKED_AT_UTC");
 
         // DATABASE.md's separate "Index ที่ต้องมีตั้งแต่วันแรก" list also calls for a filtered index
         // over just the active sessions, for the same concurrent-login-limit query pattern:
         // "IX_UserSessions_Active (UserId) WHERE RevokedAtUtc IS NULL -- filtered index".
         builder.HasIndex(s => s.UserId)
-            .HasDatabaseName("IX_UserSessions_Active")
-            .HasFilter("[RevokedAtUtc] IS NULL");
+            .HasDatabaseName("IX_USER_SESSIONS_ACTIVE")
+            .HasFilter("[REVOKED_AT_UTC] IS NULL");
 
-        // No navigation property back on User — sessions are looked up by UserId, not loaded as
-        // part of the User aggregate. Restrict (not the EF default Cascade) because auth/session
+        // No navigation property back on USER — sessions are looked up by UserId, not loaded as
+        // part of the USER aggregate. Restrict (not the EF default Cascade) because auth/session
         // rows are never meant to disappear via a cascade off some other delete.
-        builder.HasOne<User>()
+        builder.HasOne<USER>()
             .WithMany()
             .HasForeignKey(s => s.UserId)
             .OnDelete(DeleteBehavior.Restrict);

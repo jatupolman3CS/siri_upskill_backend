@@ -12,4 +12,6 @@ public interface IPaymentRepository
     Task<PAYMENT?> GetByProviderPaymentIntentIdAsync(string providerPaymentIntentId, CancellationToken cancellationToken);
 
     Task AddAsync(PAYMENT payment, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PAYMENT>> GetPendingByOrderIdAsync(Guid orderId, CancellationToken cancellationToken);
 }

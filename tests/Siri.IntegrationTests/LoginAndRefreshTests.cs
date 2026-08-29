@@ -24,7 +24,7 @@ namespace Siri.IntegrationTests;
 /// fails before any test body here runs, which is an environment issue, not a defect in these tests.
 /// <para>
 /// Test users are seeded directly (<see cref="CreateActiveUserAsync"/>: hash a known password,
-/// <c>User.Register</c>, <c>ConfirmEmail</c>, save) rather than going through <c>RegisterHandler</c> —
+/// <c>USER.Register</c>, <c>ConfirmEmail</c>, save) rather than going through <c>RegisterHandler</c> —
 /// nothing here needs a real registration flow. <c>AddNotificationModule</c> <b>is</b> registered
 /// (unlike before P0-17): <see cref="LoginHandler"/> now depends on <c>IEmailOutbox</c> for SE-03's
 /// eviction-notification email, so it must be resolvable even though none of the single-login tests in
@@ -80,15 +80,15 @@ public sealed class LoginAndRefreshTests : IAsyncLifetime
 
     public async Task DisposeAsync() => await _serviceProvider.DisposeAsync();
 
-    private static async Task<User> CreateActiveUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
+    private static async Task<USER> CreateActiveUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var user = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var user = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(user, password);
-        user = User.Register(email, normalizedEmail, hash, "Test User");
+        user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         dbContext.Users().Add(user);
@@ -169,9 +169,9 @@ public sealed class LoginAndRefreshTests : IAsyncLifetime
 
         var email = $"pending-{Guid.NewGuid():N}@example.test";
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, KnownPassword);
-        var pendingUser = User.Register(email, normalizedEmail, hash, "Test User"); // never confirmed — stays PendingEmailConfirmation
+        var pendingUser = USER.Register(email, normalizedEmail, hash, "Test USER"); // never confirmed — stays PendingEmailConfirmation
         dbContext.Users().Add(pendingUser);
         await dbContext.SaveChangesAsync();
 

@@ -36,10 +36,39 @@ public static class CommerceModule
         // P3-01: Stripe Payment integration
         services.AddOptions<StripeOptions>()
             .Bind(configuration.GetSection(StripeOptions.SectionName))
+            .PostConfigure(options =>
+            {
+                if (string.IsNullOrWhiteSpace(options.SecretKey))
+                {
+                    options.SecretKey = Environment.GetEnvironmentVariable("Payment__Stripe__SecretKey")
+                        ?? Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")
+                        ?? "sk_test_placeholder_key";
+                }
+                if (string.IsNullOrWhiteSpace(options.PublishableKey))
+                {
+                    options.PublishableKey = Environment.GetEnvironmentVariable("Payment__Stripe__PublishableKey")
+                        ?? Environment.GetEnvironmentVariable("STRIPE_PUBLISHABLE_KEY")
+                        ?? "pk_test_placeholder_key";
+                }
+                if (string.IsNullOrWhiteSpace(options.WebhookSecret))
+                {
+                    options.WebhookSecret = Environment.GetEnvironmentVariable("Payment__Stripe__WebhookSecret")
+                        ?? Environment.GetEnvironmentVariable("STRIPE_WEBHOOK_SECRET")
+                        ?? string.Empty;
+                }
+            })
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // P3-03: Order expiry job options & worker
+        services.AddOptions<OrderExpiryOptions>()
+            .Bind(configuration.GetSection(OrderExpiryOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
         services.AddScoped<IPaymentMethod, StripePaymentMethod>();
+        services.AddScoped<OrderExpiryJob>();
+        services.AddScoped<IPricingEngine, PricingEngine>();
 
         services.AddScoped<CartService>();
         services.AddScoped<OrderService>();
@@ -50,6 +79,7 @@ public static class CommerceModule
         services.AddScoped<BundleService>();
         services.AddScoped<FlashSaleService>();
         services.AddScoped<TaxInvoiceService>();
+        services.AddScoped<PaymentOpsQueueService>();
 
         services.AddScoped<IValidator<AddCartItemCommand>, AddCartItemValidator>();
         services.AddScoped<IValidator<CreateOrderCommand>, CreateOrderValidator>();
@@ -62,6 +92,8 @@ public static class CommerceModule
         services.AddScoped<IValidator<CreateBundleCommand>, CreateBundleValidator>();
         services.AddScoped<IValidator<CreateFlashSaleCommand>, CreateFlashSaleValidator>();
         services.AddScoped<IValidator<IssueTaxInvoiceCommand>, IssueTaxInvoiceValidator>();
+        services.AddScoped<IValidator<ResolvePaymentOpsRequest>, ResolvePaymentOpsValidator>();
+        services.AddScoped<IValidator<DismissPaymentOpsRequest>, DismissPaymentOpsValidator>();
 
         // Cross-module contracts
         services.AddScoped<Contracts.ICommerceStatsContract, Infrastructure.Contracts.CommerceStatsContract>();
@@ -93,6 +125,7 @@ public static class CommerceModule
         adminGroup.MapGroup("/bundles").MapAdminBundleEndpoints();
         adminGroup.MapGroup("/flash-sales").MapAdminFlashSaleEndpoints();
         adminGroup.MapGroup("/tax-invoices").MapAdminTaxInvoiceEndpoints();
+        adminGroup.MapGroup("/payment-ops").MapPaymentOpsEndpoints();
 
         return endpoints;
     }

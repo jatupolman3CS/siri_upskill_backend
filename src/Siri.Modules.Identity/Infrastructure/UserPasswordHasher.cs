@@ -25,10 +25,10 @@ public sealed class UserPasswordHasher : IUserPasswordHasher
 {
     public const int IterationCount = 600_000;
 
-    private readonly PasswordHasher<User> _inner =
+    private readonly PasswordHasher<USER> _inner =
         new(Options.Create(new PasswordHasherOptions { IterationCount = IterationCount }));
 
-    public string HashPassword(User user, string password)
+    public string HashPassword(USER user, string password)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(password);
@@ -36,7 +36,7 @@ public sealed class UserPasswordHasher : IUserPasswordHasher
         return _inner.HashPassword(user, password);
     }
 
-    public PasswordVerificationResult VerifyPassword(User user, string hashedPassword, string providedPassword)
+    public PasswordVerificationResult VerifyPassword(USER user, string hashedPassword, string providedPassword)
     {
         ArgumentNullException.ThrowIfNull(user);
         ArgumentException.ThrowIfNullOrWhiteSpace(hashedPassword);

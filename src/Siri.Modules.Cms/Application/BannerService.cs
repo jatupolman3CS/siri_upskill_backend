@@ -108,6 +108,12 @@ public sealed class BannerService(IBannerRepository repository)
         return PagedResult<BannerResponse>.Create(mapped, paged.TotalCount, effectivePage, effectivePageSize);
     }
 
+    public async Task<IReadOnlyList<BannerResponse>> GetActiveByPlacementAsync(string placement, DateTime nowUtc, CancellationToken cancellationToken)
+    {
+        var active = await repository.GetActiveByPlacementAsync(placement, nowUtc, cancellationToken).ConfigureAwait(false);
+        return active.Select(ToResponse).ToList();
+    }
+
     private static BannerResponse ToResponse(BANNER b) =>
         new(
             b.BANNER_ID,

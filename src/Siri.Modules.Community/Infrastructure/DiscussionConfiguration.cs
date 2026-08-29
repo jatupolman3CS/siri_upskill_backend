@@ -21,7 +21,7 @@ public sealed class DiscussionConfiguration : IEntityTypeConfiguration<DISCUSSIO
 {
     public void Configure(EntityTypeBuilder<DISCUSSION> builder)
     {
-        builder.ToTable("DISCUSSIONS", "community");
+        builder.ToTable("DISCUSSIONS", "COMMUNITY");
 
         builder.HasKey(d => d.DISCUSSION_ID);
 

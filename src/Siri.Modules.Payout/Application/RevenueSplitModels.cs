@@ -3,10 +3,7 @@ using Siri.Modules.Payout.Domain;
 
 namespace Siri.Modules.Payout.Application;
 
-/// <summary>Request payload for POST /api/payout/admin/revenue-splits. Binds from the JSON request body.
-/// Records/DTOs in this module are NOT uppercased — see <see cref="IRevenueSplitRepository"/>'s own doc
-/// comment for the naming-exception reasoning (D-17's UPPERCASE convention is entity classes/properties
-/// and DB tables/columns only).</summary>
+/// <summary>Request payload for POST /api/payout/admin/revenue-splits. Binds from the JSON request body.</summary>
 public sealed record CreateRevenueSplitCommand(
     Guid OrderItemId,
     Guid InstructorId,
@@ -14,6 +11,7 @@ public sealed record CreateRevenueSplitCommand(
     decimal PaymentFeeAmount,
     decimal PlatformFeeAmount,
     decimal InstructorAmount,
+    decimal RevenueSharePercent,
     string PeriodKey);
 
 public sealed record RevenueSplitResponse(
@@ -24,16 +22,14 @@ public sealed record RevenueSplitResponse(
     decimal PaymentFeeAmount,
     decimal PlatformFeeAmount,
     decimal InstructorAmount,
+    decimal RevenueSharePercent,
     string PeriodKey,
     RevenueSplitStatus Status,
     DateTime CreatedAtUtc);
 
-/// <summary>Format-only checks — no DB access (mirrors Catalog's <c>CreateCategoryValidator</c>'s own doc
-/// comment: format here, existence/uniqueness/business rules in the service).</summary>
+/// <summary>Format-only checks — no DB access.</summary>
 public sealed class CreateRevenueSplitValidator : AbstractValidator<CreateRevenueSplitCommand>
 {
-    /// <summary><c>'YYYY-MM'</c> — matches <c>REVENUE_SPLIT.PERIOD_KEY</c>'s <c>char(7)</c> column
-    /// (<c>RevenueSplitConfiguration</c>).</summary>
     private const string PeriodKeyPattern = @"^\d{4}-(0[1-9]|1[0-2])$";
 
     public CreateRevenueSplitValidator()
@@ -44,6 +40,7 @@ public sealed class CreateRevenueSplitValidator : AbstractValidator<CreateRevenu
         RuleFor(c => c.PaymentFeeAmount).GreaterThanOrEqualTo(0);
         RuleFor(c => c.PlatformFeeAmount).GreaterThanOrEqualTo(0);
         RuleFor(c => c.InstructorAmount).GreaterThanOrEqualTo(0);
+        RuleFor(c => c.RevenueSharePercent).InclusiveBetween(0, 100);
         RuleFor(c => c.PeriodKey)
             .NotEmpty()
             .Matches(PeriodKeyPattern)

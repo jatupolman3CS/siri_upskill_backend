@@ -1,0 +1,119 @@
+Master System Architecture & Development Prompt for Claude
+
+Project Name: SiriLearn — Enterprise E-Learning Platform
+
+Target Stack: Angular v22 (Frontend) + .NET 10 Web API (Backend)
+
+Architecture Pattern: Clean Architecture / DDD + CQRS + Bunny Stream DRM Integration
+
+🛠️ System Technology Stack
+
+Layer
+
+Technology Specification
+
+Key Features / Paradigms
+
+Frontend Framework
+
+Angular v22
+
+Standalone Components, Angular Signals, Control Flow Syntax (@if, @for), RxJS, Tailwind CSS v4, Lucide Angular
+
+Backend Framework
+
+.NET 10 Web API
+
+C# 13/14, Clean Architecture, MediatR (CQRS), AutoMapper / Mapster, FluentValidation
+
+Cache & Video Hosting
+
+Redis + Bunny Stream API
+
+Active Session Lock (Concurrent Login Control), Bunny.net Video Library API, Signed Playback Tokens
+
+Security & Media
+
+Bunny Stream DRM + Dynamic Watermark
+
+Bunny Token Authentication (Media HLS DRM), Dynamic Canvas Watermark Overlay, Rate Limiting, OWASP Top 10 Protections
+
+📋 Comprehensive Claude Prompt Master Instructions
+
+เมื่อคุณพร้อมใช้งาน Claude ให้คัดลอกข้อความ Prompt ในกล่องด้านล่างนี้ไปสั่ง Claude ได้ทีละ Step:
+
+Step 1: Initial Backend Setup Prompt (.NET 10 Web API Clean Architecture)
+
+Prompt for Claude:
+"Act as a Lead .NET Architect. Write a complete solution structure for SiriLearn using .NET 10 Web API following Clean Architecture (Domain, Application, Infrastructure, API layers).
+
+Requirements:
+
+Implement domain entities and models for Users, UserSessionLocks, Courses, Episodes, Payments, and Enrollments directly using repository interfaces and domain abstractions without external database dependencies.
+
+Implement the Bunny Stream Service (IBunnyStreamService) that integrates with Bunny.net Video API to generate signed embed URLs and SHA256 tokenized HLS streaming URLs with user claims (UserId, Email, Timestamp) for dynamic video watermarking and DRM security.
+
+Implement the Concurrent Session Lock Middleware in ASP.NET Core that limits active sessions per account to max 2 devices using Redis / In-memory state.
+
+Use MediatR for CQRS command ProcessCheckoutCommand which calculates the 70/30 revenue split (InstructorShare70 & PlatformShare30) and creates an Enrollment record.
+
+Output clean C# code with modern C# features, dependency injection registrations, and OpenAPI/Swagger configuration."
+
+Step 2: Frontend Setup Prompt (Angular v22 Modern Architecture)
+
+Prompt for Claude:
+"Act as a Senior Frontend Architect specialized in Angular v22. Write the core application code for the SiriLearn platform frontend using Standalone Components, Signals, Angular Router, and Tailwind CSS.
+
+Key Features to Implement:
+
+State Management: Use Angular Signals (signal, computed, effect) for state management (AuthSignalStore, CartSignalStore).
+
+Interactive Video Player Component (VideoPlayerComponent):
+
+Integration with Bunny Stream HLS video player / iframe embed with signed DRM tokens.
+
+Playback speed controller (0.5x, 1.0x, 1.25x, 1.5x, 2.0x).
+
+Dynamic Bouncing Watermark Directive / Layer: A dynamic floating overlay displaying UserEmail + Timestamp with CSS animation that moves continuously across the video screen to prevent screen recording piracy.
+
+Role Switcher & Guard System: AuthGuard supporting three roles: Learner, Instructor, and SuperAdmin.
+
+Course Catalog & Search Component: Modern UI with search keyword filtering, category selection, and difficulty level dropdown using Angular @if and @for control flow syntax."
+
+Step 3: Instructor Studio & Drag-and-Drop Builder Prompt
+
+Prompt for Claude:
+"Write the Angular v22 component for the Instructor Course Builder (CourseBuilderComponent) and the .NET 10 API Controller for course management.
+
+Requirements:
+
+Angular Drag-and-Drop list UI (@angular/cdk/drag-drop) allowing instructors to reorder course modules and episodes easily.
+
+Toggle switches for Free Preview vs Paid Episode.
+
+Drop-off analytics visual chart component showing student completion percentage per episode to help instructors identify where learners drop off.
+
+.NET 10 API Endpoint POST /api/instructor/courses/reorder-episodes accepting a JSON payload with updated episode sort orders, and direct video upload signature endpoint for Bunny Stream (POST /api/instructor/videos/bunny-upload-url)."
+
+Step 4: Admin Revenue Split & Certificate Generator Prompt
+
+Prompt for Claude:
+"Write the code for the Superadmin Console Modules in both .NET 10 and Angular v22:
+
+Requirements:
+
+Automated Revenue Split Dashboard: Calculate total sales per instructor, auto-calculate 70% instructor payout vs 30% platform margin, and render an Angular table with payout execution buttons.
+
+Certificate Generation Service: A .NET 10 service (ICertificateService) using SkiaSharp / QuestPDF to dynamically generate a PDF Certificate of Completion when a user achieves 100% progress.
+
+Include a PromptPay QR Code payment payload generator service for Thailand banking integration."
+
+📌 Rules for Claude Code Generation
+
+No Placeholders: All generated code must be functional, including imports, dependency injection, and complete implementations.
+
+Modern Angular v22: Strictly use Signal-driven reactivity, Standalone Components, inject() functions instead of constructor injections, and modern control flow (@if, @for, @switch).
+
+Modern .NET 10: Strictly use Minimal APIs or modern Controllers, Record types for DTOs, Pattern Matching, and Async/Await best practices.
+
+Bunny Stream First: Use Bunny.net API token generation and embed signed URLs for all video delivery and protection logic.

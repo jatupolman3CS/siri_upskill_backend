@@ -26,16 +26,9 @@ namespace Siri.Modules.Cms.Domain;
 /// already established for the same reason.
 /// </para>
 /// <para>
-/// <b><see cref="CONTENT_HTML"/> is untrusted input</b> (.claude/rules/security.md: "HTML จาก CMS ต้อง
-/// sanitize ที่ server ด้วย allowlist ก่อนเก็บ และก่อนแสดง") — see that property's own inline
-/// <c>TODO</c>, plus the matching ones on <c>Infrastructure.PostConfiguration</c> and
-/// <c>Application.PostService</c>. This scaffold pass does not implement the sanitizer (a later task);
-/// nothing here should be read as having already made this field safe to store or render.
-/// </para>
-/// <para>
-/// This is a scaffold pass (D-17): every property and column mapping below is meant to be final, but
-/// <see cref="Create"/> and everything in <c>Application/</c> (including the sanitizer) are intentionally
-/// unimplemented — see <see cref="Create"/>'s own doc comment.
+/// <b><see cref="CONTENT_HTML"/> is sanitized</b> (.claude/rules/security.md: "HTML จาก CMS ต้อง
+/// sanitize ที่ server ด้วย allowlist ก่อนเก็บ และก่อนแสดง") using <see cref="HtmlSanitizerHelper.Sanitize"/>
+/// before persisting and before rendering via <c>Application.PostService</c>.
 /// </para>
 /// </summary>
 public sealed class POST : IAuditable, ISoftDelete
@@ -53,11 +46,9 @@ public sealed class POST : IAuditable, ISoftDelete
 
     public string EXCERPT { get; private set; } = string.Empty;
 
-    // TODO(later task): sanitize server-side with an allowlist, both on save (Application.PostService's
-    // Create/Update) and on render (whatever public read endpoint eventually serves this) — see
-    // .claude/rules/security.md: "HTML จาก CMS ต้อง sanitize ที่ server ด้วย allowlist ก่อนเก็บ และก่อน
-    // แสดง". Not implemented in this scaffold pass — this field is NOT safe to store or render as-is yet;
-    // do not wire it as if it already were.
+    /// <summary>
+    /// Rich-text HTML article body, sanitized via HtmlSanitizerHelper on save and render.
+    /// </summary>
     public string CONTENT_HTML { get; private set; } = string.Empty;
 
     public string? COVER_IMAGE_URL { get; private set; }

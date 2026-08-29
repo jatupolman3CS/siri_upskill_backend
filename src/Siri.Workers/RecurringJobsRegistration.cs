@@ -1,6 +1,7 @@
 using Hangfire;
 using Siri.Modules.Analytics.Infrastructure;
 using Siri.Modules.Commerce.Infrastructure;
+using Siri.Modules.Identity.Infrastructure;
 using Siri.Modules.Media.Infrastructure;
 using Siri.Modules.Notification.Infrastructure;
 
@@ -40,5 +41,23 @@ public static class RecurringJobsRegistration
             "stripe-reconciliation",
             job => job.RunAsync(CancellationToken.None),
             Cron.Daily(3));
+
+        // 5. Nightly PDPA data retention cleanup (P7-04)
+        recurringJobManager.AddOrUpdate<DataRetentionCleanupJob>(
+            "pdpa-data-retention-cleanup",
+            job => job.RunAsync(CancellationToken.None),
+            Cron.Daily(4));
+
+        // 6. Playback anomaly detection job (P2-06: >30 episodes/hr, multi-IP detection)
+        recurringJobManager.AddOrUpdate<PlaybackAnomalyDetectionJob>(
+            "playback-anomaly-detection",
+            job => job.RunAsync(CancellationToken.None, PlaybackAnomalyDetectionJob.DefaultMaxSessionsPerHour, PlaybackAnomalyDetectionJob.DefaultMaxDistinctIpsPerHour),
+            Cron.MinuteInterval(10));
+
+        // 7. Order expiry job (P3-03: expires stale AwaitingPayment orders every 2 minutes)
+        recurringJobManager.AddOrUpdate<OrderExpiryJob>(
+            "order-expiry",
+            job => job.RunAsync(CancellationToken.None),
+            Cron.MinuteInterval(2));
     }
 }
