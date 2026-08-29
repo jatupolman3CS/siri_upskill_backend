@@ -1,14 +1,14 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Notification.Domain;
 
 namespace Siri.Modules.Notification.Infrastructure;
 
-public sealed class UserNotificationConfiguration : IEntityTypeConfiguration<UserNotification>
+public sealed class UserNotificationConfiguration : IEntityTypeConfiguration<USER_NOTIFICATION>
 {
-    public void Configure(EntityTypeBuilder<UserNotification> builder)
+    public void Configure(EntityTypeBuilder<USER_NOTIFICATION> builder)
     {
-        builder.ToTable("Notifications", "notify");
+        builder.ToTable("NOTIFICATIONS", "NOTIFY");
 
         builder.HasKey(n => n.Id);
 
@@ -20,7 +20,7 @@ public sealed class UserNotificationConfiguration : IEntityTypeConfiguration<Use
         builder.Property(n => n.ReadAtUtc).HasPrecision(3);
         builder.Property(n => n.CreatedAtUtc).HasPrecision(3).IsRequired();
 
-        builder.HasIndex(n => new { n.UserId, n.CreatedAtUtc }).HasDatabaseName("IX_Notifications_UserId_CreatedAtUtc");
-        builder.HasIndex(n => new { n.UserId, n.ReadAtUtc }).HasDatabaseName("IX_Notifications_UserId_ReadAtUtc");
+        builder.HasIndex(n => new { n.UserId, n.CreatedAtUtc }).HasDatabaseName("IX_NOTIFICATIONS_USER_ID_CREATED_AT_UTC");
+        builder.HasIndex(n => new { n.UserId, n.ReadAtUtc }).HasDatabaseName("IX_NOTIFICATIONS_USER_ID_READ_AT_UTC");
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Siri.Modules.Catalog.Features.AddEpisodeAttachment;
 using Siri.Modules.Catalog.Features.DeleteEpisodeAttachment;
+using Siri.Modules.Catalog.Features.DownloadEpisodeAttachment;
 using Siri.Modules.Catalog.Features.GetEpisodeAttachments;
 using Siri.SharedKernel;
 
@@ -18,15 +19,36 @@ public static class EpisodeAttachmentEndpoints
         group.MapGet("/", async (
             Guid episodeId,
             GetEpisodeAttachmentsHandler handler,
+            IUserContext userContext,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            var result = await handler.HandleAsync(episodeId, cancellationToken).ConfigureAwait(false);
+            var isAdmin = httpContext.User.IsInRole(RoleNames.Admin) || httpContext.User.IsInRole(RoleNames.SuperAdmin);
+            var result = await handler.HandleAsync(episodeId, userContext.UserId, isAdmin, cancellationToken).ConfigureAwait(false);
             return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
         })
+        .AllowAnonymous()
         .WithName("GetEpisodeAttachments")
-        .WithSummary("ดึงรายการไฟล์แนบของบทเรียน")
+        .WithSummary("ดึงรายการไฟล์แนบของบทเรียน (ตรวจสิทธิ์การลงทะเบียน/ตัวอย่างฟรี)")
         .Produces<IReadOnlyList<EpisodeAttachmentResponse>>(StatusCodes.Status200OK)
+        .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
+        group.MapGet("/{attachmentId:guid}/download", async (
+            Guid episodeId,
+            Guid attachmentId,
+            DownloadEpisodeAttachmentHandler handler,
+            IUserContext userContext,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            var isAdmin = httpContext.User.IsInRole(RoleNames.Admin) || httpContext.User.IsInRole(RoleNames.SuperAdmin);
+            var result = await handler.HandleAsync(episodeId, attachmentId, userContext.UserId, isAdmin, cancellationToken).ConfigureAwait(false);
+            return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+        })
+        .AllowAnonymous()
+        .WithName("DownloadEpisodeAttachment")
+        .WithSummary("ขอรับลิงก์ดาวน์โหลดไฟล์แนบของบทเรียน (ตรวจสิทธิ์การลงทะเบียน/ตัวอย่างฟรี)")
+        .Produces<EpisodeAttachmentDownloadResponse>(StatusCodes.Status200OK)
         .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
         group.MapPost("/", async (
@@ -37,7 +59,7 @@ public static class EpisodeAttachmentEndpoints
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            var isAdmin = httpContext.User.IsInRole("Admin");
+            var isAdmin = httpContext.User.IsInRole(RoleNames.Admin) || httpContext.User.IsInRole(RoleNames.SuperAdmin);
             var result = await handler.HandleAsync(episodeId, command, userContext.UserId, isAdmin, cancellationToken).ConfigureAwait(false);
 
             return result.IsSuccess
@@ -61,7 +83,7 @@ public static class EpisodeAttachmentEndpoints
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            var isAdmin = httpContext.User.IsInRole("Admin");
+            var isAdmin = httpContext.User.IsInRole(RoleNames.Admin) || httpContext.User.IsInRole(RoleNames.SuperAdmin);
             var result = await handler.HandleAsync(episodeId, attachmentId, userContext.UserId, isAdmin, cancellationToken).ConfigureAwait(false);
 
             return result.IsSuccess ? Results.NoContent() : result.Error.ToProblemHttpResult(httpContext);

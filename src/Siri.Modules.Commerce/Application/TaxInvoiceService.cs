@@ -64,6 +64,23 @@ public sealed class TaxInvoiceService(
         return Result.Success(ToResponse(invoice));
     }
 
+    public async Task<Result<TaxInvoiceResponse>> GetByOrderIdAsync(Guid userId, Guid orderId, CancellationToken cancellationToken)
+    {
+        var order = await orderRepository.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false);
+        if (order is null || order.USER_ID != userId)
+        {
+            return Result.Failure<TaxInvoiceResponse>(DomainError.NotFound("ไม่พบคำสั่งซื้อ"));
+        }
+
+        var invoice = await taxInvoiceRepository.GetByOrderIdAsync(orderId, cancellationToken).ConfigureAwait(false);
+        if (invoice is null)
+        {
+            return Result.Failure<TaxInvoiceResponse>(DomainError.NotFound("ไม่พบใบกำกับภาษีสำหรับคำสั่งซื้อนี้"));
+        }
+
+        return Result.Success(ToResponse(invoice));
+    }
+
     public async Task<PagedResult<TaxInvoiceResponse>> ListAsync(int page, int pageSize, CancellationToken cancellationToken)
     {
         var effectivePageSize = pageSize is <= 0 or > 100 ? 20 : pageSize;
@@ -74,6 +91,87 @@ public sealed class TaxInvoiceService(
 
         var mapped = items.Select(ToResponse).ToList();
         return PagedResult<TaxInvoiceResponse>.Create(mapped, totalCount, effectivePage, effectivePageSize);
+    }
+
+    public async Task<Result<(byte[] Bytes, string FileName)>> GetPdfAsync(Guid userId, Guid taxInvoiceId, CancellationToken cancellationToken)
+    {
+        var invoice = await taxInvoiceRepository.GetByIdAsync(taxInvoiceId, cancellationToken).ConfigureAwait(false);
+        if (invoice is null)
+        {
+            return Result.Failure<(byte[] Bytes, string FileName)>(DomainError.NotFound("ไม่พบใบกำกับภาษี"));
+        }
+
+        var order = await orderRepository.GetByIdAsync(invoice.ORDER_ID, cancellationToken).ConfigureAwait(false);
+        if (order is null || order.USER_ID != userId)
+        {
+            return Result.Failure<(byte[] Bytes, string FileName)>(DomainError.NotFound("ไม่พบใบกำกับภาษี"));
+        }
+
+        var items = order.ORDER_ITEMS.Select(i => new Infrastructure.ReceiptPdfItem(
+            i.TITLE_SNAPSHOT,
+            1,
+            i.UNIT_PRICE,
+            i.LINE_TOTAL)).ToList();
+
+        var pdfData = new Infrastructure.ReceiptPdfData(
+            "TAX INVOICE / RECEIPT",
+            invoice.INVOICE_NO,
+            order.ORDER_NO,
+            invoice.BUYER_NAME,
+            invoice.TAX_ID_ENCRYPTED,
+            null,
+            invoice.ISSUED_AT_UTC,
+            "PromptPay / Stripe",
+            items,
+            order.SUBTOTAL_AMOUNT,
+            order.DISCOUNT_AMOUNT,
+            order.TAX_AMOUNT,
+            order.TOTAL_AMOUNT);
+
+        var pdfBytes = Infrastructure.ReceiptPdfGenerator.GeneratePdf(pdfData);
+        return Result.Success((pdfBytes, $"tax-invoice-{invoice.INVOICE_NO}.pdf"));
+    }
+
+    public async Task<Result<(byte[] Bytes, string FileName)>> GetOrderReceiptPdfAsync(Guid userId, Guid orderId, CancellationToken cancellationToken)
+    {
+        var order = await orderRepository.GetByIdAsync(orderId, cancellationToken).ConfigureAwait(false);
+        if (order is null || order.USER_ID != userId)
+        {
+            return Result.Failure<(byte[] Bytes, string FileName)>(DomainError.NotFound("ไม่พบคำสั่งซื้อ"));
+        }
+
+        if (order.STATUS != OrderStatus.Paid)
+        {
+            return Result.Failure<(byte[] Bytes, string FileName)>(DomainError.Conflict("สามารถดาวน์โหลดใบเสร็จได้เฉพาะคำสั่งซื้อที่ชำระเงินแล้วเท่านั้น"));
+        }
+
+        var invoice = await taxInvoiceRepository.GetByOrderIdAsync(orderId, cancellationToken).ConfigureAwait(false);
+        var docNo = invoice?.INVOICE_NO ?? $"REC-{order.ORDER_NO}";
+        var buyerName = invoice?.BUYER_NAME ?? "Customer";
+
+        var items = order.ORDER_ITEMS.Select(i => new Infrastructure.ReceiptPdfItem(
+            i.TITLE_SNAPSHOT,
+            1,
+            i.UNIT_PRICE,
+            i.LINE_TOTAL)).ToList();
+
+        var pdfData = new Infrastructure.ReceiptPdfData(
+            invoice != null ? "TAX INVOICE / RECEIPT" : "OFFICIAL RECEIPT",
+            docNo,
+            order.ORDER_NO,
+            buyerName,
+            invoice?.TAX_ID_ENCRYPTED,
+            null,
+            order.PAID_AT_UTC ?? order.CreatedAtUtc,
+            "PromptPay / Stripe",
+            items,
+            order.SUBTOTAL_AMOUNT,
+            order.DISCOUNT_AMOUNT,
+            order.TAX_AMOUNT,
+            order.TOTAL_AMOUNT);
+
+        var pdfBytes = Infrastructure.ReceiptPdfGenerator.GeneratePdf(pdfData);
+        return Result.Success((pdfBytes, $"receipt-{order.ORDER_NO}.pdf"));
     }
 
     private static TaxInvoiceResponse ToResponse(TAX_INVOICE taxInvoice) =>

@@ -141,6 +141,9 @@ public class PaymentServiceTests
             _payments.Add(payment);
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<PAYMENT>> GetPendingByOrderIdAsync(Guid orderId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PAYMENT>>(_payments.Where(p => p.ORDER_ID == orderId && (p.STATUS == PaymentStatus.Pending || p.STATUS == PaymentStatus.Processing)).ToList());
     }
 
     private sealed class FakeOrderRepository : IOrderRepository
@@ -159,9 +162,28 @@ public class PaymentServiceTests
         public Task<IReadOnlyList<ORDER>> GetActiveByUserIdAsync(Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ORDER>>(_orders.Where(o => o.USER_ID == userId).ToList());
 
+        public Task<(IReadOnlyList<ORDER> Items, int TotalCount)> ListByUserIdAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken)
+        {
+            var userOrders = _orders.Where(o => o.USER_ID == userId).ToList();
+            var items = userOrders.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult<(IReadOnlyList<ORDER> Items, int TotalCount)>((items, userOrders.Count));
+        }
+
+        public Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken)
+        {
+            var result = _orders
+                .Where(o => o.STATUS == OrderStatus.AwaitingPayment && o.CreatedAtUtc <= cutoffUtc)
+                .OrderBy(o => o.CreatedAtUtc)
+                .Take(batchSize)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<ORDER>>(result);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken) => operation();
+
+        public Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken) => operation();
     }
 
     private sealed class FakePaymentMethod : IPaymentMethod
@@ -177,6 +199,9 @@ public class PaymentServiceTests
 
         public Task<Result> CancelPaymentIntentAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Success());
+
+        public Task<Result<PaymentRefundResult>> CreateRefundAsync(CreateRefundRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success(new PaymentRefundResult("re_test", "succeeded", request.Amount, "thb")));
     }
 
     private sealed class FakeClock(DateTime utcNow) : IClock

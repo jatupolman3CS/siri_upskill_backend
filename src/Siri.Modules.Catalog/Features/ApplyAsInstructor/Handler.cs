@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -7,11 +7,11 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Catalog.Features.ApplyAsInstructor;
 
 /// <summary>
-/// Submits — or, after a prior rejection, re-submits (see <see cref="InstructorProfile.Resubmit"/>'s own
+/// Submits — or, after a prior rejection, re-submits (see <see cref="INSTRUCTOR_PROFILE.Resubmit"/>'s own
 /// doc comment) — an application to become an instructor. <c>InstructorProfiles.UserId</c>'s unique index
 /// enforces "one profile per user, ever"; this handler checks first for a friendly 409 instead of always
 /// relying on the DB round-trip to fail, but also catches the still-possible race (two concurrent applies
-/// from the same account) the same way <c>CreateCategoryHandler</c> does for <c>Category.Slug</c>.
+/// from the same account) the same way <c>CreateCategoryHandler</c> does for <c>CATEGORY.Slug</c>.
 /// </summary>
 public sealed class ApplyAsInstructorHandler(AppDbContext dbContext)
 {
@@ -28,11 +28,11 @@ public sealed class ApplyAsInstructorHandler(AppDbContext dbContext)
             .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken)
             .ConfigureAwait(false);
 
-        InstructorProfile profile;
+        INSTRUCTOR_PROFILE profile;
 
         if (existing is null)
         {
-            profile = InstructorProfile.Apply(userId, command.DisplayName, command.Headline, command.Bio);
+            profile = INSTRUCTOR_PROFILE.Apply(userId, command.DisplayName, command.Headline, command.Bio);
             dbContext.InstructorProfiles().Add(profile);
         }
         else if (existing.Status == InstructorApplicationStatus.Rejected)
@@ -73,7 +73,7 @@ public sealed class ApplyAsInstructorHandler(AppDbContext dbContext)
         return ToResponse(profile);
     }
 
-    private static ApplyAsInstructorResponse ToResponse(InstructorProfile profile) =>
+    private static ApplyAsInstructorResponse ToResponse(INSTRUCTOR_PROFILE profile) =>
         new(profile.Id, profile.UserId, profile.DisplayName, profile.Headline, profile.Bio,
             profile.RevenueSharePercent, profile.Status, profile.ApprovedAtUtc);
 }

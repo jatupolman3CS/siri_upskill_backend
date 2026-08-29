@@ -11,7 +11,7 @@ namespace Siri.Modules.Catalog.Features.ReorderCategories;
 /// <b>Never trusts a client-claimed parent</b> — the request only carries category ids + their new
 /// sort values, no parent id. The handler resolves "which parent" itself from the categories it loads,
 /// and rejects the batch outright if those categories don't all currently share exactly one
-/// <see cref="Domain.Category.ParentId"/> (<see cref="DomainError.Validation"/>).
+/// <see cref="Domain.CATEGORY.ParentId"/> (<see cref="DomainError.Validation"/>).
 /// </para>
 /// <para>
 /// <b>Requires the full sibling set, rejects partial batches</b> — after resolving the shared parent,

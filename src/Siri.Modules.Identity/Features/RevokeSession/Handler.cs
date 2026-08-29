@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Infrastructure;
@@ -8,8 +8,8 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Identity.Features.RevokeSession;
 
 /// <summary>
-/// Revokes exactly one of the authenticated caller's OWN <see cref="UserSession"/>s and every still-
-/// active <see cref="RefreshToken"/> issued to it — the "ถอดอุปกรณ์รายตัว" half of P0-18
+/// Revokes exactly one of the authenticated caller's OWN <see cref="USER_SESSION"/>s and every still-
+/// active <see cref="REFRESH_TOKEN"/> issued to it — the "ถอดอุปกรณ์รายตัว" half of P0-18
 /// (docs/TASKS.md), backing docs/SECURITY.md §2's "ผู้ใช้...ถอดอุปกรณ์เองได้ที่หน้า 'อุปกรณ์ที่เข้าสู่
 /// ระบบ'".
 /// <para>
@@ -43,9 +43,9 @@ namespace Siri.Modules.Identity.Features.RevokeSession;
 /// still drop its own in-memory token immediately rather than rely on the token to simply expire.
 /// </para>
 /// <para>
-/// On success: <see cref="UserSession.Revoke"/>, every still-active <see cref="RefreshToken"/> for that
+/// On success: <see cref="USER_SESSION.Revoke"/>, every still-active <see cref="REFRESH_TOKEN"/> for that
 /// session revoked the same way <c>ResetPasswordHandler</c>'s bulk revoke does, a distinct
-/// <see cref="SecurityAudit"/> row (<c>EventType</c> = <see cref="RevokedByUserEventType"/> — the task
+/// <see cref="SECURITY_AUDIT"/> row (<c>EventType</c> = <see cref="RevokedByUserEventType"/> — the task
 /// instruction's own suggested name, distinct from SE-03 eviction/ResetPassword's bulk revoke/Refresh's
 /// reuse-detection events), all in one <see cref="AppDbContext.SaveChangesAsync"/> call — then, only
 /// after that commit succeeds, the Redis mirror key is removed (<see cref="ISessionRegistry.RemoveAsync"/>),
@@ -59,13 +59,13 @@ public sealed class RevokeSessionHandler(
     ISessionRegistry sessionRegistry,
     ILogger<RevokeSessionHandler> logger)
 {
-    /// <summary><see cref="UserSession.RevokeReason"/> for this handler's own path — distinct from
+    /// <summary><see cref="USER_SESSION.RevokeReason"/> for this handler's own path — distinct from
     /// SE-03's "concurrent_session_limit_exceeded", Refresh's "suspected_refresh_token_reuse", and
     /// ResetPassword's "password_reset", so <c>UserSessions</c> rows stay self-explanatory without
-    /// joining out to <see cref="SecurityAudit"/>.</summary>
+    /// joining out to <see cref="SECURITY_AUDIT"/>.</summary>
     private const string RevokeReasonValue = "revoked_by_user";
 
-    /// <summary><see cref="SecurityAudit.EventType"/> for a successful single-session revoke (task
+    /// <summary><see cref="SECURITY_AUDIT.EventType"/> for a successful single-session revoke (task
     /// instruction's own suggested name).</summary>
     private const string RevokedByUserEventType = "session.revoked_by_user";
 
@@ -104,14 +104,14 @@ public sealed class RevokeSessionHandler(
         foreach (var token in activeTokens)
         {
             // null replacedByTokenId: an outright revoke, not a rotation — same distinction
-            // RefreshToken.Revoke's own doc comment draws for Refresh's reuse-detection path.
+            // REFRESH_TOKEN.Revoke's own doc comment draws for Refresh's reuse-detection path.
             token.Revoke(null, clock);
         }
 
         // Detail is structured JSON, same convention as Login's SE-03 eviction audit entry — ids only,
         // never a token value (security.md: never log a token).
         var detail = $$"""{"revokedSessionId":"{{session.Id}}","wasCurrentSession":{{(wasCurrentSession ? "true" : "false")}}}""";
-        dbContext.SecurityAudits().Add(SecurityAudit.Record(RevokedByUserEventType, command.UserId, detail, ipAddress, clock));
+        dbContext.SecurityAudits().Add(SECURITY_AUDIT.Record(RevokedByUserEventType, command.UserId, detail, ipAddress, clock));
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

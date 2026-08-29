@@ -4,12 +4,12 @@ using Siri.Modules.Catalog.Domain;
 
 namespace Siri.Modules.Catalog.Infrastructure;
 
-/// <summary>EF Core mapping for <see cref="Category"/> — see docs/DATABASE.md's "catalog" section.</summary>
-public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
+/// <summary>EF Core mapping for <see cref="CATEGORY"/> — see docs/DATABASE.md's "catalog" section.</summary>
+public sealed class CategoryConfiguration : IEntityTypeConfiguration<CATEGORY>
 {
-    public void Configure(EntityTypeBuilder<Category> builder)
+    public void Configure(EntityTypeBuilder<CATEGORY> builder)
     {
-        builder.ToTable("Categories", "catalog");
+        builder.ToTable("CATEGORIES", "CATALOG");
 
         builder.HasKey(c => c.Id);
 
@@ -31,7 +31,7 @@ public sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
         // cascade paths"), and semantically a parent-with-children must never be deletable anyway —
         // the Delete handler checks this explicitly; Restrict is the DB-level backstop for the race
         // where a child is inserted between that check and the delete's own SaveChangesAsync.
-        builder.HasOne<Category>()
+        builder.HasOne<CATEGORY>()
             .WithMany()
             .HasForeignKey(c => c.ParentId)
             .OnDelete(DeleteBehavior.Restrict);

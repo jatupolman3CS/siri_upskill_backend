@@ -7,11 +7,7 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Payout.Application;
 
 /// <summary>
-/// Maps every <c>PAYOUT_BATCH</c> HTTP endpoint — same file-per-entity/group-composed-by-caller shape as
-/// <see cref="RevenueSplitEndpoints"/>'s own doc comment. All three routes here are admin-only (see
-/// <c>PayoutModule.MapPayoutEndpoints</c> for the policy). Every handler delegate below calls straight into
-/// <see cref="PayoutBatchService"/>, which is fully stubbed for this scaffold pass — there is deliberately
-/// no "execute batch" route here, see <see cref="PayoutBatchService"/>'s own doc comment for why.
+/// Maps every <c>PAYOUT_BATCH</c> HTTP endpoint.
 /// </summary>
 public static class PayoutBatchEndpoints
 {
@@ -51,6 +47,46 @@ public static class PayoutBatchEndpoints
         return endpoints;
     }
 
+    /// <summary>Maps POST /api/payout/admin/batches/{id}/execute.</summary>
+    public static IEndpointRouteBuilder MapExecutePayoutBatchEndpoint(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapPost("/{id:guid}/execute", HandleExecuteAsync)
+            .WithName("PayoutExecuteBatch")
+            .WithSummary("ยืนยันและประมวลผลการจ่ายเงินของรอบนี้ (แอดมิน)")
+            .Produces<PayoutBatchResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status400BadRequest)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound)
+            .Produces<ProblemDetails>(StatusCodes.Status409Conflict);
+
+        return endpoints;
+    }
+
+    /// <summary>Maps GET /api/payout/admin/batches/{id}/export.</summary>
+    public static IEndpointRouteBuilder MapExportPayoutBatchEndpoint(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/{id:guid}/export", HandleExportAsync)
+            .WithName("PayoutExportBatch")
+            .WithSummary("ส่งออกไฟล์ข้อมูลโอนเงินธนาคารสำหรับรอบนี้ (แอดมิน)")
+            .Produces<BatchExportResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
+        return endpoints;
+    }
+
+    /// <summary>Maps GET /api/payout/instructor/tax-certificates/{batchItemId}.</summary>
+    public static IEndpointRouteBuilder MapGetTaxCertificateEndpoint(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/tax-certificates/{batchItemId:guid}", HandleGetTaxCertificateAsync)
+            .WithName("PayoutGetTaxCertificate")
+            .WithSummary("ดูข้อมูลหนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)")
+            .Produces<WithholdingTaxCertificateResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
+            .Produces<ProblemDetails>(StatusCodes.Status403Forbidden)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
+        return endpoints;
+    }
+
     private static async Task<IResult> HandleCreateAsync(
         CreatePayoutBatchCommand command,
         PayoutBatchService service,
@@ -83,5 +119,47 @@ public static class PayoutBatchEndpoints
     {
         var result = await service.ListAsync(page, pageSize, cancellationToken).ConfigureAwait(false);
         return Results.Ok(result);
+    }
+
+    private static async Task<IResult> HandleExecuteAsync(
+        Guid id,
+        PayoutBatchService service,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var adminId = userContext.UserId ?? Guid.Empty;
+        var result = await service.ExecuteBatchAsync(id, adminId, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+    }
+
+    private static async Task<IResult> HandleExportAsync(
+        Guid id,
+        PayoutBatchService service,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        var result = await service.ExportBatchTransferFileAsync(id, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+    }
+
+    private static async Task<IResult> HandleGetTaxCertificateAsync(
+        Guid batchItemId,
+        PayoutBatchService service,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var isAdmin = userContext.Roles.Contains(RoleNames.Admin) || userContext.Roles.Contains(RoleNames.SuperAdmin);
+        var result = await service.GetTaxCertificateAsync(userId, batchItemId, isAdmin, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
     }
 }

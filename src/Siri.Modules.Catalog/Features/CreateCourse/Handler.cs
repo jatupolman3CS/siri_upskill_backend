@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -7,9 +7,9 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Catalog.Features.CreateCourse;
 
 /// <summary>
-/// Creates a new draft course. The caller's own <see cref="InstructorProfile"/> (must exist and be
+/// Creates a new draft course. The caller's own <see cref="INSTRUCTOR_PROFILE"/> (must exist and be
 /// <see cref="InstructorApplicationStatus.Approved"/> — see this class's own reasoning below) supplies
-/// <see cref="Course.InstructorId"/>; never accepted from the client. Slug is generated from
+/// <see cref="COURSE.InstructorId"/>; never accepted from the client. Slug is generated from
 /// <see cref="CreateCourseCommand.Title"/> (<see cref="ThaiSlugGenerator"/> + a uniqueness suffix
 /// computed from one bulk query, mirroring <c>CreateCategoryHandler</c>'s own sibling-sort-order
 /// computation style) — never accepted from the client either, so there is no client-supplied slug field
@@ -54,7 +54,7 @@ public sealed class CreateCourseHandler(AppDbContext dbContext)
 
         var slug = await GenerateUniqueSlugAsync(command.Title, cancellationToken).ConfigureAwait(false);
 
-        var course = Course.Create(slug, command.Title, instructorProfile.Id, command.CategoryId, command.Level, command.Language, command.Price);
+        var course = COURSE.Create(slug, command.Title, instructorProfile.Id, command.CategoryId, command.Level, command.Language, command.Price);
         dbContext.Courses().Add(course);
 
         try
@@ -108,7 +108,7 @@ public sealed class CreateCourseHandler(AppDbContext dbContext)
         return $"{baseSlug}-{suffix}";
     }
 
-    private static CreateCourseResponse ToResponse(Course course) =>
+    private static CreateCourseResponse ToResponse(COURSE course) =>
         new(course.Id, course.Slug, course.Title, course.InstructorId, course.CategoryId, course.Level, course.Language,
             course.Price, course.Currency, course.Status);
 }

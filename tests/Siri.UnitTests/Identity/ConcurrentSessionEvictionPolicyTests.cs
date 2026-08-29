@@ -4,8 +4,8 @@ namespace Siri.UnitTests.Identity;
 
 public class ConcurrentSessionEvictionPolicyTests
 {
-    private static UserSession NewSession(DateTime createdAtUtc) =>
-        UserSession.Start(Guid.NewGuid(), "device-" + Guid.NewGuid(), null, null, null, new FakeClock(createdAtUtc));
+    private static USER_SESSION NewSession(DateTime createdAtUtc) =>
+        USER_SESSION.Start(Guid.NewGuid(), "device-" + Guid.NewGuid(), null, null, null, new FakeClock(createdAtUtc));
 
     [Fact]
     public void SelectSessionsToEvict_CountWithinLimit_ReturnsEmpty()

@@ -78,7 +78,10 @@ public class IdentityEndpointAuthorizationTests
     [InlineData("/api/identity/sessions/{sessionId:guid}")]
     [InlineData("/api/identity/sessions/revoke-others")]
     [InlineData("/api/identity/sessions/revoke-all")]
+    [InlineData("/api/identity/data-export")]
+    [InlineData("/api/identity/anonymize")]
     [InlineData("/api/identity/admin/users")]
+    [InlineData("/api/identity/admin/users/invite")]
     [InlineData("/api/identity/admin/users/{userId:guid}/suspend")]
     [InlineData("/api/identity/admin/users/{userId:guid}/reactivate")]
     [InlineData("/api/identity/admin/users/{userId:guid}/roles")]
@@ -93,10 +96,10 @@ public class IdentityEndpointAuthorizationTests
     }
 
     [Fact]
-    public void MapIdentityEndpoints_MapsExactlyTheFifteenKnownEndpoints()
+    public void MapIdentityEndpoints_MapsExactlyTheEighteenKnownEndpoints()
     {
         var endpoints = MapIdentityRouteEndpoints();
 
-        Assert.Equal(15, endpoints.Count);
+        Assert.Equal(18, endpoints.Count);
     }
 }

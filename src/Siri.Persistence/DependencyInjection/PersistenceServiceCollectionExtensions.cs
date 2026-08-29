@@ -36,8 +36,13 @@ public static class PersistenceServiceCollectionExtensions
             var connectionString = configuration.GetConnectionString("Default");
             if (string.IsNullOrWhiteSpace(connectionString))
             {
+                connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Default")
+                                   ?? Environment.GetEnvironmentVariable("DATABASE_CONNECTION_STRING");
+            }
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
                 throw new InvalidOperationException(
-                    "Missing 'ConnectionStrings:Default'. Set it via user-secrets or environment variables — never in appsettings.json.");
+                    "Missing 'ConnectionStrings:Default'. Set it via user-secrets or environment variables (.env) — never in appsettings.json.");
             }
 
             optionsBuilder

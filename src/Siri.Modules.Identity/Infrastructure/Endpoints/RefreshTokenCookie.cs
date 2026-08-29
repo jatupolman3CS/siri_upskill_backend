@@ -11,13 +11,13 @@ namespace Siri.Modules.Identity.Infrastructure.Endpoints;
 /// <c>/api/identity</c> (rather than the whole site) as defense in depth: the browser simply never
 /// attaches this cookie to requests for any other endpoint, so it cannot leak there even by accident.
 /// </summary>
-internal static class RefreshTokenCookie
+public static class RefreshTokenCookie
 {
     private const string CookieName = "siri_refresh_token";
     private const string CookiePath = "/api/identity";
 
     /// <summary>Sets/replaces the cookie — used by Login (new session) and Refresh (rotation).</summary>
-    internal static void Set(HttpContext httpContext, string rawToken, DateTime expiresAtUtc)
+    public static void Set(HttpContext httpContext, string rawToken, DateTime expiresAtUtc)
     {
         httpContext.Response.Cookies.Append(CookieName, rawToken, new CookieOptions
         {
@@ -32,6 +32,6 @@ internal static class RefreshTokenCookie
     /// <summary>Reads the raw token, or <c>null</c> if the caller sent no cookie at all — Refresh's
     /// handler treats that identically to any other invalid-token rejection (never a distinguishable
     /// "you forgot the cookie" response).</summary>
-    internal static string? Read(HttpContext httpContext) =>
+    public static string? Read(HttpContext httpContext) =>
         httpContext.Request.Cookies.TryGetValue(CookieName, out var value) ? value : null;
 }

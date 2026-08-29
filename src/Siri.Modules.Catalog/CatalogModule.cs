@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,7 @@ using Siri.Modules.Catalog.Features.AutosaveCourse;
 using Siri.Modules.Catalog.Features.CreateCategory;
 using Siri.Modules.Catalog.Features.CreateCourse;
 using Siri.Modules.Catalog.Features.CreateCourseEpisode;
+using Siri.Modules.Catalog.Features.CreateCourseReview;
 using Siri.Modules.Catalog.Features.CreateCourseSection;
 using Siri.Modules.Catalog.Features.DeleteCategory;
 using Siri.Modules.Catalog.Features.DeleteCourse;
@@ -22,6 +24,7 @@ using Siri.Modules.Catalog.Features.GetCategoryTree;
 using Siri.Modules.Catalog.Features.GetCourse;
 using Siri.Modules.Catalog.Features.GetCourseBuilder;
 using Siri.Modules.Catalog.Features.GetCourseDetail;
+using Siri.Modules.Catalog.Features.GetCourseReviews;
 using Siri.Modules.Catalog.Features.GetCoursesSitemapPage;
 using Siri.Modules.Catalog.Features.GetMyCourses;
 using Siri.Modules.Catalog.Features.GetMyInstructorProfile;
@@ -36,10 +39,12 @@ using Siri.Modules.Catalog.Features.ReorderCourseEpisodes;
 using Siri.Modules.Catalog.Features.ReorderCourseSections;
 using Siri.Modules.Catalog.Features.SearchCourses;
 using Siri.Modules.Catalog.Features.SubmitCourseForReview;
+using Siri.Modules.Catalog.Features.UnpublishCourse;
 using Siri.Modules.Catalog.Features.UpdateCategory;
 using Siri.Modules.Catalog.Features.UpdateCourse;
 using Siri.Modules.Catalog.Features.UpdateCourseEpisode;
 using Siri.Modules.Catalog.Features.UpdateCourseSection;
+using Siri.Modules.Catalog.Features.Wishlist;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Modules.Catalog.Infrastructure.Seeding;
 using Siri.SharedKernel;
@@ -49,13 +54,13 @@ namespace Siri.Modules.Catalog;
 /// <summary>
 /// Composition root for the Catalog module. Everything the module exposes to <c>Siri.Api</c> goes
 /// through these two extension methods — no other public surface is wired into the host.
-/// P1-01 (Category tree) is the module's first real feature — see docs/ARCHITECTURE.md §2 for the
+/// P1-01 (CATEGORY tree) is the module's first real feature — see docs/ARCHITECTURE.md §2 for the
 /// vertical-slice layout this follows. P1-03 (Instructor profile) adds this module's first real
 /// cross-module dependency: <c>Siri.Modules.Identity.Contracts.IInstructorRoleGrantor</c>, resolved by
 /// <c>ApproveInstructorApplicationHandler</c> — Identity's own DI registration
 /// (<c>IdentityModule.AddIdentityModule</c>) must run somewhere in the same container for that to
 /// resolve; <c>Siri.Api/Program.cs</c> already calls both, order does not matter for registration. P1-04
-/// (Course CRUD draft) adds the instructor-facing course endpoints, gated by
+/// (COURSE CRUD draft) adds the instructor-facing course endpoints, gated by
 /// <see cref="AuthorizationPolicyNames.InstructorOnly"/> rather than <see cref="AuthorizationPolicyNames.AdminOnly"/>
 /// — the first use of that policy name in this module.
 /// </summary>
@@ -69,6 +74,11 @@ public static class CatalogModule
         // EmailConfirmationOptions/PasswordResetOptions already established).
         services.AddOptions<SeoOptions>()
             .Bind(configuration.GetSection(SeoOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<EpisodeAttachmentOptions>()
+            .Bind(configuration.GetSection(EpisodeAttachmentOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
@@ -102,7 +112,7 @@ public static class CatalogModule
 
         // P1-03: ApplyAsInstructorCommand is the only one of these five handlers with a client-supplied
         // JSON body — GetMy/GetPending/Approve/Reject take no bindable command (route id or nothing at
-        // all), same reasoning Category's Delete/GetTree/GetAdminTree registrations give above.
+        // all), same reasoning CATEGORY's Delete/GetTree/GetAdminTree registrations give above.
         services.AddScoped<IValidator<ApplyAsInstructorCommand>, ApplyAsInstructorValidator>();
 
         services.AddScoped<ApplyAsInstructorHandler>();
@@ -127,11 +137,13 @@ public static class CatalogModule
         // body — SubmitForReview/GetPending/Approve take no bindable command, same reasoning every
         // registration above gives.
         services.AddScoped<IValidator<RejectCourseCommand>, RejectCourseValidator>();
+        services.AddScoped<IValidator<UnpublishCourseCommand>, UnpublishCourseValidator>();
 
         services.AddScoped<SubmitCourseForReviewHandler>();
         services.AddScoped<GetPendingCourseReviewsHandler>();
         services.AddScoped<ApproveCourseHandler>();
         services.AddScoped<RejectCourseHandler>();
+        services.AddScoped<UnpublishCourseHandler>();
 
         // P1-06: query params only, no bindable command.
         services.AddScoped<SearchCoursesHandler>();
@@ -148,7 +160,7 @@ public static class CatalogModule
         // Identity.Infrastructure.Seeding.IdentitySeeder uses — not part of any normal request pipeline.
         services.AddScoped<CatalogSeeder>();
 
-        // P4-01: Course builder (sections, episodes, autosave, optimistic concurrency)
+        // P4-01: COURSE builder (sections, episodes, autosave, optimistic concurrency)
         services.AddScoped<IValidator<CreateCourseSectionCommand>, CreateCourseSectionValidator>();
         services.AddScoped<IValidator<UpdateCourseSectionCommand>, UpdateCourseSectionValidator>();
         services.AddScoped<IValidator<ReorderCourseSectionsCommand>, ReorderCourseSectionsValidator>();
@@ -181,11 +193,34 @@ public static class CatalogModule
 
         services.AddScoped<Features.AddEpisodeAttachment.AddEpisodeAttachmentHandler>();
         services.AddScoped<Features.GetEpisodeAttachments.GetEpisodeAttachmentsHandler>();
+        services.AddScoped<Features.DownloadEpisodeAttachment.DownloadEpisodeAttachmentHandler>();
         services.AddScoped<Features.DeleteEpisodeAttachment.DeleteEpisodeAttachmentHandler>();
+
+        // Wishlist
+        services.AddScoped<Features.Wishlist.GetWishlistHandler>();
+        services.AddScoped<Features.Wishlist.AddToWishlistHandler>();
+        services.AddScoped<Features.Wishlist.RemoveFromWishlistHandler>();
+
+        // Virus scanner seam (P4-03)
+        services.AddSingleton<Contracts.IAttachmentVirusScanner, Infrastructure.NullAttachmentVirusScanner>();
 
         // Cross-module contracts
         services.AddScoped<Contracts.ICatalogPriceContract, Infrastructure.Contracts.CatalogPriceContract>();
         services.AddScoped<Notification.Contracts.ICourseOwnershipVerifier, Infrastructure.Contracts.CatalogPriceContract>();
+
+        // Reviews (P1-08)
+        services.AddScoped<CreateCourseReviewHandler>();
+        services.AddScoped<GetCourseReviewsHandler>();
+        services.AddScoped<Contracts.ICourseStatsUpdater, Application.CourseStatsUpdater>();
+
+        // Repositories
+        services.AddScoped<Application.ICourseRepository, Infrastructure.CourseRepository>();
+        services.AddScoped<Application.ICategoryRepository, Infrastructure.CategoryRepository>();
+        services.AddScoped<Application.ILearningPathRepository, Infrastructure.LearningPathRepository>();
+        services.AddScoped<Application.IInstructorProfileRepository, Infrastructure.InstructorProfileRepository>();
+        services.AddScoped<Application.IWishlistRepository, Infrastructure.WishlistRepository>();
+        services.AddScoped<Application.IEpisodeAttachmentRepository, Infrastructure.EpisodeAttachmentRepository>();
+        services.AddScoped<Application.ICourseReviewRepository, Infrastructure.CourseReviewRepository>();
 
         return services;
     }
@@ -247,7 +282,7 @@ public static class CatalogModule
         instructorCourseGroup.MapDeleteCourseEndpoint();
         instructorCourseGroup.MapSubmitCourseForReviewEndpoint();
 
-        // P4-01: Course builder endpoints (sections, episodes, autosave)
+        // P4-01: COURSE builder endpoints (sections, episodes, autosave)
         instructorCourseGroup.MapGetCourseBuilderEndpoint();
         instructorCourseGroup.MapCreateCourseSectionEndpoint();
         instructorCourseGroup.MapUpdateCourseSectionEndpoint();
@@ -264,10 +299,49 @@ public static class CatalogModule
         courseAdminGroup.MapGetPendingCourseReviewsEndpoint();
         courseAdminGroup.MapApproveCourseEndpoint();
         courseAdminGroup.MapRejectCourseEndpoint();
+        courseAdminGroup.MapUnpublishCourseEndpoint();
 
         // Learning Paths & Attachments
         group.MapLearningPathEndpoints();
         group.MapEpisodeAttachmentEndpoints();
+        group.MapWishlistEndpoints();
+
+        // Reviews (P1-08)
+        var coursesGroup = group.MapGroup("/courses");
+
+        coursesGroup.MapGet("/{courseId:guid}/reviews", async (
+            Guid courseId,
+            [Microsoft.AspNetCore.Mvc.FromQuery] int? page,
+            [Microsoft.AspNetCore.Mvc.FromQuery] int? pageSize,
+            Features.GetCourseReviews.GetCourseReviewsHandler handler,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            var result = await handler.HandleAsync(courseId, page ?? 1, pageSize ?? 10, cancellationToken).ConfigureAwait(false);
+            return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+        })
+        .WithName("GetCourseReviews")
+        .WithSummary("ดึงรายการรีวิวและความคิดเห็นของคอร์สเรียน")
+        .AllowAnonymous()
+        .Produces<Features.GetCourseReviews.CourseReviewSummaryResponse>(StatusCodes.Status200OK);
+
+        coursesGroup.MapPost("/{courseId:guid}/reviews", async (
+            Guid courseId,
+            [Microsoft.AspNetCore.Mvc.FromBody] Features.CreateCourseReview.CreateCourseReviewRequest request,
+            Features.CreateCourseReview.CreateCourseReviewHandler handler,
+            IUserContext userContext,
+            HttpContext httpContext,
+            CancellationToken cancellationToken) =>
+        {
+            if (!userContext.UserId.HasValue) return Results.Unauthorized();
+            var result = await handler.HandleAsync(courseId, userContext.UserId.Value, request, cancellationToken).ConfigureAwait(false);
+            return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+        })
+        .WithName("CreateCourseReview")
+        .WithSummary("เขียนรีวิวและให้คะแนนคอร์สเรียน (เฉพาะผู้ที่ลงทะเบียนเรียน)")
+        .RequireAuthorization()
+        .Produces<Features.CreateCourseReview.CourseReviewDto>(StatusCodes.Status200OK)
+        .Produces<ProblemDetails>(StatusCodes.Status400BadRequest);
 
         return endpoints;
     }

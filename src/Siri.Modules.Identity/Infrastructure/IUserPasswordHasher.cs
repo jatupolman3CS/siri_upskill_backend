@@ -10,9 +10,9 @@ namespace Siri.Modules.Identity.Infrastructure;
 /// </summary>
 public interface IUserPasswordHasher
 {
-    /// <summary>Hashes <paramref name="password"/> for storage in <see cref="User.PasswordHash"/>.</summary>
-    string HashPassword(User user, string password);
+    /// <summary>Hashes <paramref name="password"/> for storage in <see cref="USER.PasswordHash"/>.</summary>
+    string HashPassword(USER user, string password);
 
     /// <summary>Verifies <paramref name="providedPassword"/> against a previously hashed value.</summary>
-    PasswordVerificationResult VerifyPassword(User user, string hashedPassword, string providedPassword);
+    PasswordVerificationResult VerifyPassword(USER user, string hashedPassword, string providedPassword);
 }

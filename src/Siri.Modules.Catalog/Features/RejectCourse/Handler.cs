@@ -7,10 +7,10 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Catalog.Features.RejectCourse;
 
 /// <summary>
-/// Rejects a course under review — records why (<see cref="Course.RejectionReason"/>) so the instructor
+/// Rejects a course under review — records why (<see cref="COURSE.RejectionReason"/>) so the instructor
 /// knows what to fix (task P1-05's "validation rule + audit"). Checks <see cref="CourseStatus.InReview"/>
-/// before calling <see cref="Course.Reject"/> — same "handler enforces the workflow stage, domain method
-/// is the backstop" split <c>ApproveCourseHandler</c>/<c>Course.Reject</c>'s own doc comment describe. No
+/// before calling <see cref="COURSE.Reject"/> — same "handler enforces the workflow stage, domain method
+/// is the backstop" split <c>ApproveCourseHandler</c>/<c>COURSE.Reject</c>'s own doc comment describe. No
 /// Sections/Episodes include needed here, unlike Approve/SubmitForReview — <c>Reject</c> never touches
 /// the child graph.
 /// </summary>

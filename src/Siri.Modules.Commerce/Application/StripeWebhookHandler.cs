@@ -288,9 +288,17 @@ public sealed class StripeWebhookHandler
             payment.MarkExpired();
 
             var order = await _orderRepository.GetByIdAsync(payment.ORDER_ID, cancellationToken).ConfigureAwait(false);
-            if (order is not null && order.PROMO_CODE_ID.HasValue)
+            if (order is not null)
             {
-                await _promoCodeRepository.RevertRedemptionAsync(order.PROMO_CODE_ID.Value, order.ORDER_ID, cancellationToken).ConfigureAwait(false);
+                if (order.STATUS == OrderStatus.AwaitingPayment)
+                {
+                    order.MarkCancelled();
+                }
+
+                if (order.PROMO_CODE_ID.HasValue)
+                {
+                    await _promoCodeRepository.RevertRedemptionAsync(order.PROMO_CODE_ID.Value, order.ORDER_ID, cancellationToken).ConfigureAwait(false);
+                }
             }
         }
 

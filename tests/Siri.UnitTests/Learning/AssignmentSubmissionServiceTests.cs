@@ -1,3 +1,4 @@
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Learning.Application;
 using Siri.Modules.Learning.Domain;
 using Siri.SharedKernel;
@@ -34,6 +35,12 @@ public sealed class AssignmentSubmissionServiceTests
         public Task<ASSIGNMENT_SUBMISSION?> GetByIdAsync(Guid submissionId, CancellationToken cancellationToken) =>
             Task.FromResult(Submissions.TryGetValue(submissionId, out var sub) ? sub : null);
 
+        public Task<ASSIGNMENT_SUBMISSION?> GetLatestByEnrollmentAndAssignmentAsync(Guid enrollmentId, Guid assignmentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Submissions.Values
+                .Where(s => s.ENROLLMENT_ID == enrollmentId && s.ASSIGNMENT_ID == assignmentId)
+                .OrderByDescending(s => s.SUBMITTED_AT_UTC)
+                .FirstOrDefault());
+
         public Task<PagedResult<ASSIGNMENT_SUBMISSION>> ListByAssignmentAsync(Guid assignmentId, int page, int pageSize, CancellationToken cancellationToken)
         {
             var items = Submissions.Values.Where(s => s.ASSIGNMENT_ID == assignmentId).ToList();
@@ -43,6 +50,37 @@ public sealed class AssignmentSubmissionServiceTests
         public void Add(ASSIGNMENT_SUBMISSION submission) => Submissions[submission.ASSIGNMENT_SUBMISSION_ID] = submission;
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeCatalogPriceContract : ICatalogPriceContract
+    {
+        private readonly Dictionary<Guid, Guid> _episodeOwners = [];
+        private readonly Dictionary<Guid, Guid> _episodeCourses = [];
+
+        public void RegisterOwner(Guid episodeId, Guid instructorUserId) => _episodeOwners[episodeId] = instructorUserId;
+        public void RegisterCourse(Guid episodeId, Guid courseId) => _episodeCourses[episodeId] = courseId;
+
+        public Task<IReadOnlyDictionary<Guid, CoursePriceInfo>> GetPublishedCoursePricesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, CoursePriceInfo>>(new Dictionary<Guid, CoursePriceInfo>());
+
+        public Task<bool> IsEpisodeFreePreviewAsync(Guid episodeId, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<Guid?> GetCourseIdForEpisodeAsync(Guid episodeId, CancellationToken cancellationToken) =>
+            Task.FromResult(_episodeCourses.TryGetValue(episodeId, out var cid) ? (Guid?)cid : null);
+
+        public Task<bool> IsInstructorOwnerOfEpisodeAsync(Guid episodeId, Guid instructorUserId, CancellationToken cancellationToken) =>
+            Task.FromResult(_episodeOwners.TryGetValue(episodeId, out var owner) && owner == instructorUserId);
+
+        public Task<bool> IsInstructorOwnerOfCourseAsync(Guid courseId, Guid instructorUserId, CancellationToken cancellationToken) =>
+            Task.FromResult(true);
+
+        public Task<int> GetPendingReviewsCountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
+
+        public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
     }
 
     private sealed class FakeEnrollmentRepository : IEnrollmentRepository
@@ -68,17 +106,22 @@ public sealed class AssignmentSubmissionServiceTests
         var assignmentRepo = new FakeAssignmentRepository();
         var submissionRepo = new FakeAssignmentSubmissionRepository();
         var enrollRepo = new FakeEnrollmentRepository();
+        var catalog = new FakeCatalogPriceContract();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
         var userId = Guid.NewGuid();
-        var enrollment = ENROLLMENT.Create(userId, Guid.NewGuid(), null, EnrollmentSource.Purchase, null, clock);
+        var courseId = Guid.NewGuid();
+        var enrollment = ENROLLMENT.Create(userId, courseId, null, EnrollmentSource.Purchase, null, clock);
         enrollRepo.Add(enrollment);
 
-        var assignment = ASSIGNMENT.Create(Guid.NewGuid(), "การบ้าน 1", "คำอธิบาย", 7, 20, "pdf");
+        var episodeId = Guid.NewGuid();
+        catalog.RegisterCourse(episodeId, courseId);
+
+        var assignment = ASSIGNMENT.Create(episodeId, "การบ้าน 1", "คำอธิบาย", 7, 20, "pdf");
         assignmentRepo.Add(assignment);
 
-        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, clock);
+        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, catalog, clock);
         var request = new SubmitAssignmentRequest(assignment.ASSIGNMENT_ID, enrollment.ENROLLMENT_ID, "storage/assignments/sub-1.pdf", "โน้ตจากผู้เรียน");
 
         var result = await service.SubmitAsync(userId, request, CancellationToken.None);
@@ -97,17 +140,21 @@ public sealed class AssignmentSubmissionServiceTests
         var assignmentRepo = new FakeAssignmentRepository();
         var submissionRepo = new FakeAssignmentSubmissionRepository();
         var enrollRepo = new FakeEnrollmentRepository();
+        var catalog = new FakeCatalogPriceContract();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
-        var assignment = ASSIGNMENT.Create(Guid.NewGuid(), "การบ้าน 1", "คำอธิบาย", 7, 20, "pdf");
+        var episodeId = Guid.NewGuid();
+        var instructorId = Guid.NewGuid();
+        catalog.RegisterOwner(episodeId, instructorId);
+
+        var assignment = ASSIGNMENT.Create(episodeId, "การบ้าน 1", "คำอธิบาย", 7, 20, "pdf");
         assignmentRepo.Add(assignment);
 
         var submission = ASSIGNMENT_SUBMISSION.Submit(assignment.ASSIGNMENT_ID, Guid.NewGuid(), "key", null, clock);
         submissionRepo.Add(submission);
 
-        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, clock);
-        var instructorId = Guid.NewGuid();
+        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, catalog, clock);
 
         var gradeRequest = new GradeAssignmentSubmissionRequest(AssignmentSubmissionStatus.Graded, 95m, "ยอดเยี่ยมมาก");
         var result = await service.GradeAsync(instructorId, submission.ASSIGNMENT_SUBMISSION_ID, gradeRequest, CancellationToken.None);
@@ -126,17 +173,21 @@ public sealed class AssignmentSubmissionServiceTests
         var assignmentRepo = new FakeAssignmentRepository();
         var submissionRepo = new FakeAssignmentSubmissionRepository();
         var enrollRepo = new FakeEnrollmentRepository();
+        var catalog = new FakeCatalogPriceContract();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
-        var assignment = ASSIGNMENT.Create(Guid.NewGuid(), "การบ้าน 1", "คำอธิบาย", 7, 20, "pdf");
+        var episodeId = Guid.NewGuid();
+        var instructorId = Guid.NewGuid();
+        catalog.RegisterOwner(episodeId, instructorId);
+
+        var assignment = ASSIGNMENT.Create(episodeId, "การบ้าน 1", "คำอธิบาย", 7, 20, "pdf");
         assignmentRepo.Add(assignment);
 
         var submission = ASSIGNMENT_SUBMISSION.Submit(assignment.ASSIGNMENT_ID, Guid.NewGuid(), "key", null, clock);
         submissionRepo.Add(submission);
 
-        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, clock);
-        var instructorId = Guid.NewGuid();
+        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, catalog, clock);
 
         var rejectRequest = new GradeAssignmentSubmissionRequest(AssignmentSubmissionStatus.Rejected, null, "กรุณาส่งไฟล์ใหม่ให้ตรงตามโจทย์");
         var result = await service.GradeAsync(instructorId, submission.ASSIGNMENT_SUBMISSION_ID, rejectRequest, CancellationToken.None);
@@ -155,6 +206,7 @@ public sealed class AssignmentSubmissionServiceTests
         var assignmentRepo = new FakeAssignmentRepository();
         var submissionRepo = new FakeAssignmentSubmissionRepository();
         var enrollRepo = new FakeEnrollmentRepository();
+        var catalog = new FakeCatalogPriceContract();
         var clock = new FakeClock(DateTime.UtcNow);
 
         var userId = Guid.NewGuid();
@@ -164,7 +216,7 @@ public sealed class AssignmentSubmissionServiceTests
         var submission = ASSIGNMENT_SUBMISSION.Submit(Guid.NewGuid(), enrollment.ENROLLMENT_ID, "key", null, clock);
         submissionRepo.Add(submission);
 
-        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, clock);
+        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, catalog, clock);
 
         var result = await service.GetByIdAsync(userId, submission.ASSIGNMENT_SUBMISSION_ID, CancellationToken.None);
 
@@ -175,13 +227,10 @@ public sealed class AssignmentSubmissionServiceTests
     [Fact]
     public async Task GetByIdAsync_WhenCallerIsNotTheOwner_ReturnsNotFound()
     {
-        // This is the learner-facing "check my own submission" endpoint only — grading/instructor
-        // review is a completely separate route that never calls this method (see
-        // AssignmentSubmissionEndpoints' doc comment) — so any non-owner caller must be rejected
-        // unconditionally.
         var assignmentRepo = new FakeAssignmentRepository();
         var submissionRepo = new FakeAssignmentSubmissionRepository();
         var enrollRepo = new FakeEnrollmentRepository();
+        var catalog = new FakeCatalogPriceContract();
         var clock = new FakeClock(DateTime.UtcNow);
 
         var ownerId = Guid.NewGuid();
@@ -191,7 +240,7 @@ public sealed class AssignmentSubmissionServiceTests
         var submission = ASSIGNMENT_SUBMISSION.Submit(Guid.NewGuid(), enrollment.ENROLLMENT_ID, "key", null, clock);
         submissionRepo.Add(submission);
 
-        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, clock);
+        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, catalog, clock);
 
         var attackerId = Guid.NewGuid();
         var result = await service.GetByIdAsync(attackerId, submission.ASSIGNMENT_SUBMISSION_ID, CancellationToken.None);
@@ -199,4 +248,39 @@ public sealed class AssignmentSubmissionServiceTests
         Assert.False(result.IsSuccess);
         Assert.Equal("not_found", result.Error.Code);
     }
+
+    [Fact]
+    public async Task GetMySubmissionByAssignmentAsync_ReturnsLatestSubmission()
+    {
+        var assignmentRepo = new FakeAssignmentRepository();
+        var submissionRepo = new FakeAssignmentSubmissionRepository();
+        var enrollRepo = new FakeEnrollmentRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var now = DateTime.UtcNow;
+        var clock = new FakeClock(now);
+
+        var userId = Guid.NewGuid();
+        var courseId = Guid.NewGuid();
+        var episodeId = Guid.NewGuid();
+
+        catalog.RegisterCourse(episodeId, courseId);
+
+        var enrollment = ENROLLMENT.Create(userId, courseId, null, EnrollmentSource.Purchase, null, clock);
+        enrollRepo.Add(enrollment);
+
+        var assignment = ASSIGNMENT.Create(episodeId, "การบ้าน 1", "คำอธิบาย", 7, 20, "pdf");
+        assignmentRepo.Add(assignment);
+
+        var submission = ASSIGNMENT_SUBMISSION.Submit(assignment.ASSIGNMENT_ID, enrollment.ENROLLMENT_ID, "key1", "note1", clock);
+        submissionRepo.Add(submission);
+
+        var service = new AssignmentSubmissionService(submissionRepo, assignmentRepo, enrollRepo, catalog, clock);
+
+        var result = await service.GetMySubmissionByAssignmentAsync(userId, assignment.ASSIGNMENT_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.NotNull(result.Value);
+        Assert.Equal("key1", result.Value.StorageKey);
+    }
 }
+

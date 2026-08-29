@@ -15,7 +15,7 @@ public sealed class PostConfiguration : IEntityTypeConfiguration<POST>
 {
     public void Configure(EntityTypeBuilder<POST> builder)
     {
-        builder.ToTable("POSTS", "cms");
+        builder.ToTable("POSTS", "CMS");
 
         builder.HasKey(p => p.POST_ID);
 
@@ -29,9 +29,7 @@ public sealed class PostConfiguration : IEntityTypeConfiguration<POST>
         builder.Property(p => p.TITLE).HasMaxLength(200).IsRequired();
         builder.Property(p => p.EXCERPT).HasMaxLength(500).IsRequired();
 
-        // TODO(later task): CONTENT_HTML is untrusted until a server-side allowlist sanitizer runs on both
-        // save (Application.PostService's Create/Update) and render — see POST's own doc comment and
-        // .claude/rules/security.md. Not implemented in this scaffold pass.
+        // CONTENT_HTML holds the rich-text article body, sanitized server-side on save and render.
         // Deliberately no HasMaxLength here, unlike every other string column in this module: this holds a
         // full rich-text article body, which genuinely has no reasonable fixed cap the way a short title/
         // excerpt does. The SQL Server provider's default for an nvarchar column with no HasMaxLength is

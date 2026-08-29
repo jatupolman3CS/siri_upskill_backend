@@ -4,22 +4,22 @@ namespace Siri.UnitTests.Catalog;
 
 public class InstructorProfileTests
 {
-    private static InstructorProfile CreatePendingApplication() =>
-        InstructorProfile.Apply(Guid.NewGuid(), "Somchai Dev", "Senior Full-Stack Developer", "สอนพัฒนาเว็บมา 10 ปี");
+    private static INSTRUCTOR_PROFILE CreatePendingApplication() =>
+        INSTRUCTOR_PROFILE.Apply(Guid.NewGuid(), "Somchai Dev", "Senior Full-Stack Developer", "สอนพัฒนาเว็บมา 10 ปี");
 
     [Fact]
     public void Apply_ValidInput_ReturnsPendingProfileWithDefaultRevenueShare()
     {
         var userId = Guid.NewGuid();
 
-        var profile = InstructorProfile.Apply(userId, "Somchai Dev", "Senior Full-Stack Developer", "สอนพัฒนาเว็บมา 10 ปี");
+        var profile = INSTRUCTOR_PROFILE.Apply(userId, "Somchai Dev", "Senior Full-Stack Developer", "สอนพัฒนาเว็บมา 10 ปี");
 
         Assert.NotEqual(Guid.Empty, profile.Id);
         Assert.Equal(userId, profile.UserId);
         Assert.Equal("Somchai Dev", profile.DisplayName);
         Assert.Equal("Senior Full-Stack Developer", profile.Headline);
         Assert.Equal("สอนพัฒนาเว็บมา 10 ปี", profile.Bio);
-        Assert.Equal(InstructorProfile.DefaultRevenueSharePercent, profile.RevenueSharePercent);
+        Assert.Equal(INSTRUCTOR_PROFILE.DefaultRevenueSharePercent, profile.RevenueSharePercent);
         Assert.Equal(InstructorApplicationStatus.Pending, profile.Status);
         Assert.Null(profile.ApprovedAtUtc);
     }
@@ -27,7 +27,7 @@ public class InstructorProfileTests
     [Fact]
     public void Apply_NullHeadline_Succeeds()
     {
-        var profile = InstructorProfile.Apply(Guid.NewGuid(), "Somchai Dev", null, "สอนพัฒนาเว็บมา 10 ปี");
+        var profile = INSTRUCTOR_PROFILE.Apply(Guid.NewGuid(), "Somchai Dev", null, "สอนพัฒนาเว็บมา 10 ปี");
 
         Assert.Null(profile.Headline);
     }
@@ -37,7 +37,7 @@ public class InstructorProfileTests
     [InlineData("Somchai Dev", "")]
     public void Apply_MissingRequiredField_ThrowsArgumentException(string displayName, string bio)
     {
-        Assert.Throws<ArgumentException>(() => InstructorProfile.Apply(Guid.NewGuid(), displayName, "Headline", bio));
+        Assert.Throws<ArgumentException>(() => INSTRUCTOR_PROFILE.Apply(Guid.NewGuid(), displayName, "Headline", bio));
     }
 
     [Fact]

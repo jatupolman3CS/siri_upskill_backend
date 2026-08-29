@@ -30,17 +30,17 @@ public static class IdentitySeedData
 
         return
         [
-            new SeedUserSpec(options.AdminEmail, "SIRI UpSkill Admin (Seed)", Role.AdminId, options.AdminPassword),
+            new SeedUserSpec(options.AdminEmail, "SIRI UpSkill Admin (Seed)", ROLE.AdminId, options.AdminPassword),
 
-            new SeedUserSpec("learner1.seed@example.test", "ผู้เรียนทดสอบ 1 (Seed)", Role.LearnerId, options.TestUserPassword),
-            new SeedUserSpec("learner2.seed@example.test", "ผู้เรียนทดสอบ 2 (Seed)", Role.LearnerId, options.TestUserPassword),
-            new SeedUserSpec("learner3.seed@example.test", "ผู้เรียนทดสอบ 3 (Seed)", Role.LearnerId, options.TestUserPassword),
+            new SeedUserSpec("learner1.seed@example.test", "ผู้เรียนทดสอบ 1 (Seed)", ROLE.LearnerId, options.TestUserPassword),
+            new SeedUserSpec("learner2.seed@example.test", "ผู้เรียนทดสอบ 2 (Seed)", ROLE.LearnerId, options.TestUserPassword),
+            new SeedUserSpec("learner3.seed@example.test", "ผู้เรียนทดสอบ 3 (Seed)", ROLE.LearnerId, options.TestUserPassword),
 
-            new SeedUserSpec("instructor1.seed@example.test", "ผู้สอนทดสอบ 1 (Seed)", Role.InstructorId, options.TestUserPassword),
-            new SeedUserSpec("instructor2.seed@example.test", "ผู้สอนทดสอบ 2 (Seed)", Role.InstructorId, options.TestUserPassword),
-            new SeedUserSpec("instructor3.seed@example.test", "ผู้สอนทดสอบ 3 (Seed)", Role.InstructorId, options.TestUserPassword),
-            new SeedUserSpec("instructor4.seed@example.test", "ผู้สอนทดสอบ 4 (Seed)", Role.InstructorId, options.TestUserPassword),
-            new SeedUserSpec("instructor5.seed@example.test", "ผู้สอนทดสอบ 5 (Seed)", Role.InstructorId, options.TestUserPassword),
+            new SeedUserSpec("instructor1.seed@example.test", "ผู้สอนทดสอบ 1 (Seed)", ROLE.InstructorId, options.TestUserPassword),
+            new SeedUserSpec("instructor2.seed@example.test", "ผู้สอนทดสอบ 2 (Seed)", ROLE.InstructorId, options.TestUserPassword),
+            new SeedUserSpec("instructor3.seed@example.test", "ผู้สอนทดสอบ 3 (Seed)", ROLE.InstructorId, options.TestUserPassword),
+            new SeedUserSpec("instructor4.seed@example.test", "ผู้สอนทดสอบ 4 (Seed)", ROLE.InstructorId, options.TestUserPassword),
+            new SeedUserSpec("instructor5.seed@example.test", "ผู้สอนทดสอบ 5 (Seed)", ROLE.InstructorId, options.TestUserPassword),
         ];
     }
 }

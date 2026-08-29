@@ -32,7 +32,10 @@ public sealed class PromoCodeServiceTests
         public Task<int> GetPendingReviewsCountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
         public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
     }
+
 
     private sealed class FakePromoCodeRepository : IPromoCodeRepository
     {
@@ -148,7 +151,7 @@ public sealed class PromoCodeServiceTests
         var service = new PromoCodeService(repo, catalog, clock);
 
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 1000m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
 
         var promo = PROMO_CODE.Create("SAVE200", PromoCodeDiscountType.Fixed, 200m, 10, 1, 500m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
         await repo.AddAsync(promo, CancellationToken.None);
@@ -173,7 +176,7 @@ public sealed class PromoCodeServiceTests
         var service = new PromoCodeService(repo, catalog, clock);
 
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 1500m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1500m, Guid.NewGuid(), null);
 
         var promo = PROMO_CODE.Create("PERCENT20", PromoCodeDiscountType.Percentage, 20m, 10, 1, 0m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
         await repo.AddAsync(promo, CancellationToken.None);
@@ -197,7 +200,7 @@ public sealed class PromoCodeServiceTests
         var service = new PromoCodeService(repo, catalog, clock);
 
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 1000m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
 
         var promo = PROMO_CODE.Create("OLDCODE", PromoCodeDiscountType.Fixed, 100m, 10, 1, 0m, now.AddDays(-10), now.AddDays(-1), PromoCodeScope.AllCourses, null);
         await repo.AddAsync(promo, CancellationToken.None);
@@ -219,7 +222,7 @@ public sealed class PromoCodeServiceTests
         var service = new PromoCodeService(repo, catalog, clock);
 
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 400m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 400m, Guid.NewGuid(), null);
 
         var promo = PROMO_CODE.Create("MIN1000", PromoCodeDiscountType.Fixed, 100m, 10, 1, 1000m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
         await repo.AddAsync(promo, CancellationToken.None);
@@ -242,7 +245,7 @@ public sealed class PromoCodeServiceTests
 
         var userId = Guid.NewGuid();
         var courseId = Guid.NewGuid();
-        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "Course 1", 1000m, Guid.NewGuid(), null);
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
 
         var promo = PROMO_CODE.Create("ONCEONLY", PromoCodeDiscountType.Fixed, 100m, 10, 1, 0m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
         await repo.AddAsync(promo, CancellationToken.None);

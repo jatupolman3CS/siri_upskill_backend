@@ -49,8 +49,8 @@ public class AuthorizationPolicyTests
         new(new ClaimsIdentity()); // no authenticationType => IsAuthenticated == false
 
     [Theory]
-    [InlineData(Role.AdminName)]
-    [InlineData(Role.SuperAdminName)]
+    [InlineData(ROLE.AdminName)]
+    [InlineData(ROLE.SuperAdminName)]
     public async Task AuthorizeAsync_AdminOnly_CallerHasAdminOrSuperAdminRole_Succeeds(string role)
     {
         var authorizationService = BuildAuthorizationService();
@@ -61,8 +61,8 @@ public class AuthorizationPolicyTests
     }
 
     [Theory]
-    [InlineData(Role.LearnerName)]
-    [InlineData(Role.InstructorName)]
+    [InlineData(ROLE.LearnerName)]
+    [InlineData(ROLE.InstructorName)]
     public async Task AuthorizeAsync_AdminOnly_CallerHasNonAdminRole_Fails(string role)
     {
         var authorizationService = BuildAuthorizationService();
@@ -83,9 +83,9 @@ public class AuthorizationPolicyTests
     }
 
     [Theory]
-    [InlineData(Role.InstructorName)]
-    [InlineData(Role.AdminName)]
-    [InlineData(Role.SuperAdminName)]
+    [InlineData(ROLE.InstructorName)]
+    [InlineData(ROLE.AdminName)]
+    [InlineData(ROLE.SuperAdminName)]
     public async Task AuthorizeAsync_InstructorOnly_CallerHasInstructorOrAdminOrSuperAdminRole_Succeeds(string role)
     {
         var authorizationService = BuildAuthorizationService();
@@ -100,7 +100,7 @@ public class AuthorizationPolicyTests
     {
         var authorizationService = BuildAuthorizationService();
 
-        var result = await authorizationService.AuthorizeAsync(PrincipalWithRoles(Role.LearnerName), AuthorizationPolicyNames.InstructorOnly);
+        var result = await authorizationService.AuthorizeAsync(PrincipalWithRoles(ROLE.LearnerName), AuthorizationPolicyNames.InstructorOnly);
 
         Assert.False(result.Succeeded);
     }
@@ -122,7 +122,7 @@ public class AuthorizationPolicyTests
         // imply Admin, only the reverse.
         var authorizationService = BuildAuthorizationService();
 
-        var result = await authorizationService.AuthorizeAsync(PrincipalWithRoles(Role.InstructorName), AuthorizationPolicyNames.AdminOnly);
+        var result = await authorizationService.AuthorizeAsync(PrincipalWithRoles(ROLE.InstructorName), AuthorizationPolicyNames.AdminOnly);
 
         Assert.False(result.Succeeded);
     }

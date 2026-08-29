@@ -7,7 +7,7 @@ public class EmailOutboxMessageTests
     [Fact]
     public void Enqueue_ValidInput_ReturnsMessageInPendingStatus()
     {
-        var message = EmailOutboxMessage.Enqueue(
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue(
             "student@example.com", "ยินดีต้อนรับ", "<p>สวัสดี</p>", "welcome-email");
 
         Assert.NotEqual(Guid.Empty, message.Id);
@@ -25,7 +25,7 @@ public class EmailOutboxMessageTests
     [Fact]
     public void Enqueue_NoTemplateKey_AllowsNullTemplateKey()
     {
-        var message = EmailOutboxMessage.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
 
         Assert.Null(message.TemplateKey);
     }
@@ -36,13 +36,13 @@ public class EmailOutboxMessageTests
     [InlineData("student@example.com", "Subject", "")]
     public void Enqueue_MissingRequiredField_ThrowsArgumentException(string toEmail, string subject, string bodyHtml)
     {
-        Assert.Throws<ArgumentException>(() => EmailOutboxMessage.Enqueue(toEmail, subject, bodyHtml, null));
+        Assert.Throws<ArgumentException>(() => EMAIL_OUTBOX_MESSAGE.Enqueue(toEmail, subject, bodyHtml, null));
     }
 
     [Fact]
     public void RecordAttemptFailed_FirstFailure_IncrementsAttemptsAndSchedulesRetryOneMinuteLater()
     {
-        var message = EmailOutboxMessage.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
         var clock = new FakeClock(new DateTime(2026, 8, 17, 10, 0, 0, DateTimeKind.Utc));
 
         message.RecordAttemptFailed("SMTP timeout", clock);
@@ -56,7 +56,7 @@ public class EmailOutboxMessageTests
     [Fact]
     public void RecordAttemptFailed_RepeatedFailures_DoublesBackoffEachTime()
     {
-        var message = EmailOutboxMessage.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
         var clock = new FakeClock(new DateTime(2026, 8, 17, 10, 0, 0, DateTimeKind.Utc));
 
         message.RecordAttemptFailed("error 1", clock); // attempt 1 -> +1 min
@@ -78,24 +78,24 @@ public class EmailOutboxMessageTests
     [Fact]
     public void RecordAttemptFailed_ReachesMaxAttempts_TransitionsToTerminalFailedWithNoNextRetry()
     {
-        var message = EmailOutboxMessage.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
         var clock = new FakeClock(new DateTime(2026, 8, 17, 10, 0, 0, DateTimeKind.Utc));
 
-        for (var i = 0; i < EmailOutboxMessage.MaxAttempts; i++)
+        for (var i = 0; i < EMAIL_OUTBOX_MESSAGE.MaxAttempts; i++)
         {
             message.RecordAttemptFailed($"error {i + 1}", clock);
         }
 
-        Assert.Equal(EmailOutboxMessage.MaxAttempts, message.Attempts);
+        Assert.Equal(EMAIL_OUTBOX_MESSAGE.MaxAttempts, message.Attempts);
         Assert.Equal(EmailOutboxStatus.Failed, message.Status);
         Assert.Null(message.NextRetryAtUtc); // terminal — sender job's query stops matching this row
-        Assert.Equal($"error {EmailOutboxMessage.MaxAttempts}", message.LastError);
+        Assert.Equal($"error {EMAIL_OUTBOX_MESSAGE.MaxAttempts}", message.LastError);
     }
 
     [Fact]
     public void RecordAttemptFailed_AlreadySentMessage_ThrowsInvalidOperationException()
     {
-        var message = EmailOutboxMessage.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
         message.RecordSent(new FakeClock(DateTime.UtcNow));
 
         Assert.Throws<InvalidOperationException>(() => message.RecordAttemptFailed("error", new FakeClock(DateTime.UtcNow)));
@@ -104,7 +104,7 @@ public class EmailOutboxMessageTests
     [Fact]
     public void RecordSent_PendingMessage_SetsSentAtUtcAndTerminalSentStatus()
     {
-        var message = EmailOutboxMessage.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
         var clock = new FakeClock(new DateTime(2026, 8, 17, 11, 0, 0, DateTimeKind.Utc));
 
         message.RecordSent(clock);
@@ -117,7 +117,7 @@ public class EmailOutboxMessageTests
     [Fact]
     public void RecordSent_AfterARetryableFailure_SucceedsAndClearsNextRetryAtUtc()
     {
-        var message = EmailOutboxMessage.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
         var clock = new FakeClock(new DateTime(2026, 8, 17, 10, 0, 0, DateTimeKind.Utc));
         message.RecordAttemptFailed("transient error", clock);
 
@@ -130,7 +130,7 @@ public class EmailOutboxMessageTests
     [Fact]
     public void RecordSent_AlreadySentMessage_IsIdempotentAndKeepsOriginalSentAtUtc()
     {
-        var message = EmailOutboxMessage.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
         var firstSend = new FakeClock(new DateTime(2026, 8, 17, 11, 0, 0, DateTimeKind.Utc));
         message.RecordSent(firstSend);
 
@@ -142,9 +142,9 @@ public class EmailOutboxMessageTests
     [Fact]
     public void RecordSent_MessageThatExhaustedAllRetries_ThrowsInvalidOperationException()
     {
-        var message = EmailOutboxMessage.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
+        var message = EMAIL_OUTBOX_MESSAGE.Enqueue("student@example.com", "Subject", "<p>Body</p>", null);
         var clock = new FakeClock(new DateTime(2026, 8, 17, 10, 0, 0, DateTimeKind.Utc));
-        for (var i = 0; i < EmailOutboxMessage.MaxAttempts; i++)
+        for (var i = 0; i < EMAIL_OUTBOX_MESSAGE.MaxAttempts; i++)
         {
             message.RecordAttemptFailed($"error {i + 1}", clock);
         }

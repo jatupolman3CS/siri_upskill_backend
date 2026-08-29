@@ -4,8 +4,7 @@ namespace Siri.Modules.Payout.Application;
 
 /// <summary>
 /// Data access for <see cref="INSTRUCTOR_PAYOUT_ACCOUNT"/>, consumed by
-/// <see cref="InstructorPayoutAccountService"/>. Interface name/members are NOT uppercased — see
-/// <see cref="IRevenueSplitRepository"/>'s own doc comment for the naming-exception reasoning.
+/// <see cref="InstructorPayoutAccountService"/>.
 /// </summary>
 public interface IInstructorPayoutAccountRepository
 {
@@ -14,6 +13,9 @@ public interface IInstructorPayoutAccountRepository
     /// <summary>Tracked lookup by the unique <see cref="INSTRUCTOR_PAYOUT_ACCOUNT.INSTRUCTOR_ID"/> — the
     /// "does this instructor already have an account on file" / "my account" read path.</summary>
     Task<INSTRUCTOR_PAYOUT_ACCOUNT?> GetByInstructorIdAsync(Guid instructorId, CancellationToken cancellationToken);
+
+    /// <summary>Untracked lookup of verified accounts for the specified instructors.</summary>
+    Task<IReadOnlyDictionary<Guid, INSTRUCTOR_PAYOUT_ACCOUNT>> GetVerifiedAccountsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken);
 
     /// <summary>Untracked (<c>AsNoTracking</c>) query source for read scenarios — the caller composes its
     /// own filtering/paging/projection.</summary>

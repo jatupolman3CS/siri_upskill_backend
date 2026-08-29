@@ -22,7 +22,7 @@ public sealed class BannerConfiguration : IEntityTypeConfiguration<BANNER>
 {
     public void Configure(EntityTypeBuilder<BANNER> builder)
     {
-        builder.ToTable("BANNERS", "cms");
+        builder.ToTable("BANNERS", "CMS");
 
         builder.HasKey(b => b.BANNER_ID);
 

@@ -6,7 +6,7 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Catalog.Features.DeleteCategory;
 
 /// <summary>
-/// Hard-deletes a category (see <c>Domain.Category</c>'s doc comment for why this is correct — not in
+/// Hard-deletes a category (see <c>Domain.CATEGORY</c>'s doc comment for why this is correct — not in
 /// DATABASE.md's soft-delete table list, admin-curated taxonomy, not user content). Rejects if the
 /// category still has children — <see cref="Infrastructure.CategoryConfiguration"/>'s self-referencing
 /// FK (<c>OnDelete(Restrict)</c>) is the DB-level backstop for the race where a child is inserted

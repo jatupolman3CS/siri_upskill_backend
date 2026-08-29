@@ -1,4 +1,5 @@
 using Siri.Integrations.Video;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Learning.Contracts;
 using Siri.Modules.Media.Application;
 using Siri.Modules.Media.Domain;
@@ -52,6 +53,10 @@ public sealed class PlaybackSessionServiceTests
             return Task.FromResult(((IReadOnlyList<PLAYBACK_SESSION>)items, items.Count));
         }
 
+        public Task<IReadOnlyList<PlaybackUserActivity>> GetUserActivitySinceAsync(
+            DateTime sinceUtc, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PlaybackUserActivity>>([]);
+
         public void Add(PLAYBACK_SESSION playbackSession) => Sessions.Add(playbackSession);
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -95,6 +100,38 @@ public sealed class PlaybackSessionServiceTests
             Task.FromResult(Result.Success());
     }
 
+    private sealed class FakeCatalogPriceContract : ICatalogPriceContract
+    {
+        public readonly Dictionary<Guid, Guid?> EpisodeMediaAssets = [];
+
+        public Task<IReadOnlyDictionary<Guid, CoursePriceInfo>> GetPublishedCoursePricesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, CoursePriceInfo>>(new Dictionary<Guid, CoursePriceInfo>());
+
+        public Task<bool> IsEpisodeFreePreviewAsync(Guid episodeId, CancellationToken cancellationToken) =>
+            Task.FromResult(true);
+
+        public Task<Guid?> GetCourseIdForEpisodeAsync(Guid episodeId, CancellationToken cancellationToken) =>
+            Task.FromResult<Guid?>(Guid.NewGuid());
+
+        public Task<Guid?> GetMediaAssetIdForEpisodeAsync(Guid episodeId, CancellationToken cancellationToken) =>
+            Task.FromResult(EpisodeMediaAssets.TryGetValue(episodeId, out var mediaAssetId) ? mediaAssetId : null);
+
+        public Task<bool> IsInstructorOwnerOfEpisodeAsync(Guid episodeId, Guid instructorUserId, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
+        public Task<bool> IsInstructorOwnerOfCourseAsync(Guid courseId, Guid instructorUserId, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+
+        public Task<int> GetPendingReviewsCountAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(0);
+
+        public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
+    }
+
     [Fact]
     public async Task CreateAsync_WhenAssetIsReady_IssuesSignedUrlAndWatermark()
     {
@@ -102,10 +139,11 @@ public sealed class PlaybackSessionServiceTests
         var assetRepo = new FakeMediaAssetRepository();
         var provider = new FakeVideoProvider();
         var learning = new FakeLearningAccessContract();
+        var catalog = new FakeCatalogPriceContract();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
-        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, clock);
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
 
         var userId = Guid.NewGuid();
         var episodeId = Guid.NewGuid();
@@ -133,15 +171,72 @@ public sealed class PlaybackSessionServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_WhenGuestAndFreePreview_IssuesSessionWithGuestWatermark()
+    {
+        var sessionRepo = new FakePlaybackSessionRepository();
+        var assetRepo = new FakeMediaAssetRepository();
+        var provider = new FakeVideoProvider();
+        var learning = new FakeLearningAccessContract { AccessGranted = true }; // Free preview allows access
+        var catalog = new FakeCatalogPriceContract();
+        var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
+
+        var episodeId = Guid.NewGuid();
+        var asset = MEDIA_ASSET.Create("BunnyStream", "vid-free", Guid.NewGuid(), true);
+        asset.MarkProcessing();
+        asset.MarkReady("playback-free", 180, "https://cdn/thumb.jpg", clock);
+        assetRepo.Add(asset);
+
+        var command = new CreatePlaybackSessionCommand(episodeId, asset.MEDIA_ASSET_ID, "guest-device");
+        var result = await service.CreateAsync(null, Guid.Empty, "198.51.100.1", command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains("Guest", result.Value.WatermarkPayload);
+        Assert.Single(sessionRepo.Sessions);
+        Assert.Equal("guest-device", sessionRepo.Sessions[0].DEVICE_ID);
+    }
+
+    [Fact]
+    public async Task GetByEpisodeIdAsync_ResolvesMediaAssetAndReturnsSignedPlayback()
+    {
+        var sessionRepo = new FakePlaybackSessionRepository();
+        var assetRepo = new FakeMediaAssetRepository();
+        var provider = new FakeVideoProvider();
+        var learning = new FakeLearningAccessContract();
+        var catalog = new FakeCatalogPriceContract();
+        var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+
+        var episodeId = Guid.NewGuid();
+        var asset = MEDIA_ASSET.Create("BunnyStream", "vid-ep", Guid.NewGuid(), true);
+        asset.MarkProcessing();
+        asset.MarkReady("playback-ep", 240, "https://cdn/thumb.jpg", clock);
+        assetRepo.Add(asset);
+
+        catalog.EpisodeMediaAssets[episodeId] = asset.MEDIA_ASSET_ID;
+
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
+
+        var result = await service.GetByEpisodeIdAsync(
+            Guid.NewGuid(), Guid.NewGuid(), "127.0.0.1", null, episodeId, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains("playlist.m3u8", result.Value.ManifestUrl);
+    }
+
+    [Fact]
     public async Task CreateAsync_WhenNoEnrollmentAccess_ReturnsForbidden()
     {
         var sessionRepo = new FakePlaybackSessionRepository();
         var assetRepo = new FakeMediaAssetRepository();
         var provider = new FakeVideoProvider();
         var learning = new FakeLearningAccessContract { AccessGranted = false };
+        var catalog = new FakeCatalogPriceContract();
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, clock);
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
 
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
         asset.MarkProcessing();
@@ -162,9 +257,10 @@ public sealed class PlaybackSessionServiceTests
         var assetRepo = new FakeMediaAssetRepository();
         var provider = new FakeVideoProvider();
         var learning = new FakeLearningAccessContract();
+        var catalog = new FakeCatalogPriceContract();
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, clock);
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
 
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
         assetRepo.Add(asset); // Status is Uploading

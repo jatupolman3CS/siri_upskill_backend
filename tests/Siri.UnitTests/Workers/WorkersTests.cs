@@ -22,6 +22,34 @@ public sealed class WorkersTests
         Assert.Contains("stripe-reconciliation", mockManager.RegisteredJobIds);
     }
 
+    [Fact]
+    public void AddHangfireClient_WithoutConnectionString_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            services.AddHangfireClient(configuration));
+
+        Assert.Contains("Missing 'ConnectionStrings:Default'", ex.Message);
+    }
+
+    [Fact]
+    public void AddHangfireWorker_WithoutConnectionString_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build();
+
+        // Act & Assert
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            services.AddHangfireWorker(configuration));
+
+        Assert.Contains("Missing 'ConnectionStrings:Default'", ex.Message);
+    }
+
     private sealed class FakeRecurringJobManager : IRecurringJobManager
     {
         public List<string> RegisteredJobIds { get; } = [];

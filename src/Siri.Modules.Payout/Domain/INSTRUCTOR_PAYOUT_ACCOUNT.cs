@@ -24,6 +24,8 @@ public sealed class INSTRUCTOR_PAYOUT_ACCOUNT : IAuditable
 
     public string? TAX_ID { get; private set; }
 
+    public TaxPayerType TAX_PAYER_TYPE { get; private set; }
+
     public DateTime? VERIFIED_AT_UTC { get; private set; }
 
     // ---- IAuditable -----------------------------------------------------------------------------
@@ -64,7 +66,8 @@ public sealed class INSTRUCTOR_PAYOUT_ACCOUNT : IAuditable
         string bankCode,
         string accountNoEncrypted,
         string accountName,
-        string? taxId)
+        string? taxId,
+        TaxPayerType taxPayerType = TaxPayerType.Individual)
     {
         if (instructorId == Guid.Empty) throw new ArgumentException("Instructor ID cannot be empty.", nameof(instructorId));
         ArgumentException.ThrowIfNullOrWhiteSpace(bankCode);
@@ -79,6 +82,7 @@ public sealed class INSTRUCTOR_PAYOUT_ACCOUNT : IAuditable
             ACCOUNT_NO_ENCRYPTED = accountNoEncrypted.Trim(),
             ACCOUNT_NAME = accountName.Trim(),
             TAX_ID = taxId?.Trim(),
+            TAX_PAYER_TYPE = taxPayerType,
         };
     }
 

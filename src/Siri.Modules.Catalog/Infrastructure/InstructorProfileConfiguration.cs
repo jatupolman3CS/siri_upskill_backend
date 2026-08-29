@@ -1,19 +1,19 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Catalog.Domain;
 
 namespace Siri.Modules.Catalog.Infrastructure;
 
-/// <summary>EF Core mapping for <see cref="InstructorProfile"/> — see docs/DATABASE.md's "catalog" section.</summary>
-public sealed class InstructorProfileConfiguration : IEntityTypeConfiguration<InstructorProfile>
+/// <summary>EF Core mapping for <see cref="INSTRUCTOR_PROFILE"/> — see docs/DATABASE.md's "catalog" section.</summary>
+public sealed class InstructorProfileConfiguration : IEntityTypeConfiguration<INSTRUCTOR_PROFILE>
 {
-    public void Configure(EntityTypeBuilder<InstructorProfile> builder)
+    public void Configure(EntityTypeBuilder<INSTRUCTOR_PROFILE> builder)
     {
-        builder.ToTable("InstructorProfiles", "catalog");
+        builder.ToTable("INSTRUCTOR_PROFILES", "CATALOG");
 
         builder.HasKey(p => p.Id);
 
-        // No FK constraint to identity.Users — see InstructorProfile's own doc comment. Unique index
+        // No FK constraint to identity.Users — see INSTRUCTOR_PROFILE's own doc comment. Unique index
         // only, which is also what enforces "one profile per user, ever" (Resubmit reuses the row
         // instead of a second insert).
         builder.Property(p => p.UserId).IsRequired();

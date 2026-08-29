@@ -57,7 +57,7 @@ public class CatalogSeedDataTests
         };
 
         var identityInstructorEmails = IdentitySeedData.BuildUsers(identityOptions)
-            .Where(u => u.RoleId == Role.InstructorId)
+            .Where(u => u.RoleId == ROLE.InstructorId)
             .Select(u => u.Email)
             .ToHashSet();
 
@@ -120,7 +120,7 @@ public class CatalogSeedDataTests
         Assert.All(courses, c => Assert.True(c.ComparePrice > c.Price));
     }
 
-    /// <summary>The floor <c>Course.Publish</c>'s invariant needs — <see cref="CatalogSeeder"/> attaches
+    /// <summary>The floor <c>COURSE.Publish</c>'s invariant needs — <see cref="CatalogSeeder"/> attaches
     /// placeholder media to every episode, so this only needs to confirm every course actually has at
     /// least one.</summary>
     [Fact]

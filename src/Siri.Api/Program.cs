@@ -1,3 +1,4 @@
+using DotNetEnv;
 using System.Text;
 using System.Text.Json.Serialization;
 using Hangfire;
@@ -12,6 +13,7 @@ using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Json;
 using Siri.Api.Authorization;
+using Siri.Api.Configuration;
 using Siri.Api.ErrorHandling;
 using Siri.Api.Middleware;
 using Siri.Api.Observability;
@@ -29,7 +31,35 @@ using Siri.Modules.Media;
 using Siri.Modules.Notification;
 using Siri.Modules.Payout;
 using Siri.Persistence.DependencyInjection;
+using Siri.SharedKernel;
 using Siri.Workers;
+
+// Load .env by traversing parent directories from AppContext.BaseDirectory and CurrentDirectory.
+// The file is gitignored — it never ships to production. On production servers, real environment
+// variables are injected by the host (Docker / systemd / cloud PaaS) and Env.Load() is a no-op
+// when the file is absent.
+// Key convention: nested config sections use __ as the separator
+//   (e.g.  VideoProvider__ApiKey  →  VideoProvider:ApiKey in IConfiguration)
+LoadDotEnv();
+
+static void LoadDotEnv()
+{
+    var searchDirs = new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() };
+    foreach (var baseDir in searchDirs)
+    {
+        var dir = new DirectoryInfo(baseDir);
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, ".env");
+            if (File.Exists(candidate))
+            {
+                Env.Load(candidate, new LoadOptions(clobberExistingVars: true));
+                return;
+            }
+            dir = dir.Parent;
+        }
+    }
+}
 
 // Bootstrap logger: catches anything that goes wrong before the host's own Serilog pipeline
 // (built further down from configuration) is ready.
@@ -247,17 +277,29 @@ try
         // Shared IConnectionMultiplexer for every Redis consumer (Identity's session mirror, Catalog's
         // category-tree cache, ...) — must run before any module that resolves IConnectionMultiplexer.
         .AddSharedRedis(builder.Configuration)
-        .AddWorkers(builder.Configuration)
+        .AddHangfireClient(builder.Configuration)
         .AddIdentityModule(builder.Configuration)
         .AddCatalogModule(builder.Configuration)
         .AddMediaModule(builder.Configuration)
         .AddLearningModule()
         .AddCommerceModule(builder.Configuration)
-        .AddPayoutModule()
+        .AddPayoutModule(builder.Configuration)
         .AddCmsModule()
         .AddCommunityModule()
         .AddNotificationModule(builder.Configuration)
         .AddAnalyticsModule();
+
+    builder.Services.AddControllers(options =>
+    {
+        options.Filters.Add<ValidationActionFilter>();
+    })
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
+    // P7-12: Fast-fail validation of production secrets and critical configurations
+    ProductionConfigurationGuard.ValidateProductionConfiguration(builder.Configuration, builder.Environment);
 
     var app = builder.Build();
 
@@ -272,6 +314,12 @@ try
     // comment for why Catalog cannot look these up itself).
     if (args.Contains("--seed", StringComparer.OrdinalIgnoreCase))
     {
+        if (app.Environment.IsProduction())
+        {
+            Log.Fatal("Seeding is strictly forbidden in Production environment.");
+            throw new InvalidOperationException("Seeding is strictly forbidden in Production environment.");
+        }
+
         await using var seedScope = app.Services.CreateAsyncScope();
 
         var identitySeeder = seedScope.ServiceProvider.GetRequiredService<IdentitySeeder>();
@@ -287,6 +335,9 @@ try
 
     app.UseExceptionHandler();
 
+    // P7-02: Enforce security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options)
+    app.UseMiddleware<SecurityHeadersMiddleware>();
+
     app.UseMiddleware<CorrelationIdMiddleware>();
 
     app.UseSerilogRequestLogging();
@@ -294,6 +345,11 @@ try
     if (app.Environment.IsDevelopment())
     {
         app.MapOpenApi();
+        app.UseSwaggerUI(options =>
+        {
+            options.SwaggerEndpoint("/openapi/v1.json", "SIRI UpSkill API v1");
+            options.RoutePrefix = "swagger";
+        });
     }
 
     app.UseCors("Default");
@@ -311,7 +367,7 @@ try
 
     app.MapHealthChecks("/health");
 
-    // ---- Background jobs (Hangfire) --------------------------------------------------------
+    // ---- Background jobs (Hangfire Dashboard) -----------------------------------------------
 
     app.UseHangfireDashboard("/hangfire", new DashboardOptions
     {
@@ -325,19 +381,7 @@ try
         Authorization = [new LocalhostOnlyDashboardAuthorizationFilter()],
     });
 
-    app.Services.GetRequiredService<IRecurringJobManager>().MapRecurringJobs();
-
-    app
-        .MapIdentityEndpoints()
-        .MapCatalogEndpoints()
-        .MapMediaEndpoints()
-        .MapLearningEndpoints()
-        .MapCommerceEndpoints()
-        .MapPayoutEndpoints()
-        .MapCmsEndpoints()
-        .MapCommunityEndpoints()
-        .MapNotificationEndpoints()
-        .MapAnalyticsEndpoints();
+    app.MapControllers();
 
     app.Run();
 }

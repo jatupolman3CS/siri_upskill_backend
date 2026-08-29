@@ -60,6 +60,8 @@ public static class LearningModule
 
         // --- Cross-module contracts ---
         services.AddScoped<Contracts.ILearningAccessContract, Infrastructure.Contracts.LearningAccessContract>();
+        services.AddScoped<Catalog.Contracts.IEpisodeAccessReader, Infrastructure.Contracts.LearningAccessContract>();
+        services.AddScoped<Catalog.Contracts.ILearningEnrollmentChecker, Infrastructure.Contracts.LearningAccessContract>();
         services.AddScoped<Contracts.ILearningAnalyticsContract, Infrastructure.Contracts.LearningAnalyticsContract>();
 
         return services;

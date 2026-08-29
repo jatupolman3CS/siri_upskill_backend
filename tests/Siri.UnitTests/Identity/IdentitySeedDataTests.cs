@@ -21,10 +21,10 @@ public class IdentitySeedDataTests
     {
         var users = IdentitySeedData.BuildUsers(ConfiguredOptions());
 
-        Assert.Equal(1, users.Count(u => u.RoleId == Role.AdminId));
-        Assert.Equal(3, users.Count(u => u.RoleId == Role.LearnerId)); // task range: "2-3 Learner accounts"
-        Assert.Equal(5, users.Count(u => u.RoleId == Role.InstructorId)); // P1-30 grew this from 2 to 5 — one real seeded account per seeded course-catalog instructor persona (CatalogSeedData)
-        Assert.Equal(0, users.Count(u => u.RoleId == Role.SuperAdminId)); // task scope: Admin only, never SuperAdmin
+        Assert.Equal(1, users.Count(u => u.RoleId == ROLE.AdminId));
+        Assert.Equal(3, users.Count(u => u.RoleId == ROLE.LearnerId)); // task range: "2-3 Learner accounts"
+        Assert.Equal(5, users.Count(u => u.RoleId == ROLE.InstructorId)); // P1-30 grew this from 2 to 5 — one real seeded account per seeded course-catalog instructor persona (CatalogSeedData)
+        Assert.Equal(0, users.Count(u => u.RoleId == ROLE.SuperAdminId)); // task scope: Admin only, never SuperAdmin
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class IdentitySeedDataTests
         var options = ConfiguredOptions();
 
         var users = IdentitySeedData.BuildUsers(options);
-        var admin = users.Single(u => u.RoleId == Role.AdminId);
+        var admin = users.Single(u => u.RoleId == ROLE.AdminId);
 
         Assert.Equal(options.AdminEmail, admin.Email);
         Assert.Equal(options.AdminPassword, admin.Password);
@@ -56,7 +56,7 @@ public class IdentitySeedDataTests
         var options = ConfiguredOptions();
 
         var users = IdentitySeedData.BuildUsers(options);
-        var nonAdminAccounts = users.Where(u => u.RoleId != Role.AdminId);
+        var nonAdminAccounts = users.Where(u => u.RoleId != ROLE.AdminId);
 
         Assert.All(nonAdminAccounts, u => Assert.Equal(options.TestUserPassword, u.Password));
     }
@@ -70,7 +70,7 @@ public class IdentitySeedDataTests
     public void BuildUsers_NonAdminAccounts_UseTheObviouslyFakeExampleTestDomain()
     {
         var users = IdentitySeedData.BuildUsers(ConfiguredOptions());
-        var nonAdminAccounts = users.Where(u => u.RoleId != Role.AdminId);
+        var nonAdminAccounts = users.Where(u => u.RoleId != ROLE.AdminId);
 
         Assert.All(nonAdminAccounts, u => Assert.EndsWith("@example.test", u.Email, StringComparison.Ordinal));
         Assert.All(nonAdminAccounts, u => Assert.Contains(".seed@", u.Email, StringComparison.Ordinal));

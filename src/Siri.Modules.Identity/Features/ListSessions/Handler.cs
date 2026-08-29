@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Identity.Infrastructure;
 using Siri.Persistence;
 using Siri.SharedKernel;
@@ -6,7 +6,7 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Identity.Features.ListSessions;
 
 /// <summary>
-/// Lists the authenticated caller's own <see cref="Domain.UserSession"/>s — every currently-active one,
+/// Lists the authenticated caller's own <see cref="Domain.USER_SESSION"/>s — every currently-active one,
 /// plus any revoked within <see cref="RecentRevocationWindow"/>, so the caller can see "you were signed
 /// out of this device on [date]" instead of a revoked device simply vanishing with no explanation (task
 /// instruction: "consider whether recently-revoked ones ... are also useful ... make a specific,

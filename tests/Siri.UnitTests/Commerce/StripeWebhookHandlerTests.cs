@@ -152,13 +152,13 @@ public class StripeWebhookHandlerTests
 
         // AccessDurationDays = 30 for course1 (time-limited), null for course2 (lifetime) — proves
         // EnrollUserAsync receives a real, course-specific expiry instead of always-null/always-lifetime.
-        _catalogPriceContract.Prices[course1] = new CoursePriceInfo(course1, "Course 1", 1000m, Guid.NewGuid(), 30);
-        _catalogPriceContract.Prices[course2] = new CoursePriceInfo(course2, "Course 2", 500m, Guid.NewGuid(), null);
+        _catalogPriceContract.Prices[course1] = new CoursePriceInfo(course1, "COURSE 1", 1000m, Guid.NewGuid(), 30);
+        _catalogPriceContract.Prices[course2] = new CoursePriceInfo(course2, "COURSE 2", 500m, Guid.NewGuid(), null);
         _userContactReader.Emails[buyerId] = "buyer@example.test";
 
         var order = ORDER.Create("ORD-ENROLL", buyerId, 1500m, 0m, 0m, 1500m);
-        order.AddItem(course1, "Course 1", 1000m, 1000m);
-        order.AddItem(course2, "Course 2", 500m, 500m);
+        order.AddItem(course1, "COURSE 1", 1000m, 1000m);
+        order.AddItem(course2, "COURSE 2", 500m, 500m);
         order.MarkAwaitingPayment();
         await _orderRepo.AddAsync(order, CancellationToken.None);
 
@@ -289,6 +289,9 @@ public class StripeWebhookHandlerTests
             _payments.Add(payment);
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<PAYMENT>> GetPendingByOrderIdAsync(Guid orderId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PAYMENT>>(_payments.Where(p => p.ORDER_ID == orderId && (p.STATUS == PaymentStatus.Pending || p.STATUS == PaymentStatus.Processing)).ToList());
     }
 
     private sealed class FakeOrderRepository : IOrderRepository
@@ -307,9 +310,28 @@ public class StripeWebhookHandlerTests
         public Task<IReadOnlyList<ORDER>> GetActiveByUserIdAsync(Guid userId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ORDER>>(_orders.Where(o => o.USER_ID == userId).ToList());
 
+        public Task<(IReadOnlyList<ORDER> Items, int TotalCount)> ListByUserIdAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken)
+        {
+            var userOrders = _orders.Where(o => o.USER_ID == userId).ToList();
+            var items = userOrders.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult<(IReadOnlyList<ORDER> Items, int TotalCount)>((items, userOrders.Count));
+        }
+
+        public Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken)
+        {
+            var result = _orders
+                .Where(o => o.STATUS == OrderStatus.AwaitingPayment && o.CreatedAtUtc <= cutoffUtc)
+                .OrderBy(o => o.CreatedAtUtc)
+                .Take(batchSize)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<ORDER>>(result);
+        }
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken) => operation();
+
+        public Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken) => operation();
     }
 
     private sealed class FakePromoCodeRepository : IPromoCodeRepository
@@ -371,6 +393,17 @@ public class StripeWebhookHandlerTests
 
         public Task<IReadOnlyList<PAYMENT_OPS_QUEUE>> GetOpenEntriesAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PAYMENT_OPS_QUEUE>>(_entries.Where(e => e.STATUS == PaymentOpsQueueStatus.Open).ToList());
+
+        public Task<(IReadOnlyList<PAYMENT_OPS_QUEUE> Items, int TotalCount)> ListAsync(PaymentOpsQueueStatus? status, int page, int pageSize, CancellationToken cancellationToken)
+        {
+            var query = _entries.AsEnumerable();
+            if (status.HasValue) query = query.Where(e => e.STATUS == status.Value);
+            var list = query.ToList();
+            var items = list.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult<(IReadOnlyList<PAYMENT_OPS_QUEUE> Items, int TotalCount)>((items, list.Count));
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeClock(DateTime utcNow) : IClock
@@ -398,6 +431,8 @@ public class StripeWebhookHandlerTests
         public Task<int> GetPendingReviewsCountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
         public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
     }
 
     private sealed class FakeLearningAccessContract : ILearningAccessContract
@@ -418,13 +453,21 @@ public class StripeWebhookHandlerTests
     private sealed class FakeRevenueSplitContract : IRevenueSplitContract
     {
         public readonly List<(Guid OrderId, IReadOnlyList<OrderItemSplitInfo> Items)> Recorded = [];
+        public readonly List<(Guid OrderId, IReadOnlyList<Guid> OrderItemIds)> Reversed = [];
 
         public Task RecordRevenueSplitsAsync(Guid orderId, IReadOnlyList<OrderItemSplitInfo> items, CancellationToken cancellationToken)
         {
             Recorded.Add((orderId, items));
             return Task.CompletedTask;
         }
+
+        public Task ReverseRevenueSplitsForOrderAsync(Guid orderId, IReadOnlyList<Guid> orderItemIds, CancellationToken cancellationToken)
+        {
+            Reversed.Add((orderId, orderItemIds));
+            return Task.CompletedTask;
+        }
     }
+
 
     private sealed class FakeEmailOutbox : IEmailOutbox
     {

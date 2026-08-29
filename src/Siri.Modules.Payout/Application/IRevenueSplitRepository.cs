@@ -3,16 +3,7 @@ using Siri.Modules.Payout.Domain;
 namespace Siri.Modules.Payout.Application;
 
 /// <summary>
-/// Data access for <see cref="REVENUE_SPLIT"/>, consumed by <see cref="RevenueSplitService"/>. Interface
-/// name/members are NOT uppercased — D-17's UPPERCASE naming exception is entity classes/properties and
-/// DB tables/columns only, not Repository/Service/DTO/interface names (see this module's
-/// <c>REVENUE_SPLIT</c>'s own doc comment).
-/// <para>
-/// <see cref="SaveChangesAsync"/> lives here because <see cref="REVENUE_SPLIT"/> is an aggregate root with
-/// no child entities of its own — unlike <see cref="IPayoutBatchItemRepository"/>, which deliberately has
-/// no <c>SaveChangesAsync</c> of its own (see that interface's own doc comment for the shared-DbContext
-/// reasoning).
-/// </para>
+/// Data access for <see cref="REVENUE_SPLIT"/>, consumed by <see cref="RevenueSplitService"/>.
 /// </summary>
 public interface IRevenueSplitRepository
 {
@@ -23,9 +14,16 @@ public interface IRevenueSplitRepository
     /// idempotent creation (has a split already been recorded for this order item?).</summary>
     Task<REVENUE_SPLIT?> GetByOrderItemIdAsync(Guid orderItemId, CancellationToken cancellationToken);
 
-    /// <summary>Untracked (<c>AsNoTracking</c>) query source for read scenarios — the caller composes its
-    /// own filtering/paging/projection (database.md: "Projection ไปเป็น DTO ตรง ๆ ดีกว่าดึง entity มาทั้งก้อน
-    /// แล้ว map").</summary>
+    /// <summary>Tracked lookup of all splits matching the given order item IDs (for refund reversal).</summary>
+    Task<IReadOnlyList<REVENUE_SPLIT>> GetByOrderItemIdsAsync(IEnumerable<Guid> orderItemIds, CancellationToken cancellationToken);
+
+    /// <summary>Tracked lookup of all pending/payable splits eligible for payout (created on or before <paramref name="holdCutOffUtc"/>).</summary>
+    Task<IReadOnlyList<REVENUE_SPLIT>> GetEligibleSplitsForPayoutAsync(DateTime holdCutOffUtc, CancellationToken cancellationToken);
+
+    /// <summary>Tracked lookup of splits linked to a specific payout batch item.</summary>
+    Task<IReadOnlyList<REVENUE_SPLIT>> GetSplitsByBatchItemIdAsync(Guid batchItemId, CancellationToken cancellationToken);
+
+    /// <summary>Untracked (<c>AsNoTracking</c>) query source for read scenarios.</summary>
     IQueryable<REVENUE_SPLIT> Query();
 
     Task<decimal> GetTotalEarningsAsync(Guid instructorId, CancellationToken cancellationToken);

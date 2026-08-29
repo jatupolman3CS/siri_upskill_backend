@@ -131,23 +131,23 @@ public sealed class CategoryManagementTests : IAsyncLifetime
         await _app.DisposeAsync();
     }
 
-    private static async Task<User> CreateUserAsync(
+    private static async Task<USER> CreateUserAsync(
         IServiceProvider services, AppDbContext dbContext, string email, string password, bool isAdmin)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, password);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         if (isAdmin)
         {
             // Roles are migration-seeded fixed reference data (RoleConfiguration.HasData) — constructed
             // directly from the well-known id/name constants, same as Siri.UnitTests.Identity.UserTests.
-            user.AssignRole(new Role(Role.AdminId, Role.AdminName));
+            user.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
         }
 
         dbContext.Users().Add(user);

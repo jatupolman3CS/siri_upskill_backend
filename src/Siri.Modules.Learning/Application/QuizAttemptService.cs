@@ -165,6 +165,31 @@ public sealed class QuizAttemptService(
         return Result.Success(ToResponse(attempt));
     }
 
+    public async Task<Result<IReadOnlyList<QuizAttemptResponse>>> ListAttemptsByQuizAsync(Guid callerUserId, Guid quizId, CancellationToken cancellationToken)
+    {
+        var quiz = await quizRepository.GetByIdAsync(quizId, cancellationToken).ConfigureAwait(false);
+        if (quiz is null)
+        {
+            return Result.Failure<IReadOnlyList<QuizAttemptResponse>>(DomainError.NotFound("ไม่พบแบบทดสอบ"));
+        }
+
+        var courseId = await catalogPriceContract.GetCourseIdForEpisodeAsync(quiz.EPISODE_ID, cancellationToken).ConfigureAwait(false);
+        if (courseId is null)
+        {
+            return Result.Failure<IReadOnlyList<QuizAttemptResponse>>(DomainError.NotFound("ไม่พบคอร์ส"));
+        }
+
+        var enrollment = await enrollmentRepository.GetByUserAndCourseAsync(callerUserId, courseId.Value, cancellationToken).ConfigureAwait(false);
+        if (enrollment is null)
+        {
+            return Result.Success<IReadOnlyList<QuizAttemptResponse>>([]);
+        }
+
+        var attempts = await attemptRepository.ListByEnrollmentAndQuizAsync(enrollment.ENROLLMENT_ID, quizId, cancellationToken).ConfigureAwait(false);
+        var mapped = attempts.OrderBy(a => a.ATTEMPT_NO).Select(ToResponse).ToList();
+        return Result.Success<IReadOnlyList<QuizAttemptResponse>>(mapped);
+    }
+
     private static QuizAttemptResponse ToResponse(QUIZ_ATTEMPT a) =>
         new(
             a.QUIZ_ATTEMPT_ID,

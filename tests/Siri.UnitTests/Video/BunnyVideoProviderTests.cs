@@ -43,8 +43,14 @@ public class BunnyVideoProviderTests
         var provider = CreateProvider();
         var url = provider.GenerateSignedPlaybackUrl("video-guid-123", 1700000000);
 
-        Assert.StartsWith("https://my-pull-zone.b-cdn.net/12345/video-guid-123/playlist.m3u8?token=", url);
+        // URL must point to the playlist file
+        Assert.StartsWith("https://my-pull-zone.b-cdn.net/12345/video-guid-123/playlist.m3u8?token=HS256-", url);
+        // Token must use HMAC-SHA256 HS256 prefix (not plain hex)
+        Assert.Contains("HS256-", url);
         Assert.Contains("&expires=1700000000", url);
+        // Directory-level token_path must be present so HLS segments are also authorized
+        Assert.Contains("token_path=", url);
+        Assert.Contains(Uri.EscapeDataString("/12345/video-guid-123/"), url);
     }
 
     [Fact]

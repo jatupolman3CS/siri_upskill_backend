@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Builder;
+﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
@@ -9,7 +9,7 @@ namespace Siri.Modules.Catalog.Features.ApplyAsInstructor;
 /// <summary>Maps POST /api/catalog/instructors/apply (see <c>CatalogModule.MapCatalogEndpoints</c> for
 /// the group prefix). No <c>.AllowAnonymous()</c> — inherits the group's default
 /// <c>.RequireAuthorization()</c>; applying to become an instructor requires being someone. 200 OK, not
-/// 201 Created: this endpoint is conditionally create-or-resubmit (<c>InstructorProfile.Resubmit</c>
+/// 201 Created: this endpoint is conditionally create-or-resubmit (<c>INSTRUCTOR_PROFILE.Resubmit</c>
 /// reuses an existing rejected row), so it is not always a pure creation.</summary>
 public static class ApplyAsInstructorEndpoint
 {

@@ -77,6 +77,18 @@ public static class BannerEndpoints
         return endpoints;
     }
 
+    /// <summary>Maps GET /api/cms/banners (public active banners).</summary>
+    public static IEndpointRouteBuilder MapListActiveBannersEndpoint(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/", HandleListActiveAsync)
+            .AllowAnonymous()
+            .WithName("CmsListActiveBanners")
+            .WithSummary("รายการแบนเนอร์ที่เปิดใช้งานสำหรับผู้เข้าชมเว็บ")
+            .Produces<IReadOnlyList<BannerResponse>>(StatusCodes.Status200OK);
+
+        return endpoints;
+    }
+
     /// <summary>Maps GET /api/cms/admin/banners?page=&amp;pageSize=.</summary>
     public static IEndpointRouteBuilder MapListBannersEndpoint(this IEndpointRouteBuilder endpoints)
     {
@@ -142,6 +154,16 @@ public static class BannerEndpoints
         int pageSize = 20)
     {
         var result = await service.ListAsync(page, pageSize, cancellationToken).ConfigureAwait(false);
+        return Results.Ok(result);
+    }
+
+    private static async Task<IResult> HandleListActiveAsync(
+        BannerService service,
+        IClock clock,
+        CancellationToken cancellationToken,
+        string placement = "HomeHero")
+    {
+        var result = await service.GetActiveByPlacementAsync(placement, clock.UtcNow, cancellationToken).ConfigureAwait(false);
         return Results.Ok(result);
     }
 }

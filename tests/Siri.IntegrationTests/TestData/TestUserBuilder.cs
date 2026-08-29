@@ -11,8 +11,8 @@ namespace Siri.IntegrationTests.TestData;
 /// Fluent builder for persisted test users (task P0-20's data-builder piece). Wraps the exact
 /// seeding steps the earlier integration tests each hand-rolled (<c>LoginAndRefreshTests</c>'
 /// <c>CreateActiveUserAsync</c> and friends): hash a known password with the real
-/// <see cref="IUserPasswordHasher"/>, <see cref="User.Register"/>, optionally
-/// <see cref="User.ConfirmEmail"/>, optionally <see cref="User.AssignRole"/> against the
+/// <see cref="IUserPasswordHasher"/>, <see cref="USER.Register"/>, optionally
+/// <see cref="USER.ConfirmEmail"/>, optionally <see cref="USER.AssignRole"/> against the
 /// migration-seeded roles, then save — so new tests state only what they care about and inherit
 /// safe defaults for the rest.
 /// <para>
@@ -24,7 +24,7 @@ namespace Siri.IntegrationTests.TestData;
 /// </para>
 /// <para>
 /// Pass a <b>scoped</b> provider (create one scope per test, same as every existing test does) —
-/// the builder resolves <see cref="AppDbContext"/> from it, so the returned <see cref="User"/> is
+/// the builder resolves <see cref="AppDbContext"/> from it, so the returned <see cref="USER"/> is
 /// tracked by that scope's context and can be reloaded/asserted through it directly.
 /// </para>
 /// </summary>
@@ -32,7 +32,7 @@ public sealed class TestUserBuilder
 {
     private string _email = $"user-{Guid.NewGuid():N}@example.test";
     private string _password = "Correct-Horse-Battery-Staple-9";
-    private string _displayName = "Test User";
+    private string _displayName = "Test USER";
     private bool _confirmEmail = true;
     private readonly List<string> _roleNames = [];
 
@@ -69,25 +69,25 @@ public sealed class TestUserBuilder
     }
 
     /// <summary>Assign one of the migration-seeded system roles by exact name — use the
-    /// <see cref="Role"/> constants (<see cref="Role.InstructorName"/> etc.), not string literals.</summary>
+    /// <see cref="ROLE"/> constants (<see cref="ROLE.InstructorName"/> etc.), not string literals.</summary>
     public TestUserBuilder WithRole(string roleName)
     {
         _roleNames.Add(roleName);
         return this;
     }
 
-    public async Task<User> BuildAsync(IServiceProvider scopedServices, CancellationToken cancellationToken = default)
+    public async Task<USER> BuildAsync(IServiceProvider scopedServices, CancellationToken cancellationToken = default)
     {
         var dbContext = scopedServices.GetRequiredService<AppDbContext>();
         var passwordHasher = scopedServices.GetRequiredService<IUserPasswordHasher>();
         var clock = scopedServices.GetRequiredService<IClock>();
 
         // Same two-step Register as LoginAndRefreshTests.CreateActiveUserAsync: the hasher needs a
-        // User instance, but the hash must be baked into the persisted registration.
+        // USER instance, but the hash must be baked into the persisted registration.
         var normalizedEmail = _email.ToUpperInvariant();
-        var throwaway = User.Register(_email, normalizedEmail, "placeholder", _displayName);
+        var throwaway = USER.Register(_email, normalizedEmail, "placeholder", _displayName);
         var passwordHash = passwordHasher.HashPassword(throwaway, _password);
-        var user = User.Register(_email, normalizedEmail, passwordHash, _displayName);
+        var user = USER.Register(_email, normalizedEmail, passwordHash, _displayName);
 
         if (_confirmEmail)
         {

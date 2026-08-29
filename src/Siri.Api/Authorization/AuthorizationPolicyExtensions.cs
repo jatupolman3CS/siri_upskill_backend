@@ -60,11 +60,11 @@ public static class AuthorizationPolicyExtensions
         {
             options.AddPolicy(
                 AuthorizationPolicyNames.AdminOnly,
-                policy => policy.RequireRole(Role.AdminName, Role.SuperAdminName));
+                policy => policy.RequireRole(ROLE.AdminName, ROLE.SuperAdminName));
 
             options.AddPolicy(
                 AuthorizationPolicyNames.InstructorOnly,
-                policy => policy.RequireRole(Role.InstructorName, Role.AdminName, Role.SuperAdminName));
+                policy => policy.RequireRole(ROLE.InstructorName, ROLE.AdminName, ROLE.SuperAdminName));
         });
     }
 }

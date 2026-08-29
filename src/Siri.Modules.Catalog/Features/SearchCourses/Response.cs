@@ -33,7 +33,8 @@ public sealed record CourseSearchResultItem(
     int TotalDurationSeconds,
     Guid InstructorId,
     string InstructorDisplayName,
-    Guid CategoryId);
+    Guid CategoryId,
+    bool IsWishlisted = false);
 
 public sealed record CourseSearchFacets(
     IReadOnlyList<CategoryFacet> Categories,

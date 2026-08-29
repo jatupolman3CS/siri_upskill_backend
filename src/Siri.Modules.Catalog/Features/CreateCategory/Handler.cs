@@ -7,7 +7,7 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Catalog.Features.CreateCategory;
 
 /// <summary>
-/// Creates a new category. <see cref="Category.SortOrder"/> is computed here (append to end of the
+/// Creates a new category. <see cref="CATEGORY.SortOrder"/> is computed here (append to end of the
 /// target parent's current siblings) rather than accepted from the client. Slug uniqueness is
 /// enforced by <c>Categories.Slug</c>'s unique index (case-insensitive for free — see
 /// <c>CategoryConfiguration</c>'s doc comment); this handler checks first for a friendly 409 instead
@@ -50,7 +50,7 @@ public sealed class CreateCategoryHandler(AppDbContext dbContext, CategoryTreeCa
 
         var nextSortOrder = siblingSortOrders.Count > 0 ? siblingSortOrders.Max() + 1 : 0;
 
-        var category = Category.Create(command.Slug, command.NameTh, command.NameEn, command.IconKey, command.ParentId, nextSortOrder);
+        var category = CATEGORY.Create(command.Slug, command.NameTh, command.NameEn, command.IconKey, command.ParentId, nextSortOrder);
         dbContext.Categories().Add(category);
 
         try

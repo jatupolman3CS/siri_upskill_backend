@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Siri.Modules.Identity.Domain;
@@ -30,20 +30,20 @@ namespace Siri.Modules.Identity.Infrastructure.Seeding;
 /// touches any other row in <c>Users</c>. Running this twice against the same database creates zero
 /// new rows the second time; running it against a database that already has other, real, unrelated
 /// users never looks at those rows at all. The four Roles this data set assigns
-/// (<see cref="Role.AdminId"/>/<see cref="Role.LearnerId"/>/<see cref="Role.InstructorId"/>) are
+/// (<see cref="ROLE.AdminId"/>/<see cref="ROLE.LearnerId"/>/<see cref="ROLE.InstructorId"/>) are
 /// never created here — they already exist as schema-level seed data from the
 /// <c>AddIdentityDomain</c> migration's <c>RoleConfiguration.HasData</c> (task P0-14); this only
-/// looks them up and reads their tracked instances so <see cref="User.AssignRole"/> can wire the
-/// existing join-table FK, never inserting a competing <c>Role</c> row with the same id.
+/// looks them up and reads their tracked instances so <see cref="USER.AssignRole"/> can wire the
+/// existing join-table FK, never inserting a competing <c>ROLE</c> row with the same id.
 /// </para>
 /// <para>
 /// <b>Deliberately bypasses the real registration flow</b> (task instruction, explicit exception to
 /// "always go through the real flow" — seed/test data only, never for anything real): builds each
-/// <see cref="User"/> via the exact same <see cref="User.Register"/> factory
+/// <see cref="USER"/> via the exact same <see cref="USER.Register"/> factory
 /// <c>Features/Register/Handler.cs</c> uses, hashes the password through the same
 /// <see cref="IUserPasswordHasher"/> every real registration/login path uses (no second hashing
-/// scheme), then calls <see cref="User.ConfirmEmail"/> immediately instead of issuing/redeeming a
-/// <c>UserSecurityToken</c> confirmation link — landing every seeded account in
+/// scheme), then calls <see cref="USER.ConfirmEmail"/> immediately instead of issuing/redeeming a
+/// <c>USER_SECURITY_TOKEN</c> confirmation link — landing every seeded account in
 /// <see cref="UserStatus.Active"/> with <c>EmailConfirmedAtUtc</c> set, exactly as the task requires,
 /// without sending any real email.
 /// </para>
@@ -75,7 +75,7 @@ public sealed class IdentitySeeder(
         foreach (var spec in specs)
         {
             var email = spec.Email.Trim();
-            var normalizedEmail = email.ToUpperInvariant(); // same normalization User.NormalizedEmail/RegisterHandler use
+            var normalizedEmail = email.ToUpperInvariant(); // same normalization USER.NormalizedEmail/RegisterHandler use
 
             var existingId = await dbContext.Users()
                 .AsNoTracking()
@@ -95,14 +95,14 @@ public sealed class IdentitySeeder(
             if (!roles.TryGetValue(spec.RoleId, out var role))
             {
                 // Would mean the AddIdentityDomain migration (P0-14, which seeds the four fixed
-                // Role rows via HasData) has not been applied to this database yet — a real
+                // ROLE rows via HasData) has not been applied to this database yet — a real
                 // environment problem, not something to silently work around.
                 throw new InvalidOperationException(
                     $"Seed role {spec.RoleId} was not found in the 'identity.Roles' table. " +
                     "Has the 'AddIdentityDomain' EF migration been applied to this database yet?");
             }
 
-            var user = User.Register(email, normalizedEmail, HashPassword(email, normalizedEmail, spec.Password), spec.DisplayName);
+            var user = USER.Register(email, normalizedEmail, HashPassword(email, normalizedEmail, spec.Password), spec.DisplayName);
 
             // Deliberate exception to "always go through the real flow" (task instruction) — see
             // this class's own doc comment above.
@@ -130,10 +130,10 @@ public sealed class IdentitySeeder(
 
     /// <summary>Same throwaway-instance-then-hash pattern <c>Features/Register/Handler.cs</c>'s own
     /// <c>HashPassword</c> uses — <see cref="IUserPasswordHasher.HashPassword"/> needs a
-    /// <see cref="User"/> instance to call but never reads any of its properties.</summary>
+    /// <see cref="USER"/> instance to call but never reads any of its properties.</summary>
     private string HashPassword(string email, string normalizedEmail, string password)
     {
-        var throwawayUser = User.Register(email, normalizedEmail, "placeholder", "placeholder");
+        var throwawayUser = USER.Register(email, normalizedEmail, "placeholder", "placeholder");
         return passwordHasher.HashPassword(throwawayUser, password);
     }
 }

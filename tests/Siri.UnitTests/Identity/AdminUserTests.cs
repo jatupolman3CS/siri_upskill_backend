@@ -12,7 +12,7 @@ public sealed class AdminUserTests
     public void Suspend_WhenActive_TransitionsToSuspended()
     {
         var clock = new FakeClock(DateTime.UtcNow);
-        var user = User.Register("test@siriupskill.com", "TEST@SIRIUPSKILL.COM", "hash", "Test User");
+        var user = USER.Register("test@siriupskill.com", "TEST@SIRIUPSKILL.COM", "hash", "Test USER");
         user.ConfirmEmail(clock);
 
         Assert.Equal(UserStatus.Active, user.Status);
@@ -26,7 +26,7 @@ public sealed class AdminUserTests
     public void Reactivate_WhenSuspended_TransitionsToActive()
     {
         var clock = new FakeClock(DateTime.UtcNow);
-        var user = User.Register("test@siriupskill.com", "TEST@SIRIUPSKILL.COM", "hash", "Test User");
+        var user = USER.Register("test@siriupskill.com", "TEST@SIRIUPSKILL.COM", "hash", "Test USER");
         user.ConfirmEmail(clock);
         user.Suspend("Violation of terms");
 
@@ -39,7 +39,7 @@ public sealed class AdminUserTests
     public void Reactivate_WhenNotSuspended_ThrowsInvalidOperationException()
     {
         var clock = new FakeClock(DateTime.UtcNow);
-        var user = User.Register("test@siriupskill.com", "TEST@SIRIUPSKILL.COM", "hash", "Test User");
+        var user = USER.Register("test@siriupskill.com", "TEST@SIRIUPSKILL.COM", "hash", "Test USER");
         user.ConfirmEmail(clock);
 
         Assert.Throws<InvalidOperationException>(() => user.Reactivate());
@@ -52,7 +52,7 @@ public sealed class AdminUserTests
         var clock = new FakeClock(now);
         var userId = Guid.NewGuid();
 
-        var audit = SecurityAudit.Record("AdminAction", userId, "Detailed action", "127.0.0.1", clock);
+        var audit = SECURITY_AUDIT.Record("AdminAction", userId, "Detailed action", "127.0.0.1", clock);
 
         Assert.NotEqual(Guid.Empty, audit.Id);
         Assert.Equal(userId, audit.UserId);

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Infrastructure;
@@ -16,7 +16,7 @@ namespace Siri.Modules.Identity.Features.Refresh;
 /// <b>Rotation with reuse detection</b> (security.md: "refresh token 30 วัน แบบ rotation + reuse
 /// detection (ถ้าเจอ token เก่าถูกใช้ซ้ำ = revoke ทั้ง family)"). Every refresh call presents exactly
 /// one refresh token and, if it's valid, walks away with a brand-new one — the old one is revoked in
-/// the same instant it's used (<see cref="RefreshToken.Revoke"/>, called by
+/// the same instant it's used (<see cref="REFRESH_TOKEN.Revoke"/>, called by
 /// <see cref="HandleAsync"/>'s normal-path branch below). That single fact is what makes reuse
 /// detectable at all: a legitimate client only ever has <em>one</em> valid refresh token for its
 /// session at a time, so if a token that is already revoked shows up again, one of exactly two things
@@ -30,32 +30,32 @@ namespace Siri.Modules.Identity.Features.Refresh;
 /// </para>
 /// <para>
 /// <b>How the "family" is identified</b> (a real design decision, not a trivial lookup — the task
-/// instructions specifically call this out). <see cref="RefreshToken.ReplacedByTokenId"/> lets you walk
+/// instructions specifically call this out). <see cref="REFRESH_TOKEN.ReplacedByTokenId"/> lets you walk
 /// the chain <em>forward</em> from any one token, but reuse detection needs the <em>whole</em> family
 /// from wherever it started, and the reused token itself is (by definition) not the newest link in
 /// that chain. Walking backward would need a "replaced-from" pointer this schema doesn't have. Instead,
-/// this handler uses <see cref="RefreshToken.SessionId"/>: a <see cref="UserSession"/> is created
-/// exactly once, at login (<c>Login.LoginHandler</c>: <c>UserSession.Start</c>), and every single
+/// this handler uses <see cref="REFRESH_TOKEN.SessionId"/>: a <see cref="USER_SESSION"/> is created
+/// exactly once, at login (<c>Login.LoginHandler</c>: <c>USER_SESSION.Start</c>), and every single
 /// rotation in this handler's normal-path branch below issues the replacement token with
 /// <c>token.SessionId</c> — the <em>same</em> session id the token being rotated already carried,
 /// never a new one. That means every refresh token that has ever existed for one login's lifetime,
 /// from the very first one <c>LoginHandler</c> issued through however many rotations have happened
-/// since, shares one <see cref="RefreshToken.SessionId"/> value by construction. So "every row in
-/// <c>RefreshTokens</c> with this <see cref="RefreshToken.SessionId"/>" is not merely a practical
+/// since, shares one <see cref="REFRESH_TOKEN.SessionId"/> value by construction. So "every row in
+/// <c>RefreshTokens</c> with this <see cref="REFRESH_TOKEN.SessionId"/>" is not merely a practical
 /// approximation of the family — given how this handler and <c>LoginHandler</c> actually issue tokens,
-/// it <em>is</em> the family, with no separate bookkeeping needed. (Walking <see cref="RefreshToken.ReplacedByTokenId"/>
+/// it <em>is</em> the family, with no separate bookkeeping needed. (Walking <see cref="REFRESH_TOKEN.ReplacedByTokenId"/>
 /// forward from the reused token to the current tip would reach the same currently-active row, but it
 /// still needs a starting point, this schema has no "replaced-from"/earliest-token pointer to jump to
 /// one directly, and — since only the chain's tip is ever unrevoked at a time — one indexed
-/// <see cref="RefreshToken.SessionId"/> query already returns exactly that same row set in one
+/// <see cref="REFRESH_TOKEN.SessionId"/> query already returns exactly that same row set in one
 /// round-trip instead of N.)
 /// </para>
 /// <para>
-/// On detected reuse: every currently-active (<see cref="RefreshToken.RevokedAtUtc"/> still
-/// <c>null</c>) token in the family is revoked, the <see cref="UserSession"/> itself is revoked (so a
+/// On detected reuse: every currently-active (<see cref="REFRESH_TOKEN.RevokedAtUtc"/> still
+/// <c>null</c>) token in the family is revoked, the <see cref="USER_SESSION"/> itself is revoked (so a
 /// still-valid access token from that session can't be used to silently mint yet another refresh — a
 /// later authorization-policy task, P0-22, is expected to also check session liveness on protected
-/// requests), and a <see cref="SecurityAudit"/> row is written with a distinct
+/// requests), and a <see cref="SECURITY_AUDIT"/> row is written with a distinct
 /// <c>EventType</c> ("refresh_token.reuse_detected", vs. plain "login.succeeded"/normal rotation which
 /// writes none) specifically so this is visible to whoever reviews <c>SecurityAudits</c> later. The
 /// caller still only ever sees the same generic <see cref="InvalidRefreshTokenError"/> either way —
@@ -137,7 +137,7 @@ public sealed class RefreshHandler(
         session?.Touch(clock);
 
         var (rawNewRefreshToken, newRefreshTokenHash) = refreshTokenGenerator.Generate();
-        var newRefreshToken = RefreshToken.Issue(
+        var newRefreshToken = REFRESH_TOKEN.Issue(
             user.Id,
             presentedToken.SessionId, // same session id all the way through — see class doc comment
             newRefreshTokenHash,
@@ -153,7 +153,7 @@ public sealed class RefreshHandler(
         return new RefreshResult(accessToken, accessTokenExpiresAtUtc, rawNewRefreshToken, newRefreshToken.ExpiresAtUtc);
     }
 
-    private async Task RevokeTokenFamilyAsync(RefreshToken reusedToken, string? ipAddress, CancellationToken cancellationToken)
+    private async Task RevokeTokenFamilyAsync(REFRESH_TOKEN reusedToken, string? ipAddress, CancellationToken cancellationToken)
     {
         var activeFamilyTokens = await dbContext.RefreshTokens()
             .Where(t => t.SessionId == reusedToken.SessionId && t.RevokedAtUtc == null)
@@ -174,7 +174,7 @@ public sealed class RefreshHandler(
         // only, never the token value itself (security.md: never log a token).
         var detail = $$"""{"sessionId":"{{reusedToken.SessionId}}","reusedRefreshTokenId":"{{reusedToken.Id}}"}""";
         dbContext.SecurityAudits().Add(
-            SecurityAudit.Record("refresh_token.reuse_detected", reusedToken.UserId, detail, ipAddress, clock));
+            SECURITY_AUDIT.Record("refresh_token.reuse_detected", reusedToken.UserId, detail, ipAddress, clock));
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

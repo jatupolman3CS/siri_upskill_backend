@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
@@ -58,7 +58,7 @@ public sealed class CreateLearningPathHandler(AppDbContext dbContext)
             return Result.Failure<LearningPathDetailResponse>(DomainError.Conflict("มีเส้นทางการเรียนที่ใช้ slug นี้แล้ว"));
         }
 
-        var path = LearningPath.Create(command.Slug, command.Title, command.Description, command.SortOrder, command.IsActive);
+        var path = LEARNING_PATH.Create(command.Slug, command.Title, command.Description, command.SortOrder, command.IsActive);
 
         if (command.CourseIds is { Count: > 0 })
         {

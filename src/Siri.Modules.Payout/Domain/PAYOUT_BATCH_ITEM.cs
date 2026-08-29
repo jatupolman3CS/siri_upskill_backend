@@ -20,6 +20,8 @@ public sealed class PAYOUT_BATCH_ITEM : IAuditable
 
     public decimal AMOUNT { get; private set; }
 
+    public decimal WITHHOLDING_TAX_PERCENT { get; private set; }
+
     public decimal WITHHOLDING_TAX_AMOUNT { get; private set; }
 
     public decimal NET_AMOUNT { get; private set; }
@@ -65,6 +67,7 @@ public sealed class PAYOUT_BATCH_ITEM : IAuditable
         Guid batchId,
         Guid instructorId,
         decimal amount,
+        decimal withholdingTaxPercent,
         decimal withholdingTaxAmount,
         decimal netAmount)
     {
@@ -77,9 +80,21 @@ public sealed class PAYOUT_BATCH_ITEM : IAuditable
             BATCH_ID = batchId,
             INSTRUCTOR_ID = instructorId,
             AMOUNT = amount,
+            WITHHOLDING_TAX_PERCENT = withholdingTaxPercent,
             WITHHOLDING_TAX_AMOUNT = withholdingTaxAmount,
             NET_AMOUNT = netAmount,
             STATUS = PayoutBatchItemStatus.Pending,
         };
+    }
+
+    public void MarkTransferred(string? transferRef = null)
+    {
+        STATUS = PayoutBatchItemStatus.Transferred;
+        TRANSFER_REF = transferRef?.Trim();
+    }
+
+    public void MarkFailed()
+    {
+        STATUS = PayoutBatchItemStatus.Failed;
     }
 }

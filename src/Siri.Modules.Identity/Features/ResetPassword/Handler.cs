@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Infrastructure;
@@ -13,7 +13,7 @@ namespace Siri.Modules.Identity.Features.ResetPassword;
 /// issuance, looks the row up by that hash, and — only if it is found, unexpired, unconsumed, and still
 /// points at an <see cref="UserStatus.Active"/> user — changes the password, consumes the token, and (the
 /// real security decision this task makes — see below) revokes every currently-active
-/// <see cref="UserSession"/>/<see cref="RefreshToken"/> the account has.
+/// <see cref="USER_SESSION"/>/<see cref="REFRESH_TOKEN"/> the account has.
 /// <para>
 /// <b>Anti-enumeration parallel to ConfirmEmail</b> (security.md's spirit). Every rejection path below —
 /// not found, expired, already consumed, or (defensively; unlike ConfirmEmail's "should be unreachable
@@ -34,12 +34,12 @@ namespace Siri.Modules.Identity.Features.ResetPassword;
 /// elsewhere" escape hatch, because the whole point of this task's threat model is that the caller
 /// cannot be assumed to know which sessions (if any) are still trustworthy. Implemented by reusing the
 /// exact same revoke methods and Redis-mirror cleanup <c>Login.LoginHandler</c>'s SE-03 eviction path and
-/// <c>Refresh.RefreshHandler</c>'s reuse-detection path already established — <see cref="UserSession.Revoke"/>/
-/// <see cref="RefreshToken.Revoke"/> staged on this same <see cref="AppDbContext"/>, then
+/// <c>Refresh.RefreshHandler</c>'s reuse-detection path already established — <see cref="USER_SESSION.Revoke"/>/
+/// <see cref="REFRESH_TOKEN.Revoke"/> staged on this same <see cref="AppDbContext"/>, then
 /// <see cref="ISessionRegistry.RemoveAsync"/> called once per revoked session only *after* that save has
 /// committed (same ordering/fail-open reasoning <see cref="ISessionRegistry"/>'s own doc comment gives —
 /// a Redis hiccup here must never undo or fail a password reset that already succeeded in the
-/// database-of-record). A distinct <see cref="SecurityAudit"/> row (<c>EventType</c> =
+/// database-of-record). A distinct <see cref="SECURITY_AUDIT"/> row (<c>EventType</c> =
 /// "password.reset_succeeded", not reused from any existing event type) is written so this specific
 /// event is filterable in <c>SecurityAudits</c> later, same reasoning
 /// <c>LoginHandler</c>'s SE-03 eviction audit entry and <c>RefreshHandler</c>'s reuse-detection audit
@@ -59,8 +59,8 @@ namespace Siri.Modules.Identity.Features.ResetPassword;
 /// </para>
 /// <para>
 /// On success: <see cref="UserPasswordHasher.HashPassword"/> computes the new hash,
-/// <see cref="User.ChangePassword"/> applies it, the reset token is
-/// <see cref="UserSecurityToken.Consume"/>d, every active session/refresh-token is revoked, the audit
+/// <see cref="USER.ChangePassword"/> applies it, the reset token is
+/// <see cref="USER_SECURITY_TOKEN.Consume"/>d, every active session/refresh-token is revoked, the audit
 /// row is written, and the notification email is queued — all added to the same <see cref="AppDbContext"/>
 /// and committed in exactly one <see cref="AppDbContext.SaveChangesAsync"/> call (database.md: atomic
 /// multi-table writes; task instruction: "persist everything atomically in one SaveChangesAsync").
@@ -75,13 +75,13 @@ public sealed class ResetPasswordHandler(
     IEmailOutbox emailOutbox,
     ILogger<ResetPasswordHandler> logger)
 {
-    /// <summary><see cref="UserSession.RevokeReason"/> for a password-reset-triggered revocation —
+    /// <summary><see cref="USER_SESSION.RevokeReason"/> for a password-reset-triggered revocation —
     /// distinct from SE-03's "concurrent_session_limit_exceeded" and Refresh's
     /// "suspected_refresh_token_reuse" so <c>UserSessions</c> rows stay self-explanatory without joining
-    /// out to <see cref="SecurityAudit"/>.</summary>
+    /// out to <see cref="SECURITY_AUDIT"/>.</summary>
     private const string PasswordResetRevokeReason = "password_reset";
 
-    /// <summary><see cref="SecurityAudit.EventType"/> for a successful reset — distinct from every other
+    /// <summary><see cref="SECURITY_AUDIT.EventType"/> for a successful reset — distinct from every other
     /// event type already in use in this codebase (see the class doc comment's design-decision section).</summary>
     private const string PasswordResetEventType = "password.reset_succeeded";
 
@@ -128,7 +128,7 @@ public sealed class ResetPasswordHandler(
         user.ChangePassword(newPasswordHash);
         securityToken.Consume(clock);
 
-        dbContext.SecurityAudits().Add(SecurityAudit.Record(PasswordResetEventType, user.Id, null, ipAddress, clock));
+        dbContext.SecurityAudits().Add(SECURITY_AUDIT.Record(PasswordResetEventType, user.Id, null, ipAddress, clock));
 
         var revokedSessionIds = await RevokeAllActiveSessionsAsync(user.Id, cancellationToken).ConfigureAwait(false);
 
@@ -153,8 +153,8 @@ public sealed class ResetPasswordHandler(
     }
 
     /// <summary>
-    /// Revokes every currently-active <see cref="UserSession"/> for <paramref name="userId"/> and every
-    /// still-active <see cref="RefreshToken"/> belonging to those sessions, all staged on the caller's
+    /// Revokes every currently-active <see cref="USER_SESSION"/> for <paramref name="userId"/> and every
+    /// still-active <see cref="REFRESH_TOKEN"/> belonging to those sessions, all staged on the caller's
     /// <see cref="AppDbContext"/> (not saved here — the caller's own <see cref="AppDbContext.SaveChangesAsync"/>
     /// call covers this too, same "one atomic save for the whole operation" shape
     /// <c>LoginHandler.EnforceConcurrentSessionLimitAsync</c> already uses). Returns the revoked
@@ -189,7 +189,7 @@ public sealed class ResetPasswordHandler(
         foreach (var token in activeTokens)
         {
             // null replacedByTokenId: an outright revoke, not a rotation — same distinction
-            // RefreshToken.Revoke's own doc comment draws for Refresh's reuse-detection path.
+            // REFRESH_TOKEN.Revoke's own doc comment draws for Refresh's reuse-detection path.
             token.Revoke(null, clock);
         }
 

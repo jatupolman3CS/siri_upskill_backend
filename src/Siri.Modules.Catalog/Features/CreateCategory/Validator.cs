@@ -13,7 +13,7 @@ public sealed class CreateCategoryValidator : AbstractValidator<CreateCategoryCo
     public const int MaxIconKeyLength = 100;
 
     /// <summary>Lowercase ASCII letters/digits, hyphen-separated, no leading/trailing/doubled hyphens —
-    /// no Thai→Latin auto-generation for categories (unlike Course CRUD's P1-04); the admin types this.</summary>
+    /// no Thai→Latin auto-generation for categories (unlike COURSE CRUD's P1-04); the admin types this.</summary>
     private const string SlugPattern = "^[a-z0-9]+(-[a-z0-9]+)*$";
 
     public CreateCategoryValidator()

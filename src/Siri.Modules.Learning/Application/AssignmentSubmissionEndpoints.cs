@@ -37,6 +37,14 @@ public static class AssignmentSubmissionEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
+        learnerGroup.MapGet("/by-assignment/{assignmentId:guid}", GetMySubmissionByAssignmentAsync)
+            .WithName("LearningGetMyAssignmentSubmissionByAssignment")
+            .WithSummary("ดูงานที่ส่งล่าสุดของตัวเองในงานที่มอบหมายนี้")
+            .Produces<AssignmentSubmissionResponse>(StatusCodes.Status200OK)
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
         var instructorGroup = endpoints.MapGroup("/api/learning/instructor/assignment-submissions")
             .WithTags("Learning")
             .RequireAuthorization(AuthorizationPolicyNames.InstructorOnly);
@@ -44,7 +52,9 @@ public static class AssignmentSubmissionEndpoints
         instructorGroup.MapGet("/by-assignment/{assignmentId:guid}", ListByAssignmentAsync)
             .WithName("LearningListAssignmentSubmissions")
             .WithSummary("รายการงานที่ส่งเข้ามาของงานที่มอบหมายหนึ่งชิ้น")
-            .Produces<PagedResult<AssignmentSubmissionResponse>>(StatusCodes.Status200OK);
+            .Produces<PagedResult<AssignmentSubmissionResponse>>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status403Forbidden)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
         instructorGroup.MapPost("/{id:guid}/grade", GradeAsync)
             .AddEndpointFilter<ValidationEndpointFilter<GradeAssignmentSubmissionRequest>>()
@@ -57,6 +67,27 @@ public static class AssignmentSubmissionEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status409Conflict);
 
         return endpoints;
+    }
+
+    private static async Task<IResult> GetMySubmissionByAssignmentAsync(
+        Guid assignmentId,
+        AssignmentSubmissionService service,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await service.GetMySubmissionByAssignmentAsync(userId, assignmentId, cancellationToken).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            return result.Error.ToProblemHttpResult(httpContext);
+        }
+
+        return result.Value is not null ? Results.Ok(result.Value) : Results.NoContent();
     }
 
     private static async Task<IResult> SubmitAsync(
@@ -96,12 +127,19 @@ public static class AssignmentSubmissionEndpoints
     private static async Task<IResult> ListByAssignmentAsync(
         Guid assignmentId,
         AssignmentSubmissionService service,
+        IUserContext userContext,
+        HttpContext httpContext,
         CancellationToken cancellationToken,
         int page = 1,
         int pageSize = AssignmentSubmissionService.DefaultPageSize)
     {
-        var result = await service.ListByAssignmentAsync(assignmentId, page, pageSize, cancellationToken).ConfigureAwait(false);
-        return Results.Ok(result);
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await service.ListByAssignmentAsync(userId, assignmentId, page, pageSize, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
     }
 
     private static async Task<IResult> GradeAsync(

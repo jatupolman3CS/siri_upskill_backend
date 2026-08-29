@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Catalog.Features.AddEpisodeAttachment;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -6,18 +7,35 @@ using Siri.SharedKernel;
 
 namespace Siri.Modules.Catalog.Features.GetEpisodeAttachments;
 
-public sealed class GetEpisodeAttachmentsHandler(AppDbContext dbContext)
+public sealed class GetEpisodeAttachmentsHandler(
+    AppDbContext dbContext,
+    IEpisodeAccessReader episodeAccessReader)
 {
     public async Task<Result<IReadOnlyList<EpisodeAttachmentResponse>>> HandleAsync(
         Guid episodeId,
+        Guid? userId,
+        bool isAdmin,
         CancellationToken cancellationToken)
     {
-        var episodeExists = await dbContext.CourseEpisodes()
+        var episode = await dbContext.CourseEpisodes()
             .AsNoTracking()
-            .AnyAsync(e => e.Id == episodeId, cancellationToken)
+            .FirstOrDefaultAsync(e => e.Id == episodeId, cancellationToken)
             .ConfigureAwait(false);
 
-        if (!episodeExists)
+        if (episode is null)
+        {
+            return Result.Failure<IReadOnlyList<EpisodeAttachmentResponse>>(DomainError.NotFound("ไม่พบบทเรียนที่ระบุ"));
+        }
+
+        var isAllowed = await EpisodeAccessHelper.CanUserAccessEpisodeAsync(
+            dbContext,
+            episodeAccessReader,
+            episode,
+            userId,
+            isAdmin,
+            cancellationToken).ConfigureAwait(false);
+
+        if (!isAllowed)
         {
             return Result.Failure<IReadOnlyList<EpisodeAttachmentResponse>>(DomainError.NotFound("ไม่พบบทเรียนที่ระบุ"));
         }
@@ -30,7 +48,6 @@ public sealed class GetEpisodeAttachmentsHandler(AppDbContext dbContext)
                 a.Id,
                 a.EpisodeId,
                 a.FileName,
-                a.StorageKey,
                 a.ContentType,
                 a.SizeBytes,
                 a.CreatedAtUtc))

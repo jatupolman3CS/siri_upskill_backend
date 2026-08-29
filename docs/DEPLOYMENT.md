@@ -56,7 +56,8 @@ Database `SIRIUPSKILL` มีเตรียมไว้แล้ว (เดิ�
 ```
 caddy            → reverse proxy + TLS อัตโนมัติ (Let's Encrypt) + security headers + rate limit ชั้นนอก
 angular-ssr      → Node container รัน Angular SSR (หน้า public)
-api              → ASP.NET Core 10 (รวม Hangfire worker; แยก container ทีหลังได้)
+api              → ASP.NET Core 10 Web API (Hangfire Client + Dashboard)
+workers          → .NET 10 Worker Service (Hangfire Processing Server + Recurring Jobs)
 mssql            → SQL Server (persistent volume + tempdb แยก)
 redis            → cache + session/device registry
 seq              → เก็บ log แบบ query ได้

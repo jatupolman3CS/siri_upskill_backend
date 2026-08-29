@@ -11,10 +11,21 @@ public static class OrderEndpoints
 {
     public static IEndpointRouteBuilder MapOrderEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/", ListMyOrdersAsync)
+            .WithName("CommerceListOrders")
+            .WithSummary("ดูประวัติคำสั่งซื้อทั้งหมดของตัวเอง")
+            .Produces<PagedResult<OrderResponse>>(StatusCodes.Status200OK);
+
         endpoints.MapGet("/{orderId:guid}", GetByIdAsync)
             .WithName("CommerceGetOrder")
             .WithSummary("ดูรายละเอียดคำสั่งซื้อของตัวเอง")
             .Produces<OrderResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
+        endpoints.MapGet("/{orderId:guid}/receipt", GetReceiptPdfAsync)
+            .WithName("CommerceGetOrderReceipt")
+            .WithSummary("ดาวน์โหลดใบเสร็จรับเงินสำหรับคำสั่งซื้อในรูปแบบ PDF")
+            .Produces(StatusCodes.Status200OK, contentType: "application/pdf")
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
         // Route metadata (.WithName/.Produces) is what /openapi/v1.json is built from —
@@ -28,6 +39,24 @@ public static class OrderEndpoints
             .ProducesValidationProblem();
 
         return endpoints;
+    }
+
+    private static async Task<IResult> GetReceiptPdfAsync(Guid orderId, TaxInvoiceService taxInvoiceService, IUserContext userContext, HttpContext httpContext, CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId) return Results.Unauthorized();
+
+        var result = await taxInvoiceService.GetOrderReceiptPdfAsync(userId, orderId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess
+            ? Results.File(result.Value.Bytes, "application/pdf", result.Value.FileName)
+            : result.Error.ToProblemHttpResult(httpContext);
+    }
+
+    private static async Task<IResult> ListMyOrdersAsync(OrderService orderService, IUserContext userContext, CancellationToken cancellationToken, int page = 1, int pageSize = 20)
+    {
+        if (userContext.UserId is not { } userId) return Results.Unauthorized();
+
+        var result = await orderService.ListUserOrdersAsync(userId, page, pageSize, cancellationToken).ConfigureAwait(false);
+        return Results.Ok(result);
     }
 
     private static async Task<IResult> GetByIdAsync(Guid orderId, OrderService orderService, IUserContext userContext, HttpContext httpContext, CancellationToken cancellationToken)

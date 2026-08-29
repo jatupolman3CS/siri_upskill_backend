@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Modules.Identity.Contracts;
@@ -11,7 +11,7 @@ namespace Siri.Modules.Catalog.Features.ApproveInstructorApplication;
 /// Approves a pending instructor application. Grants the Instructor role through Identity's
 /// <see cref="IInstructorRoleGrantor"/> contract (see that interface's own doc comment for why this
 /// can't be Catalog's own concern — Roles/UserRoles are Identity's data) and flips
-/// <see cref="InstructorProfile"/>'s own status, both staged on the same <see cref="AppDbContext"/> and
+/// <see cref="INSTRUCTOR_PROFILE"/>'s own status, both staged on the same <see cref="AppDbContext"/> and
 /// committed in one <c>SaveChangesAsync</c> — atomic, the same "multiple entities, one commit" shape
 /// P0-17's SE-03 eviction already established for this codebase.
 /// </summary>

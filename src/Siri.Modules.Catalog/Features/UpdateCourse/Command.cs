@@ -6,7 +6,7 @@ namespace Siri.Modules.Catalog.Features.UpdateCourse;
 /// every field it covers, same PUT style <c>UpdateCategoryCommand</c> already uses — the client resends
 /// the complete set of editable fields each time. No <c>Slug</c> field: immutable after creation in this
 /// task's scope (see <c>UpdateCourseHandler</c>'s own doc comment). No <c>TrailerMediaAssetId</c>: no
-/// upload flow exists yet to produce a valid one (same forward-reference gap <c>Course.cs</c>'s own doc
+/// upload flow exists yet to produce a valid one (same forward-reference gap <c>COURSE.cs</c>'s own doc
 /// comment already names).</summary>
 public sealed record UpdateCourseCommand(
     string Title,

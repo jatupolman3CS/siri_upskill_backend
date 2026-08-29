@@ -125,20 +125,20 @@ public sealed class SearchCoursesTests : IAsyncLifetime
 
     // ---- Fixture setup (direct-domain, not HTTP — see other Catalog test files' own doc comments) ----
 
-    private static async Task<Category> CreateCategoryAsync(AppDbContext dbContext)
+    private static async Task<CATEGORY> CreateCategoryAsync(AppDbContext dbContext)
     {
-        var category = Category.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test Category", null, null, 0);
+        var category = CATEGORY.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test CATEGORY", null, null, 0);
         dbContext.Categories().Add(category);
         await dbContext.SaveChangesAsync();
         return category;
     }
 
-    private static async Task<InstructorProfile> CreateApprovedInstructorAsync(IServiceProvider services, AppDbContext dbContext)
+    private static async Task<INSTRUCTOR_PROFILE> CreateApprovedInstructorAsync(IServiceProvider services, AppDbContext dbContext)
     {
         var clock = services.GetRequiredService<IClock>();
         // Unique per instructor — the instructor-facet test asserts each facet carries ITS OWN
         // instructor's name, which a shared constant name would let pass even if ids were crossed.
-        var profile = InstructorProfile.Apply(Guid.NewGuid(), $"Instructor {Guid.NewGuid():N}", null, "Bio");
+        var profile = INSTRUCTOR_PROFILE.Apply(Guid.NewGuid(), $"Instructor {Guid.NewGuid():N}", null, "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
         await dbContext.SaveChangesAsync();
@@ -148,11 +148,11 @@ public sealed class SearchCoursesTests : IAsyncLifetime
     /// <summary>Builds and publishes a course directly against the domain — no HTTP course-CRUD/publish
     /// flow needed here (those have their own dedicated integration tests); this file's subject is
     /// search/filter/sort/facets over courses that are already Published.</summary>
-    private static async Task<Course> CreatePublishedCourseAsync(
+    private static async Task<COURSE> CreatePublishedCourseAsync(
         IServiceProvider services, AppDbContext dbContext, Guid instructorId, Guid categoryId, string title, decimal price)
     {
         var clock = services.GetRequiredService<IClock>();
-        var course = Course.Create($"course-{Guid.NewGuid():N}", title, instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, price);
+        var course = COURSE.Create($"course-{Guid.NewGuid():N}", title, instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, price);
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
         course.Publish(clock);
@@ -162,9 +162,9 @@ public sealed class SearchCoursesTests : IAsyncLifetime
         return course;
     }
 
-    private static async Task<Course> CreateDraftCourseAsync(AppDbContext dbContext, Guid instructorId, Guid categoryId, string title)
+    private static async Task<COURSE> CreateDraftCourseAsync(AppDbContext dbContext, Guid instructorId, Guid categoryId, string title)
     {
-        var course = Course.Create($"course-{Guid.NewGuid():N}", title, instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var course = COURSE.Create($"course-{Guid.NewGuid():N}", title, instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         dbContext.Courses().Add(course);
         await dbContext.SaveChangesAsync();
         return course;
@@ -189,8 +189,8 @@ public sealed class SearchCoursesTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var instructor = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var published = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Published Course", 990m);
-        var draft = await CreateDraftCourseAsync(dbContext, instructor.Id, category.Id, "Draft Course");
+        var published = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Published COURSE", 990m);
+        var draft = await CreateDraftCourseAsync(dbContext, instructor.Id, category.Id, "Draft COURSE");
 
         var response = await SearchAsync("");
 
@@ -206,8 +206,8 @@ public sealed class SearchCoursesTests : IAsyncLifetime
         var instructor = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var categoryA = await CreateCategoryAsync(dbContext);
         var categoryB = await CreateCategoryAsync(dbContext);
-        var courseA = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, categoryA.Id, "Course A", 990m);
-        var courseB = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, categoryB.Id, "Course B", 990m);
+        var courseA = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, categoryA.Id, "COURSE A", 990m);
+        var courseB = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, categoryB.Id, "COURSE B", 990m);
 
         var response = await SearchAsync($"?categoryId={categoryA.Id}");
 
@@ -222,8 +222,8 @@ public sealed class SearchCoursesTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var instructor = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var cheap = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Cheap Course", 100m);
-        var expensive = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Expensive Course", 5000m);
+        var cheap = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Cheap COURSE", 100m);
+        var expensive = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Expensive COURSE", 5000m);
 
         var response = await SearchAsync("?minPrice=500&maxPrice=10000");
 
@@ -234,7 +234,7 @@ public sealed class SearchCoursesTests : IAsyncLifetime
     [Fact]
     public async Task SearchCourses_MinRatingAboveZero_ExcludesEveryCourseSinceNoneHaveRatingsYet()
     {
-        // RatingAverage has no public setter yet (P1-08/CourseStatsUpdater's job — see Course.cs's own
+        // RatingAverage has no public setter yet (P1-08/CourseStatsUpdater's job — see COURSE.cs's own
         // doc comment) — every course is 0.00 today, so this is the only meaningful assertion this
         // filter can make until that lands: minRating=0 includes everything, anything above excludes
         // everything.
@@ -242,7 +242,7 @@ public sealed class SearchCoursesTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var instructor = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Some Course", 990m);
+        var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Some COURSE", 990m);
 
         var atZero = await SearchAsync("?minRating=0");
         var aboveZero = await SearchAsync("?minRating=0.01");
@@ -277,7 +277,7 @@ public sealed class SearchCoursesTests : IAsyncLifetime
         var category = await CreateCategoryAsync(dbContext);
         for (var i = 0; i < 5; i++)
         {
-            await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, $"Course {i}", 990m);
+            await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, $"COURSE {i}", 990m);
         }
 
         var response = await SearchAsync($"?categoryId={category.Id}&page=1&pageSize=2");
@@ -316,8 +316,8 @@ public sealed class SearchCoursesTests : IAsyncLifetime
         var instructorA = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var instructorB = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var courseA = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructorA.Id, category.Id, "Course by A", 990m);
-        var courseB = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructorB.Id, category.Id, "Course by B", 990m);
+        var courseA = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructorA.Id, category.Id, "COURSE by A", 990m);
+        var courseB = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructorB.Id, category.Id, "COURSE by B", 990m);
 
         var response = await SearchAsync($"?instructorId={instructorA.Id}");
 
@@ -356,7 +356,7 @@ public sealed class SearchCoursesTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var instructor = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Some Course", 990m);
+        var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Some COURSE", 990m);
 
         var response = await SearchAsync("");
 

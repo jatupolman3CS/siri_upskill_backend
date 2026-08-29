@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
 using Siri.SharedKernel;
@@ -8,7 +8,7 @@ namespace Siri.Modules.Catalog.Features.GetMyCourses;
 /// <summary>
 /// The caller's own courses (any status, including drafts) — offset-paginated (database.md: "รายการที่
 /// โตได้ต้อง paginate เสมอ" + "offset ได้สำหรับ admin table", same reasoning applies to an instructor's
-/// own course list). Returns an empty page for a caller with no <c>InstructorProfile</c> at all (e.g. an
+/// own course list). Returns an empty page for a caller with no <c>INSTRUCTOR_PROFILE</c> at all (e.g. an
 /// Admin/SuperAdmin who reaches this <c>InstructorOnly</c>-gated endpoint without owning any courses
 /// themselves) rather than an error — "no courses" is a legitimate, unremarkable state, not a failure.
 /// </summary>

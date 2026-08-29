@@ -16,5 +16,9 @@ public interface IBundleRepository
     /// reasoning <c>IOrderRepository.GetActiveByUserIdAsync</c>'s own doc comment gives for "active").</summary>
     Task<IReadOnlyList<BUNDLE>> ListAsync(int page, int pageSize, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<BUNDLE>> GetActiveBundlesAsync(DateTime nowUtc, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<BUNDLE>> GetBundlesByCourseIdAsync(Guid courseId, CancellationToken cancellationToken);
+
     Task<int> CountAsync(CancellationToken cancellationToken);
 }

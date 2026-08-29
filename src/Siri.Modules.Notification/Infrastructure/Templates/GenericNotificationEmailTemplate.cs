@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 
 namespace Siri.Modules.Notification.Infrastructure.Templates;
 
@@ -10,7 +10,7 @@ namespace Siri.Modules.Notification.Infrastructure.Templates;
 /// </summary>
 public static class GenericNotificationEmailTemplate
 {
-    /// <summary>Matches <see cref="Domain.EmailOutboxMessage.TemplateKey"/> for messages built from
+    /// <summary>Matches <see cref="Domain.EMAIL_OUTBOX_MESSAGE.TemplateKey"/> for messages built from
     /// this template.</summary>
     public const string Key = "generic-notification";
 

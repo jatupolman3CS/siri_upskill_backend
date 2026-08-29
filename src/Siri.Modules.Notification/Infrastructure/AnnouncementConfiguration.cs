@@ -4,11 +4,11 @@ using Siri.Modules.Notification.Domain;
 
 namespace Siri.Modules.Notification.Infrastructure;
 
-public sealed class AnnouncementConfiguration : IEntityTypeConfiguration<Announcement>
+public sealed class AnnouncementConfiguration : IEntityTypeConfiguration<ANNOUNCEMENT>
 {
-    public void Configure(EntityTypeBuilder<Announcement> builder)
+    public void Configure(EntityTypeBuilder<ANNOUNCEMENT> builder)
     {
-        builder.ToTable("Announcements", "notify");
+        builder.ToTable("ANNOUNCEMENTS", "NOTIFY");
 
         builder.HasKey(a => a.Id);
 
@@ -22,7 +22,7 @@ public sealed class AnnouncementConfiguration : IEntityTypeConfiguration<Announc
         builder.Property(a => a.RecipientCount).IsRequired();
         builder.Property(a => a.CreatedAtUtc).HasPrecision(3).IsRequired();
 
-        builder.HasIndex(a => a.CourseId).HasDatabaseName("IX_Announcements_CourseId");
-        builder.HasIndex(a => a.InstructorId).HasDatabaseName("IX_Announcements_InstructorId");
+        builder.HasIndex(a => a.CourseId).HasDatabaseName("IX_ANNOUNCEMENTS_COURSE_ID");
+        builder.HasIndex(a => a.InstructorId).HasDatabaseName("IX_ANNOUNCEMENTS_INSTRUCTOR_ID");
     }
 }

@@ -1,0 +1,51 @@
+{
+    email admin@siriupskill.com
+}
+
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+        -Server
+    }
+}
+
+# Redirect www to apex domain
+www.siriupskill.com {
+    redir https://siriupskill.com{uri} permanent
+}
+
+# Main Web App & Angular SSR
+siriupskill.com {
+    import security_headers
+    encode zstd gzip
+
+    # Static assets caching (1 year immutable)
+    @static {
+        path *.js *.css *.png *.jpg *.jpeg *.svg *.woff2 *.ico
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    reverse_proxy angular-ssr:4000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}
+
+# API & Background Endpoints
+api.siriupskill.com {
+    import security_headers
+    encode zstd gzip
+
+    reverse_proxy api:5000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+}

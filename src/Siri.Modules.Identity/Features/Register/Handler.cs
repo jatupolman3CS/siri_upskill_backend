@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Siri.Modules.Identity.Domain;
@@ -28,8 +28,8 @@ namespace Siri.Modules.Identity.Features.Register;
 /// and an outbox insert) — full timing parity down to the database round-trip is a deeper hardening
 /// exercise this task does not attempt; noted as a residual, minor risk.</item>
 /// </list>
-/// Only the genuinely-new branch writes anything: a <see cref="User"/> row, a
-/// <see cref="UserSecurityToken"/> (Purpose = EmailConfirmation, 24h expiry), and a queued
+/// Only the genuinely-new branch writes anything: a <see cref="USER"/> row, a
+/// <see cref="USER_SECURITY_TOKEN"/> (Purpose = EmailConfirmation, 24h expiry), and a queued
 /// confirmation email — all added to the same <see cref="AppDbContext"/> instance and committed in
 /// one <see cref="AppDbContext.SaveChangesAsync"/> call, so they succeed or fail together
 /// (database.md: "การเปลี่ยนแปลงหลายตารางที่ต้อง atomic ... ต้องอยู่ใน transaction เดียว").
@@ -53,7 +53,7 @@ public sealed class RegisterHandler(
     public async Task<Result<RegisterResponse>> HandleAsync(RegisterCommand command, CancellationToken cancellationToken)
     {
         var trimmedEmail = command.Email.Trim();
-        // Upper-invariant, matching User.NormalizedEmail's own doc comment ("Upper-invariant form of
+        // Upper-invariant, matching USER.NormalizedEmail's own doc comment ("Upper-invariant form of
         // Email, used for uniqueness/lookup") — deliberately the same normalization, not a new one.
         var normalizedEmail = trimmedEmail.ToUpperInvariant();
 
@@ -68,14 +68,14 @@ public sealed class RegisterHandler(
             return new RegisterResponse(SuccessMessage);
         }
 
-        var user = User.Register(
+        var user = USER.Register(
             trimmedEmail,
             normalizedEmail,
             HashPassword(trimmedEmail, normalizedEmail, command.Password),
             command.DisplayName.Trim());
 
         var (rawToken, tokenHash) = tokenGenerator.Generate();
-        var confirmationToken = UserSecurityToken.Issue(
+        var confirmationToken = USER_SECURITY_TOKEN.Issue(
             user.Id,
             UserSecurityTokenPurpose.EmailConfirmation,
             tokenHash,
@@ -123,17 +123,17 @@ public sealed class RegisterHandler(
     }
 
     /// <summary>
-    /// ASP.NET Core Identity's <c>PasswordHasher&lt;TUser&gt;</c> needs a <see cref="User"/> instance
+    /// ASP.NET Core Identity's <c>PasswordHasher&lt;TUser&gt;</c> needs a <see cref="USER"/> instance
     /// to call <see cref="IUserPasswordHasher.HashPassword"/> (its interface signature, established
     /// in P0-14 — see <c>UserPasswordHasherTests.cs</c>, which already uses this exact
     /// throwaway-instance-then-hash pattern) but does not read any of that instance's properties.
-    /// Building a disposable <see cref="User"/> purely to obtain a hash — rather than changing
-    /// <see cref="User"/>'s public API — keeps this task from touching the already-shipped P0-14
+    /// Building a disposable <see cref="USER"/> purely to obtain a hash — rather than changing
+    /// <see cref="USER"/>'s public API — keeps this task from touching the already-shipped P0-14
     /// domain type.
     /// </summary>
     private string HashPassword(string email, string normalizedEmail, string password)
     {
-        var throwawayUser = User.Register(email, normalizedEmail, "placeholder", "placeholder");
+        var throwawayUser = USER.Register(email, normalizedEmail, "placeholder", "placeholder");
         return passwordHasher.HashPassword(throwawayUser, password);
     }
 

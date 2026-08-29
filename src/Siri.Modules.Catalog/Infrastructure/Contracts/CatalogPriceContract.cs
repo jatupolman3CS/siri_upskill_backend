@@ -108,6 +108,20 @@ public sealed class CatalogPriceContract(AppDbContext dbContext) : ICatalogPrice
         return episode?.CourseId;
     }
 
+    public async Task<Guid?> GetMediaAssetIdForEpisodeAsync(
+        Guid episodeId,
+        CancellationToken cancellationToken)
+    {
+        var episode = await dbContext.CourseEpisodes()
+            .AsNoTracking()
+            .Where(e => e.Id == episodeId)
+            .Select(e => new { e.MediaAssetId })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return episode?.MediaAssetId;
+    }
+
     public async Task<int> GetPendingReviewsCountAsync(CancellationToken cancellationToken)
     {
         return await dbContext.Courses()
@@ -135,5 +149,68 @@ public sealed class CatalogPriceContract(AppDbContext dbContext) : ICatalogPrice
             .ConfigureAwait(false);
 
         return courses.ToDictionary(c => c.Id, c => c.Title);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(
+        IEnumerable<Guid> instructorIds,
+        CancellationToken cancellationToken)
+    {
+        var idList = instructorIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return new Dictionary<Guid, decimal>();
+        }
+
+        var profiles = await dbContext.InstructorProfiles()
+            .AsNoTracking()
+            .Where(p => idList.Contains(p.Id))
+            .Select(p => new { p.Id, p.RevenueSharePercent })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return profiles.ToDictionary(p => p.Id, p => p.RevenueSharePercent);
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetCourseIdsByInstructorUserIdAsync(
+        Guid instructorUserId,
+        CancellationToken cancellationToken)
+    {
+        if (instructorUserId == Guid.Empty)
+        {
+            return Array.Empty<Guid>();
+        }
+
+        return await dbContext.Courses()
+            .AsNoTracking()
+            .Join(
+                dbContext.InstructorProfiles().AsNoTracking(),
+                course => course.InstructorId,
+                profile => profile.Id,
+                (course, profile) => new { course.Id, profile.UserId })
+            .Where(x => x.UserId == instructorUserId)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<CourseEpisodeInfo>> GetEpisodesForCoursesAsync(
+        IEnumerable<Guid> courseIds,
+        CancellationToken cancellationToken)
+    {
+        var idList = courseIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return Array.Empty<CourseEpisodeInfo>();
+        }
+
+        var episodes = await dbContext.CourseEpisodes()
+            .AsNoTracking()
+            .Where(e => idList.Contains(e.CourseId))
+            .OrderBy(e => e.SortOrder)
+            .Select(e => new CourseEpisodeInfo(e.Id, e.CourseId, e.Title, e.SortOrder))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return episodes;
     }
 }

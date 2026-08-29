@@ -12,6 +12,11 @@ public sealed class PayoutBatchRepository(AppDbContext dbContext) : IPayoutBatch
             .Include(b => b.Items)
             .FirstOrDefaultAsync(b => b.PAYOUT_BATCH_ID == id, cancellationToken);
 
+    public Task<PAYOUT_BATCH?> GetByPeriodKeyAsync(string periodKey, CancellationToken cancellationToken) =>
+        dbContext.PayoutBatches()
+            .Include(b => b.Items)
+            .FirstOrDefaultAsync(b => b.PERIOD_KEY == periodKey.Trim(), cancellationToken);
+
     public IQueryable<PAYOUT_BATCH> Query() => dbContext.PayoutBatches().AsNoTracking();
 
     public async Task<IReadOnlyList<InstructorPayoutHistoryItem>> GetPayoutHistoryForInstructorAsync(

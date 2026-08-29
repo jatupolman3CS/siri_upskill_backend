@@ -12,16 +12,6 @@ namespace Siri.Modules.Cms;
 /// <summary>
 /// Composition root for the Cms module. Everything the module exposes to <c>Siri.Api</c> goes
 /// through these two extension methods — no other public surface is wired into the host.
-/// <para>
-/// This module (docs/DECISIONS.md D-17) uses the Repository+Service pattern and UPPERCASE entity naming,
-/// unlike Identity/Catalog/Notification's vertical-slice/PascalCase — see <c>.claude/rules/backend.md</c>
-/// and each <c>Domain/*.cs</c> entity's own doc comment. Scaffold pass: every <c>Application/*Service.cs</c>
-/// method is stubbed, so the module compiles and routes correctly, but calling any endpoint below throws at
-/// runtime until a later task fills in the real logic — same "compiles/routes, does not yet run" state
-/// <c>Siri.Modules.Payout.PayoutModule</c>'s own doc comment describes for the identical reason. In
-/// particular: <see cref="Application.PostService"/>'s <c>ContentHtml</c> sanitization gap (its own doc
-/// comment) must be closed before any Post endpoint goes live for real.
-/// </para>
 /// </summary>
 public static class CmsModule
 {
@@ -33,11 +23,13 @@ public static class CmsModule
         services.AddScoped<IMenuItemRepository, MenuItemRepository>();
         services.AddScoped<IPostRepository, PostRepository>();
         services.AddScoped<IRedirectRepository, RedirectRepository>();
+        services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
 
         services.AddScoped<BannerService>();
         services.AddScoped<MenuItemService>();
         services.AddScoped<PostService>();
         services.AddScoped<RedirectService>();
+        services.AddScoped<FeatureFlagService>();
 
         services.AddScoped<IValidator<CreateBannerCommand>, CreateBannerValidator>();
         services.AddScoped<IValidator<UpdateBannerCommand>, UpdateBannerValidator>();
@@ -57,29 +49,21 @@ public static class CmsModule
 
     /// <summary>
     /// Maps the Cms module's minimal API endpoints onto the host's route builder.
-    /// <para>
-    /// Default-deny at the top-level group (bare <c>.RequireAuthorization()</c>), same shape every other
-    /// module's own <c>Map*Endpoints</c> doc comment establishes (see e.g.
-    /// <c>Siri.Modules.Payout.PayoutModule.MapPayoutEndpoints</c>). Banner/MenuItem/Redirect management is
-    /// entirely <see cref="AuthorizationPolicyNames.AdminOnly"/> — this module is almost entirely admin
-    /// content-management (docs/REQUIREMENTS.md AD-01), with no "owner of their own resource" case the way
-    /// Payout's <c>/instructor</c> sub-group has. Post is the one exception: admin-only
-    /// create/update/status-change/delete/list, plus a separate public, unauthenticated
-    /// <c>/api/cms/posts</c> group for the eventual blog page (<see cref="Application.PostEndpoints"/>'s own
-    /// doc comment) — mirrors exactly how <c>Siri.Modules.Catalog.CatalogModule.MapCatalogEndpoints</c>
-    /// splits its public course reads from its <c>AdminOnly</c>/<c>InstructorOnly</c> management routes.
-    /// </para>
     /// </summary>
     public static IEndpointRouteBuilder MapCmsEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/cms").WithTags("Cms").RequireAuthorization();
 
-        // Public blog read — .AllowAnonymous() on each mapping method itself (see PostEndpoints' own doc
-        // comment), same "opt out per-endpoint, not by skipping the group" shape
-        // CatalogModule.MapCatalogEndpoints uses for its own public routes.
+        // Feature flags (P6-06)
+        endpoints.MapFeatureFlagEndpoints();
+
+        // Public blog read
         var publicPosts = group.MapGroup("/posts");
         publicPosts.MapListPublishedPostsEndpoint();
         publicPosts.MapGetPublishedPostEndpoint();
+
+        var publicBanners = group.MapGroup("/banners");
+        publicBanners.MapListActiveBannersEndpoint();
 
         var adminGroup = group.MapGroup("/admin").RequireAuthorization(AuthorizationPolicyNames.AdminOnly);
 

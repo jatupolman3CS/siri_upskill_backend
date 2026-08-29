@@ -1,14 +1,14 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Siri.Modules.Catalog.Domain;
 
 namespace Siri.Modules.Catalog.Infrastructure;
 
-public sealed class CourseOutcomeConfiguration : IEntityTypeConfiguration<CourseOutcome>
+public sealed class CourseOutcomeConfiguration : IEntityTypeConfiguration<COURSE_OUTCOME>
 {
-    public void Configure(EntityTypeBuilder<CourseOutcome> builder)
+    public void Configure(EntityTypeBuilder<COURSE_OUTCOME> builder)
     {
-        builder.ToTable("CourseOutcomes", "catalog");
+        builder.ToTable("COURSE_OUTCOMES", "CATALOG");
 
         builder.HasKey(o => o.Id);
 
@@ -16,10 +16,10 @@ public sealed class CourseOutcomeConfiguration : IEntityTypeConfiguration<Course
         builder.Property(o => o.SortOrder).IsRequired();
 
         // Cascade: single incoming FK path to Courses (no CourseEpisodeConfiguration-style conflict).
-        // .WithMany(c => c.Outcomes), not a bare .WithMany() — Course.Outcomes is a real navigation
+        // .WithMany(c => c.Outcomes), not a bare .WithMany() — COURSE.Outcomes is a real navigation
         // property; see CourseSectionConfiguration's matching note for why an unreferenced navigation
         // makes EF invent a phantom second relationship with its own shadow FK.
-        builder.HasOne<Course>()
+        builder.HasOne<COURSE>()
             .WithMany(c => c.Outcomes)
             .HasForeignKey(o => o.CourseId)
             .OnDelete(DeleteBehavior.Cascade);

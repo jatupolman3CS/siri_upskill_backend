@@ -32,9 +32,19 @@ public static class NotificationModule
         services.AddScoped<Features.GetInstructorAnnouncements.GetInstructorAnnouncementsHandler>();
         services.AddScoped<GetMyNotificationsHandler>();
         services.AddScoped<MarkNotificationReadHandler>();
+        services.AddScoped<Features.SubmitContactMessage.SubmitContactMessageHandler>();
+        services.AddScoped<Features.GetContactMessages.GetContactMessagesHandler>();
+        services.AddScoped<Features.ResolveContactMessage.ResolveContactMessageHandler>();
 
         // Validators
         services.AddScoped<IValidator<CreateAnnouncementCommand>, CreateAnnouncementValidator>();
+        services.AddScoped<IValidator<Features.SubmitContactMessage.SubmitContactMessageCommand>, Features.SubmitContactMessage.SubmitContactMessageValidator>();
+
+        // Repositories
+        services.AddScoped<Application.IUserNotificationRepository, Infrastructure.UserNotificationRepository>();
+        services.AddScoped<Application.IAnnouncementRepository, Infrastructure.AnnouncementRepository>();
+        services.AddScoped<Application.IContactMessageRepository, Infrastructure.ContactMessageRepository>();
+        services.AddScoped<Application.IEmailOutboxRepository, Infrastructure.EmailOutboxRepository>();
 
         return services;
     }

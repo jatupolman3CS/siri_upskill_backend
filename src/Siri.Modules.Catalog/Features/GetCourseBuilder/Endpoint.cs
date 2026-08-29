@@ -12,7 +12,7 @@ public static class GetCourseBuilderEndpoint
     {
         endpoints.MapGet("/{id:guid}/builder", HandleAsync)
             .WithName("CatalogGetCourseBuilder")
-            .WithSummary("ดึงข้อมูลโครงสร้างคอร์สทั้งหมดสำหรับ Course Builder")
+            .WithSummary("ดึงข้อมูลโครงสร้างคอร์สทั้งหมดสำหรับ COURSE Builder")
             .Produces<CourseBuilderResponse>(StatusCodes.Status200OK)
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);

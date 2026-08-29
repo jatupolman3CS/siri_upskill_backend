@@ -27,7 +27,7 @@ public sealed class CreateAnnouncementHandler(
                 DomainError.Forbidden("คุณไม่ใช่เจ้าของคอร์สนี้ ไม่สามารถสร้างประกาศได้"));
         }
 
-        var announcement = Announcement.Create(
+        var announcement = ANNOUNCEMENT.Create(
             command.CourseId,
             instructorUserId,
             command.Title,

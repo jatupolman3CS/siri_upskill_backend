@@ -15,5 +15,7 @@ public interface IFlashSaleRepository
     /// deferred-filtering reasoning as <see cref="IBundleRepository.ListAsync"/>'s own doc comment.</summary>
     Task<IReadOnlyList<FLASH_SALE>> ListAsync(int page, int pageSize, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<FLASH_SALE>> GetActiveFlashSalesAsync(DateTime nowUtc, CancellationToken cancellationToken);
+
     Task<int> CountAsync(CancellationToken cancellationToken);
 }

@@ -68,7 +68,7 @@ public sealed class RegisterAndConfirmEmailTests : IAsyncLifetime
     /// not return a distinguishable response than a first-time registration"). Registers the same
     /// email twice and asserts: identical response content both times, and — proving the second call
     /// genuinely took the "already exists" branch rather than somehow succeeding twice — only one
-    /// <see cref="User"/> row and one queued confirmation email ever exist for that address.
+    /// <see cref="USER"/> row and one queued confirmation email ever exist for that address.
     /// </summary>
     [Fact]
     public async Task Register_SameEmailTwice_ReturnsIdenticalResponseAndOnlyEverCreatesOneUser()
@@ -182,7 +182,7 @@ public sealed class RegisterAndConfirmEmailTests : IAsyncLifetime
         var expiredUser = await dbContext.Users().SingleAsync(u => u.NormalizedEmail == expiredEmail.ToUpperInvariant());
         var (expiredRawToken, expiredHash) = tokenGenerator.Generate();
         dbContext.UserSecurityTokens().Add(
-            UserSecurityToken.Issue(expiredUser.Id, UserSecurityTokenPurpose.EmailConfirmation, expiredHash, clock.UtcNow.AddMinutes(-1)));
+            USER_SECURITY_TOKEN.Issue(expiredUser.Id, UserSecurityTokenPurpose.EmailConfirmation, expiredHash, clock.UtcNow.AddMinutes(-1)));
         await dbContext.SaveChangesAsync(CancellationToken.None);
         var expiredResult = await confirmHandler.HandleAsync(new ConfirmEmailCommand(expiredRawToken), CancellationToken.None);
 

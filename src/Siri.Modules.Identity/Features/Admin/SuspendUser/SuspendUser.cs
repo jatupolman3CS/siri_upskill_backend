@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Infrastructure;
 using Siri.Persistence;
@@ -37,7 +37,7 @@ public sealed class SuspendUserHandler(AppDbContext dbContext, IClock clock)
 
         user.Suspend(command.Reason);
 
-        var audit = SecurityAudit.Record("AdminSuspendUser", user.Id, $"Suspended by {adminUserId}: {command.Reason}", null, clock);
+        var audit = SECURITY_AUDIT.Record("AdminSuspendUser", user.Id, $"Suspended by {adminUserId}: {command.Reason}", null, clock);
         dbContext.SecurityAudits().Add(audit);
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

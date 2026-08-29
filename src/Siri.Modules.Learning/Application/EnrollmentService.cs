@@ -7,7 +7,10 @@ namespace Siri.Modules.Learning.Application;
 /// <summary>
 /// Business logic for <see cref="ENROLLMENT"/>, backing <c>EnrollmentEndpoints</c>.
 /// </summary>
-public sealed class EnrollmentService(IEnrollmentRepository repository, IClock clock)
+public sealed class EnrollmentService(
+    IEnrollmentRepository repository,
+    ICertificateRepository certificateRepository,
+    IClock clock)
 {
     public async Task<Result<EnrollmentResponse>> CreateAsync(CreateEnrollmentCommand command, CancellationToken cancellationToken)
     {
@@ -106,6 +109,19 @@ public sealed class EnrollmentService(IEnrollmentRepository repository, IClock c
 
         enrollment.UpdateProgress(command.ProgressPercent, clock);
         await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        if (enrollment.PROGRESS_PERCENT >= 100m)
+        {
+            var existingCert = await certificateRepository.GetByEnrollmentIdAsync(enrollmentId, cancellationToken).ConfigureAwait(false);
+            if (existingCert is null)
+            {
+                var serialNo = $"CERT-{clock.UtcNow:yyyy}-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
+                var verifyCode = Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+                var cert = CERTIFICATE.Create(enrollmentId, serialNo, verifyCode, null, clock);
+                certificateRepository.Add(cert);
+                await certificateRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
 
         return Result.Success(ToResponse(enrollment));
     }

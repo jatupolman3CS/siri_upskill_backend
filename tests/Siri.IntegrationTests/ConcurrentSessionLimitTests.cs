@@ -71,15 +71,15 @@ public sealed class ConcurrentSessionLimitTests : IAsyncLifetime
 
     public async Task DisposeAsync() => await _serviceProvider.DisposeAsync();
 
-    private static async Task<User> CreateActiveUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
+    private static async Task<USER> CreateActiveUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, password);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         dbContext.Users().Add(user);
@@ -144,7 +144,7 @@ public sealed class ConcurrentSessionLimitTests : IAsyncLifetime
             new RefreshCommand(login2.Value.RawRefreshToken, "UA2", "203.0.113.2"), CancellationToken.None);
         Assert.True(refreshWithSurvivingToken.IsSuccess);
 
-        // A distinct SecurityAudit row exists for the eviction, referencing the evicted+new session ids.
+        // A distinct SECURITY_AUDIT row exists for the eviction, referencing the evicted+new session ids.
         var audit = await dbContext.SecurityAudits().AsNoTracking()
             .SingleAsync(a => a.UserId == user.Id && a.EventType == "session.evicted_concurrent_limit");
         Assert.NotNull(audit.Detail);

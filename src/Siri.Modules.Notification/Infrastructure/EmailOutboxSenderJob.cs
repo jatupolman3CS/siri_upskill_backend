@@ -1,4 +1,4 @@
-using Hangfire;
+﻿using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Siri.Integrations.Email;
@@ -10,7 +10,7 @@ namespace Siri.Modules.Notification.Infrastructure;
 
 /// <summary>
 /// The recurring job (registered every minute from Siri.Workers/RecurringJobsRegistration.cs) that
-/// drains the outbox: finds due <see cref="EmailOutboxMessage"/> rows — <see cref="EmailOutboxStatus.Pending"/>,
+/// drains the outbox: finds due <see cref="EMAIL_OUTBOX_MESSAGE"/> rows — <see cref="EmailOutboxStatus.Pending"/>,
 /// or <see cref="EmailOutboxStatus.Failed"/>-but-retryable with <c>NextRetryAtUtc</c> due — attempts
 /// delivery through the registered <see cref="IEmailSender"/>, and records the outcome through the
 /// entity's own domain methods (never by mutating EF-tracked properties directly from outside it).

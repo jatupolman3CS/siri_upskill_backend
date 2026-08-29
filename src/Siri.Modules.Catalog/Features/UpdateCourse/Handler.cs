@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -13,8 +13,8 @@ namespace Siri.Modules.Catalog.Features.UpdateCourse;
 /// task's scope — stays stable once <c>CreateCourseHandler</c> generates it; changing the title does not
 /// regenerate it).
 /// <para>
-/// <b>Ownership check</b> — <see cref="Course.InstructorId"/> must equal the caller's own
-/// <c>InstructorProfile.Id</c>. Deliberately distinct 404 (course doesn't exist) vs 403 (exists, but
+/// <b>Ownership check</b> — <see cref="COURSE.InstructorId"/> must equal the caller's own
+/// <c>INSTRUCTOR_PROFILE.Id</c>. Deliberately distinct 404 (course doesn't exist) vs 403 (exists, but
 /// isn't the caller's) responses, unlike <c>RevokeSessionHandler</c>'s collapsed-into-one-404 approach —
 /// a course id isn't a session-hijacking-adjacent secret (once published, course existence is public
 /// catalog data anyway), so there is no anti-enumeration reason to hide the distinction here. No
@@ -23,9 +23,9 @@ namespace Siri.Modules.Catalog.Features.UpdateCourse;
 /// this codebase already plans to do properly, later.
 /// </para>
 /// <para>
-/// <b>Draft-only</b>: rejects with a conflict once <see cref="Course.Status"/> has moved past
+/// <b>Draft-only</b>: rejects with a conflict once <see cref="COURSE.Status"/> has moved past
 /// <see cref="CourseStatus.Draft"/> — task P1-05 ("Publish workflow") owns what editing an InReview/
-/// Published/Rejected course should mean, which does not exist yet; this task's own name ("Course CRUD
+/// Published/Rejected course should mean, which does not exist yet; this task's own name ("COURSE CRUD
 /// (draft)") scopes it to drafts only.
 /// </para>
 /// </summary>
@@ -86,7 +86,7 @@ public sealed class UpdateCourseHandler(AppDbContext dbContext)
         return ToResponse(course);
     }
 
-    private static UpdateCourseResponse ToResponse(Course course) =>
+    private static UpdateCourseResponse ToResponse(COURSE course) =>
         new(course.Id, course.Slug, course.Title, course.Subtitle, course.Description, course.InstructorId,
             course.CategoryId, course.Level, course.Language, course.ThumbnailUrl, course.Price, course.ComparePrice,
             course.Currency, course.AccessDurationDays, course.Status, course.SeoTitle, course.SeoDescription);

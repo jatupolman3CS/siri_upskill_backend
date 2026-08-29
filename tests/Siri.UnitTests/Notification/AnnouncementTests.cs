@@ -15,10 +15,10 @@ public sealed class AnnouncementTests
         var courseId = Guid.NewGuid();
         var instructorId = Guid.NewGuid();
 
-        var announcement = Announcement.Create(
+        var announcement = ANNOUNCEMENT.Create(
             courseId,
             instructorId,
-            "Welcome to Course",
+            "Welcome to COURSE",
             "This is the announcement body",
             sendEmail: true,
             scheduledAtUtc: null,
@@ -27,7 +27,7 @@ public sealed class AnnouncementTests
         Assert.NotEqual(Guid.Empty, announcement.Id);
         Assert.Equal(courseId, announcement.CourseId);
         Assert.Equal(instructorId, announcement.InstructorId);
-        Assert.Equal("Welcome to Course", announcement.Title);
+        Assert.Equal("Welcome to COURSE", announcement.Title);
         Assert.Equal("This is the announcement body", announcement.Body);
         Assert.True(announcement.SendEmail);
         Assert.Equal(now, announcement.SentAtUtc);
@@ -42,10 +42,10 @@ public sealed class AnnouncementTests
         var clock = new FakeClock(now);
         var scheduledAt = now.AddDays(1);
 
-        var announcement = Announcement.Create(
+        var announcement = ANNOUNCEMENT.Create(
             Guid.NewGuid(),
             Guid.NewGuid(),
-            "Scheduled Announcement",
+            "Scheduled ANNOUNCEMENT",
             "Body",
             sendEmail: true,
             scheduledAtUtc: scheduledAt,
@@ -61,7 +61,7 @@ public sealed class AnnouncementTests
         var now = new DateTime(2026, 8, 24, 12, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
-        var announcement = Announcement.Create(
+        var announcement = ANNOUNCEMENT.Create(
             Guid.NewGuid(),
             Guid.NewGuid(),
             "Title",
@@ -83,7 +83,7 @@ public sealed class AnnouncementTests
     {
         var clock = new FakeClock(DateTime.UtcNow);
         Assert.Throws<ArgumentException>(() =>
-            Announcement.Create(Guid.NewGuid(), Guid.NewGuid(), "", "Body", false, null, clock));
+            ANNOUNCEMENT.Create(Guid.NewGuid(), Guid.NewGuid(), "", "Body", false, null, clock));
     }
 }
 
@@ -96,10 +96,10 @@ public sealed class UserNotificationTests
         var clock = new FakeClock(now);
         var userId = Guid.NewGuid();
 
-        var notif = UserNotification.Create(
+        var notif = USER_NOTIFICATION.Create(
             userId,
             "announcement",
-            "New Announcement",
+            "New ANNOUNCEMENT",
             "Instructor posted a new update",
             "/courses/123",
             clock);
@@ -107,7 +107,7 @@ public sealed class UserNotificationTests
         Assert.NotEqual(Guid.Empty, notif.Id);
         Assert.Equal(userId, notif.UserId);
         Assert.Equal("announcement", notif.Type);
-        Assert.Equal("New Announcement", notif.Title);
+        Assert.Equal("New ANNOUNCEMENT", notif.Title);
         Assert.Equal("Instructor posted a new update", notif.Body);
         Assert.Equal("/courses/123", notif.LinkUrl);
         Assert.Null(notif.ReadAtUtc);
@@ -120,7 +120,7 @@ public sealed class UserNotificationTests
         var now = new DateTime(2026, 8, 24, 12, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
-        var notif = UserNotification.Create(Guid.NewGuid(), "type", "title", "body", null, clock);
+        var notif = USER_NOTIFICATION.Create(Guid.NewGuid(), "type", "title", "body", null, clock);
         var readTime = now.AddMinutes(5);
         var readClock = new FakeClock(readTime);
 

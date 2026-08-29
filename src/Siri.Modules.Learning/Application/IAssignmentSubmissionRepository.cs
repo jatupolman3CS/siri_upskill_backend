@@ -10,6 +10,8 @@ public interface IAssignmentSubmissionRepository
 {
     Task<ASSIGNMENT_SUBMISSION?> GetByIdAsync(Guid submissionId, CancellationToken cancellationToken);
 
+    Task<ASSIGNMENT_SUBMISSION?> GetLatestByEnrollmentAndAssignmentAsync(Guid enrollmentId, Guid assignmentId, CancellationToken cancellationToken);
+
     /// <summary>Submissions against a given assignment, offset-paginated (database.md: "รายการที่โตได้
     /// ต้อง paginate เสมอ" — same shape Catalog's admin review queues use), most recently submitted
     /// first.</summary>

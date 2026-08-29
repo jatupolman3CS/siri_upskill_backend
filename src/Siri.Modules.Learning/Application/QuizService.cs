@@ -11,8 +11,38 @@ namespace Siri.Modules.Learning.Application;
 /// instructor who owns this specific course" — without this check, any instructor account could read or
 /// edit any other instructor's quiz, answer key included.
 /// </summary>
-public sealed class QuizService(IQuizRepository quizRepository, ICatalogPriceContract catalogPriceContract)
+public sealed class QuizService(
+    IQuizRepository quizRepository,
+    ICatalogPriceContract catalogPriceContract,
+    IEnrollmentRepository enrollmentRepository)
 {
+    public async Task<Result<LearnerQuizResponse>> GetByEpisodeForLearnerAsync(Guid callerUserId, Guid episodeId, CancellationToken cancellationToken)
+    {
+        var quiz = await quizRepository.GetByEpisodeIdAsync(episodeId, cancellationToken).ConfigureAwait(false);
+        if (quiz is null || !quiz.IS_ACTIVE)
+        {
+            return Result.Failure<LearnerQuizResponse>(DomainError.NotFound("ไม่พบแบบทดสอบสำหรับบทเรียนนี้"));
+        }
+
+        var courseId = await catalogPriceContract.GetCourseIdForEpisodeAsync(episodeId, cancellationToken).ConfigureAwait(false);
+        if (courseId is null)
+        {
+            return Result.Failure<LearnerQuizResponse>(DomainError.NotFound("ไม่พบคอร์สของบทเรียนนี้"));
+        }
+
+        var isPreview = await catalogPriceContract.IsEpisodeFreePreviewAsync(episodeId, cancellationToken).ConfigureAwait(false);
+        if (!isPreview)
+        {
+            var enrollment = await enrollmentRepository.GetByUserAndCourseAsync(callerUserId, courseId.Value, cancellationToken).ConfigureAwait(false);
+            if (enrollment is null || enrollment.STATUS != Domain.EnrollmentStatus.Active)
+            {
+                return Result.Failure<LearnerQuizResponse>(DomainError.Forbidden("คุณต้องลงทะเบียนเรียนคอร์สนี้ก่อนทำแบบทดสอบ"));
+            }
+        }
+
+        return Result.Success(ToLearnerResponse(quiz));
+    }
+
     public async Task<Result<QuizResponse>> CreateAsync(Guid callerUserId, CreateQuizRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -159,4 +189,23 @@ public sealed class QuizService(IQuizRepository quizRepository, ICatalogPriceCon
             q.POINTS,
             q.SORT_ORDER,
             q.OPTIONS.OrderBy(o => o.SORT_ORDER).Select(o => new QuizOptionResponse(o.QUIZ_OPTION_ID, o.TEXT, o.IS_CORRECT, o.SORT_ORDER)).ToList());
+
+    private static LearnerQuizResponse ToLearnerResponse(QUIZ quiz) =>
+        new(
+            quiz.QUIZ_ID,
+            quiz.EPISODE_ID,
+            quiz.TITLE,
+            quiz.PASSING_SCORE_PERCENT,
+            quiz.MAX_ATTEMPTS,
+            quiz.IS_ACTIVE,
+            quiz.QUESTIONS.OrderBy(q => q.SORT_ORDER).Select(ToLearnerQuestionResponse).ToList());
+
+    private static LearnerQuizQuestionResponse ToLearnerQuestionResponse(QUIZ_QUESTION q) =>
+        new(
+            q.QUIZ_QUESTION_ID,
+            q.TYPE,
+            q.TEXT,
+            q.POINTS,
+            q.SORT_ORDER,
+            q.OPTIONS.OrderBy(o => o.SORT_ORDER).Select(o => new LearnerQuizOptionResponse(o.QUIZ_OPTION_ID, o.TEXT, o.SORT_ORDER)).ToList());
 }

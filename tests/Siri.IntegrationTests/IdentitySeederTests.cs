@@ -72,7 +72,7 @@ public sealed class IdentitySeederTests : IAsyncLifetime
 
         await using var scope = _serviceProvider.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await dbContext.Database.MigrateAsync(); // applies every migration, including the Role HasData seed (P0-14)
+        await dbContext.Database.MigrateAsync(); // applies every migration, including the ROLE HasData seed (P0-14)
     }
 
     public async Task DisposeAsync() => await _serviceProvider.DisposeAsync();
@@ -110,13 +110,13 @@ public sealed class IdentitySeederTests : IAsyncLifetime
             Assert.All(seededUsers, u => Assert.NotNull(u.EmailConfirmedAtUtc)); // task: "ConfirmedEmail"
 
             var admin = seededUsers.Single(u => u.Email == "seed-admin@example.test");
-            Assert.Contains(admin.Roles, r => r.Id == Role.AdminId);
+            Assert.Contains(admin.Roles, r => r.Id == ROLE.AdminId);
 
             var learnerEmails = new[] { "learner1.seed@example.test", "learner2.seed@example.test", "learner3.seed@example.test" };
             foreach (var learnerEmail in learnerEmails)
             {
                 var learner = seededUsers.Single(u => u.Email == learnerEmail);
-                Assert.Contains(learner.Roles, r => r.Id == Role.LearnerId);
+                Assert.Contains(learner.Roles, r => r.Id == ROLE.LearnerId);
             }
 
             var instructorEmails = new[]
@@ -127,9 +127,9 @@ public sealed class IdentitySeederTests : IAsyncLifetime
             foreach (var instructorEmail in instructorEmails)
             {
                 var instructor = seededUsers.Single(u => u.Email == instructorEmail);
-                Assert.Contains(instructor.Roles, r => r.Id == Role.InstructorId);
+                Assert.Contains(instructor.Roles, r => r.Id == ROLE.InstructorId);
 
-                // P1-30: SeedAsync's returned map is what CatalogSeeder relies on to link InstructorProfile
+                // P1-30: SeedAsync's returned map is what CatalogSeeder relies on to link INSTRUCTOR_PROFILE
                 // rows to real accounts — assert it actually matches what landed in the database, not just
                 // that the map has *some* entry.
                 Assert.Equal(instructor.Id, userIdsByEmail[instructorEmail]);
@@ -189,7 +189,7 @@ public sealed class IdentitySeederTests : IAsyncLifetime
         await using (var scope = _serviceProvider.CreateAsyncScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var unrelatedUser = User.Register(unrelatedEmail, unrelatedEmail.ToUpperInvariant(), "some-hash", "A Real Unrelated User");
+            var unrelatedUser = USER.Register(unrelatedEmail, unrelatedEmail.ToUpperInvariant(), "some-hash", "A Real Unrelated USER");
             dbContext.Users().Add(unrelatedUser);
             await dbContext.SaveChangesAsync();
         }

@@ -15,15 +15,15 @@ namespace Siri.Modules.Identity.Infrastructure;
 /// </summary>
 public static class AppDbContextIdentityExtensions
 {
-    public static DbSet<User> Users(this AppDbContext context) => context.Set<User>();
+    public static DbSet<USER> Users(this AppDbContext context) => context.Set<USER>();
 
-    public static DbSet<Role> Roles(this AppDbContext context) => context.Set<Role>();
+    public static DbSet<ROLE> Roles(this AppDbContext context) => context.Set<ROLE>();
 
-    public static DbSet<UserSession> UserSessions(this AppDbContext context) => context.Set<UserSession>();
+    public static DbSet<USER_SESSION> UserSessions(this AppDbContext context) => context.Set<USER_SESSION>();
 
-    public static DbSet<RefreshToken> RefreshTokens(this AppDbContext context) => context.Set<RefreshToken>();
+    public static DbSet<REFRESH_TOKEN> RefreshTokens(this AppDbContext context) => context.Set<REFRESH_TOKEN>();
 
-    public static DbSet<SecurityAudit> SecurityAudits(this AppDbContext context) => context.Set<SecurityAudit>();
+    public static DbSet<SECURITY_AUDIT> SecurityAudits(this AppDbContext context) => context.Set<SECURITY_AUDIT>();
 
-    public static DbSet<UserSecurityToken> UserSecurityTokens(this AppDbContext context) => context.Set<UserSecurityToken>();
+    public static DbSet<USER_SECURITY_TOKEN> UserSecurityTokens(this AppDbContext context) => context.Set<USER_SECURITY_TOKEN>();
 }

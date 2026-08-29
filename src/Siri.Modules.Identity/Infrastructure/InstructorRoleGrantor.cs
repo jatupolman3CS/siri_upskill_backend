@@ -28,7 +28,7 @@ public sealed class InstructorRoleGrantor(AppDbContext dbContext) : IInstructorR
         }
 
         var instructorRole = await dbContext.Roles()
-            .FirstOrDefaultAsync(r => r.Id == Role.InstructorId, cancellationToken)
+            .FirstOrDefaultAsync(r => r.Id == ROLE.InstructorId, cancellationToken)
             .ConfigureAwait(false);
 
         if (instructorRole is null)

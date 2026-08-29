@@ -23,4 +23,34 @@ public sealed class PaymentOpsQueueRepository(AppDbContext dbContext) : IPayment
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
     }
+
+    public async Task<(IReadOnlyList<PAYMENT_OPS_QUEUE> Items, int TotalCount)> ListAsync(
+        PaymentOpsQueueStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var effectivePage = page < 1 ? 1 : page;
+        var effectivePageSize = pageSize < 1 ? 20 : Math.Min(pageSize, 100);
+
+        var query = dbContext.PaymentOpsQueue().AsQueryable();
+
+        if (status.HasValue)
+        {
+            query = query.Where(q => q.STATUS == status.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
+
+        var items = await query
+            .OrderByDescending(q => q.PAYMENT_OPS_QUEUE_ID)
+            .Skip((effectivePage - 1) * effectivePageSize)
+            .Take(effectivePageSize)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return (items, totalCount);
+    }
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

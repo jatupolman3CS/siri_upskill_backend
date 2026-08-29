@@ -31,7 +31,10 @@ public sealed class QuizAttemptServiceTests
         public Task<int> GetPendingReviewsCountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
         public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
     }
+
 
     private sealed class FakeQuizRepository : IQuizRepository
     {
@@ -217,8 +220,8 @@ public sealed class QuizAttemptServiceTests
     [Fact]
     public async Task StartAsync_WhenEnrollmentIsForADifferentCourse_ReturnsForbidden()
     {
-        // A learner genuinely owns this enrollment (Course A) but tries to use it to start a quiz
-        // that belongs to Course B's episode — proves the enrollment-course-matches-quiz-course check,
+        // A learner genuinely owns this enrollment (COURSE A) but tries to use it to start a quiz
+        // that belongs to COURSE B's episode — proves the enrollment-course-matches-quiz-course check,
         // not just the enrollment-belongs-to-caller check.
         var quizRepo = new FakeQuizRepository();
         var attemptRepo = new FakeQuizAttemptRepository();
@@ -271,4 +274,41 @@ public sealed class QuizAttemptServiceTests
         Assert.False(result.IsSuccess);
         Assert.Equal("forbidden", result.Error.Code);
     }
+
+    [Fact]
+    public async Task ListAttemptsByQuizAsync_ReturnsAttemptsForUser()
+    {
+        var quizRepo = new FakeQuizRepository();
+        var attemptRepo = new FakeQuizAttemptRepository();
+        var enrollRepo = new FakeEnrollmentRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var clock = new FakeClock(DateTime.UtcNow);
+
+        var userId = Guid.NewGuid();
+        var courseId = Guid.NewGuid();
+        var episodeId = Guid.NewGuid();
+        catalog.EpisodeToCourse[episodeId] = courseId;
+
+        var enrollment = ENROLLMENT.Create(userId, courseId, null, EnrollmentSource.Purchase, null, clock);
+        enrollRepo.Add(enrollment);
+
+        var quiz = QUIZ.Create(episodeId, "แบบทดสอบ", 80, 3);
+        quiz.Activate();
+        quizRepo.Add(quiz);
+
+        var attempt1 = QUIZ_ATTEMPT.Start(quiz.QUIZ_ID, enrollment.ENROLLMENT_ID, 1, clock);
+        var attempt2 = QUIZ_ATTEMPT.Start(quiz.QUIZ_ID, enrollment.ENROLLMENT_ID, 2, clock);
+        attemptRepo.Add(attempt1);
+        attemptRepo.Add(attempt2);
+
+        var service = new QuizAttemptService(attemptRepo, quizRepo, enrollRepo, catalog, clock);
+
+        var result = await service.ListAttemptsByQuizAsync(userId, quiz.QUIZ_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value.Count);
+        Assert.Equal(1, result.Value[0].AttemptNo);
+        Assert.Equal(2, result.Value[1].AttemptNo);
+    }
 }
+

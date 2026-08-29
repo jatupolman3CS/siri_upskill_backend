@@ -41,7 +41,35 @@ public static class AssignmentEndpoints
             .Produces<ProblemDetails>(StatusCodes.Status403Forbidden)
             .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
 
+        var learnerGroup = endpoints.MapGroup("/api/learning/assignments")
+            .WithTags("Learning")
+            .RequireAuthorization();
+
+        learnerGroup.MapGet("/by-episode/{episodeId:guid}", GetByEpisodeForLearnerAsync)
+            .WithName("LearningGetAssignmentByEpisode")
+            .WithSummary("ดูรายละเอียดงานที่มอบหมายของบทเรียน (สำหรับผู้เรียน)")
+            .Produces<AssignmentResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)
+            .Produces<ProblemDetails>(StatusCodes.Status403Forbidden)
+            .Produces<ProblemDetails>(StatusCodes.Status404NotFound);
+
         return endpoints;
+    }
+
+    private static async Task<IResult> GetByEpisodeForLearnerAsync(
+        Guid episodeId,
+        AssignmentService service,
+        IUserContext userContext,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await service.GetByEpisodeForLearnerAsync(userId, episodeId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
     }
 
     private static async Task<IResult> CreateAsync(

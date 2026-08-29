@@ -14,7 +14,26 @@ public sealed class InstructorEarningsServiceTests
             Task.FromResult(Splits.TryGetValue(id, out var split) ? split : null);
 
         public Task<REVENUE_SPLIT?> GetByOrderItemIdAsync(Guid orderItemId, CancellationToken cancellationToken) =>
-            Task.FromResult(Splits.Values.FirstOrDefault(s => s.ORDER_ITEM_ID == orderItemId));
+            Task.FromResult(Splits.Values.FirstOrDefault(s => s.ORDER_ITEM_ID == orderItemId && s.STATUS != RevenueSplitStatus.Reversed));
+
+        public Task<IReadOnlyList<REVENUE_SPLIT>> GetByOrderItemIdsAsync(IEnumerable<Guid> orderItemIds, CancellationToken cancellationToken)
+        {
+            var idSet = orderItemIds.ToHashSet();
+            var list = Splits.Values.Where(s => idSet.Contains(s.ORDER_ITEM_ID)).ToList();
+            return Task.FromResult<IReadOnlyList<REVENUE_SPLIT>>(list);
+        }
+
+        public Task<IReadOnlyList<REVENUE_SPLIT>> GetEligibleSplitsForPayoutAsync(DateTime holdCutOffUtc, CancellationToken cancellationToken)
+        {
+            var list = Splits.Values.Where(s => (s.STATUS == RevenueSplitStatus.Pending || s.STATUS == RevenueSplitStatus.Payable) && s.CreatedAtUtc <= holdCutOffUtc).ToList();
+            return Task.FromResult<IReadOnlyList<REVENUE_SPLIT>>(list);
+        }
+
+        public Task<IReadOnlyList<REVENUE_SPLIT>> GetSplitsByBatchItemIdAsync(Guid batchItemId, CancellationToken cancellationToken)
+        {
+            var list = Splits.Values.Where(s => s.PAYOUT_BATCH_ITEM_ID == batchItemId).ToList();
+            return Task.FromResult<IReadOnlyList<REVENUE_SPLIT>>(list);
+        }
 
         public IQueryable<REVENUE_SPLIT> Query() => Splits.Values.AsQueryable();
 
@@ -41,6 +60,9 @@ public sealed class InstructorEarningsServiceTests
         public Task<PAYOUT_BATCH?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Batches.TryGetValue(id, out var batch) ? batch : null);
 
+        public Task<PAYOUT_BATCH?> GetByPeriodKeyAsync(string periodKey, CancellationToken cancellationToken) =>
+            Task.FromResult(Batches.Values.FirstOrDefault(b => b.PERIOD_KEY == periodKey));
+
         public IQueryable<PAYOUT_BATCH> Query() => Batches.Values.AsQueryable();
 
         public Task<IReadOnlyList<InstructorPayoutHistoryItem>> GetPayoutHistoryForInstructorAsync(
@@ -66,8 +88,8 @@ public sealed class InstructorEarningsServiceTests
 
         var instructorId = Guid.NewGuid();
 
-        var split1 = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorId, 1000m, 30m, 291m, 679m, "2026-08");
-        var split2 = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorId, 2000m, 60m, 582m, 1358m, "2026-08");
+        var split1 = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorId, 1000m, 30m, 291m, 679m, 70m, "2026-08");
+        var split2 = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorId, 2000m, 60m, 582m, 1358m, 70m, "2026-08");
         splitRepo.Add(split1);
         splitRepo.Add(split2);
 

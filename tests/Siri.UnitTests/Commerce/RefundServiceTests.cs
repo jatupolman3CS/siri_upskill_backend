@@ -56,6 +56,9 @@ public sealed class RefundServiceTests
             Payments[payment.PAYMENT_ID] = payment;
             return Task.CompletedTask;
         }
+
+        public Task<IReadOnlyList<PAYMENT>> GetPendingByOrderIdAsync(Guid orderId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PAYMENT>>(Payments.Values.Where(p => p.ORDER_ID == orderId && (p.STATUS == PaymentStatus.Pending || p.STATUS == PaymentStatus.Processing)).ToList());
     }
 
     private sealed class FakeOrderRepository : IOrderRepository
@@ -71,6 +74,23 @@ public sealed class RefundServiceTests
             return Task.FromResult(list);
         }
 
+        public Task<(IReadOnlyList<ORDER> Items, int TotalCount)> ListByUserIdAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken)
+        {
+            var userOrders = Orders.Values.Where(o => o.USER_ID == userId).ToList();
+            var items = userOrders.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult<(IReadOnlyList<ORDER> Items, int TotalCount)>((items, userOrders.Count));
+        }
+
+        public Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken)
+        {
+            var result = Orders.Values
+                .Where(o => o.STATUS == OrderStatus.AwaitingPayment && o.CreatedAtUtc <= cutoffUtc)
+                .OrderBy(o => o.CreatedAtUtc)
+                .Take(batchSize)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<ORDER>>(result);
+        }
+
         public Task AddAsync(ORDER order, CancellationToken cancellationToken)
         {
             Orders[order.ORDER_ID] = order;
@@ -80,6 +100,8 @@ public sealed class RefundServiceTests
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken) => operation();
+
+        public Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken) => operation();
     }
 
     private sealed class FakePromoCodeRepository : IPromoCodeRepository
@@ -144,7 +166,7 @@ public sealed class RefundServiceTests
         payment.MarkSucceeded(clock);
         paymentRepo.Payments[payment.PAYMENT_ID] = payment;
 
-        var command = new RequestRefundCommand(payment.PAYMENT_ID, 1000m, "Course not as expected");
+        var command = new RequestRefundCommand(payment.PAYMENT_ID, 1000m, "COURSE not as expected");
         var result = await service.RequestAsync(userId, command, CancellationToken.None);
 
         Assert.True(result.IsSuccess);

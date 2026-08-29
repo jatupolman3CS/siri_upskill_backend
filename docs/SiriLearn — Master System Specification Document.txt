@@ -1,0 +1,389 @@
+SiriLearn — Master System Specification Document
+
+Project Name: SiriLearn — Next-Generation Enterprise E-Learning Platform
+Reference Models: SkillLane (Premium & Corporate) + FutureSkill (Modern Tech & Subscription)
+Target Stack: Angular v22, .NET 10 Web API, Redis, Bunny Stream (DRM)
+
+PART 1: Software Requirements Specification (SRS)
+
+1. System Overview (ภาพรวมของระบบ)
+
+SiriLearn เป็นแพลตฟอร์มการเรียนรู้ออนไลน์ระดับ Enterprise ที่รองรับโมเดลธุรกิจทั้งแบบ B2C (รายบุคคล) และ B2B (องค์กร) โดยมีจุดเด่นด้านระบบความปลอดภัยของวิดีโอระดับสูงสุด (DRM & Dynamic Watermark) และโมเดลการขายทั้งแบบ A La Carte (ซื้อขาดรายคอร์ส) และ Subscription (บุฟเฟต์สมาชิก)
+
+2. User Roles (บทบาทผู้ใช้งาน)
+
+Learner (ผู้เรียนทั่วไป): ผู้ใช้งานที่ซื้อคอร์สหรือสมัครสมาชิกแบบ Subscription
+
+Corporate Learner (ผู้เรียนองค์กร): พนักงานที่ได้รับสิทธิ์เข้าเรียนจากบริษัท
+
+Instructor (ผู้สอน/สถาบัน): ผู้สร้างเนื้อหา, อัปโหลดวิดีโอ, ดูสถิติ และรับส่วนแบ่งรายได้
+
+HR Admin (ผู้ดูแลระบบองค์กร B2B): ตัวแทนบริษัทที่จัดการสิทธิ์ มอบหมายคอร์สเรียน และดูรายงาน
+
+Superadmin (ผู้ดูแลระบบสูงสุด): เจ้าของแพลตฟอร์ม ดูแลภาพรวม การอนุมัติคอร์ส โปรโมชัน และการเงิน
+
+3. Functional Requirements (ความต้องการทางฟังก์ชัน)
+
+3.1 Learner Module (ระบบสำหรับผู้เรียน)
+
+Authentication & Profile: สมัครสมาชิกผ่าน Email, Google, Facebook, Apple ID พร้อมระบบป้องกันการล็อกอินซ้อน (Concurrent Session Limit) สูงสุด 2 อุปกรณ์
+
+Course Discovery & Learning Path:
+
+Smart Search กรองตาม หมวดหมู่, ระดับ, ผู้สอน, และราคา
+
+Learning Path / Bootcamp จัดกลุ่มคอร์สเรียนต่อเนื่องเพื่อเป้าหมายอาชีพ
+
+Interactive Learning & Video Player:
+
+วิดีโอสตรีมมิ่งผ่าน Bunny Stream HLS
+
+Timestamp Notes: ฟีเจอร์จดโน้ตผูกกับเวลาวิดีโอ และปรับความเร็วการเล่น (0.5x - 2.0x)
+
+Interactive Quiz ท้ายบท และระบบส่งการบ้าน
+
+Gamification & Certification:
+
+ระบบสะสมแต้ม (XP), Leaderboard และการออกใบประกาศนียบัตร (Digital Certificate) อัตโนมัติเมื่อเรียนจบ 100% พร้อม QR Code Verify
+
+Payment & Subscription: รองรับ PromptPay QR, Credit Card, ระบบผ่อนชำระ และ Subscription (รายเดือน/รายปี)
+
+3.2 Instructor Studio (ระบบสำหรับผู้สอน)
+
+Course Builder (Drag & Drop): เครื่องมือจัดโครงสร้างหลักสูตร (Syllabus) จัดการ Episode, ตั้งค่า Free Preview และอัปโหลดไฟล์ประกอบ (PDF, Code)
+
+Analytics Dashboard:
+
+Drop-off Analytics: กราฟแสดงพฤติกรรมการหยุดดูวิดีโอของผู้เรียน เพื่อปรับปรุงเนื้อหา
+
+รายงานยอดขาย ส่วนแบ่งรายได้ และเรตติ้ง
+
+Student Engagement: กระดานถาม-ตอบ (Q&A) และระบบ Broadcast Announcement
+
+3.3 Superadmin Console (ระบบหลังบ้านส่วนกลาง)
+
+CMS & Marketing: จัดการ Hero Banner, เขียน Blog (SEO), สร้าง Promo Code, Flash Sale และ Course Bundling
+
+Financial & Payout: ระบบคำนวณส่วนแบ่งรายได้อัตโนมัติ (เช่น 70/30 Split) และจัดการรอบบิลการโอนเงิน
+
+Moderation: อนุมัติคอร์สก่อน Public, จัดการข้อพิพาท และระงับผู้ใช้งาน (Ban/Reset)
+
+3.4 Corporate Dashboard (B2B HR Portal)
+
+User & Course Management: อิมพอร์ตรายชื่อพนักงานด้วย Excel และบังคับพนักงานกลุ่มที่กำหนดให้เรียนคอร์สเฉพาะ (Mandatory Training)
+
+Progress Reporting: แดชบอร์ดความคืบหน้าของพนักงาน สามารถ Export เป็น Excel/PDF
+
+PART 2: Technical Specification & Technology Stack
+
+1. System Technology Stack
+
+Layer
+
+Technology Specification
+
+Key Features / Paradigms
+
+Frontend Framework
+
+Angular v22
+
+Standalone Components, Angular Signals, @if/@for Control Flow, RxJS, Tailwind CSS v4, Lucide Icons
+
+Backend Framework
+
+.NET 10 Web API
+
+C# 13/14, Clean Architecture, MediatR (CQRS Pattern), FluentValidation, Minimal APIs
+
+Video Hosting & CDN
+
+Bunny.net (Bunny Stream)
+
+Global Video CDN, HLS Streaming, Direct Upload Signature API
+
+Security & Anti-Piracy
+
+Bunny Stream DRM + Dynamic Watermark + Redis
+
+AES-128 HLS DRM Tokenization, Dynamic Floating User Info Overlay (Screen Record Prevention), Redis Active Session Lock
+
+Payment Gateway
+
+Omise / GB Prime Pay
+
+PromptPay QR Generation, Credit Card Processing
+
+2. Non-Functional Requirements (ด้านคุณภาพและเทคนิค)
+
+Anti-Piracy (ความปลอดภัยวิดีโอ): บังคับใช้ DRM Token ป้องกัน Video Grabber/IDM และมี Bouncing Watermark สุ่มลอยบนวิดีโอเพื่อระบุตัวตนหากมีการอัดหน้าจอ
+
+Concurrent Login Prevention: ใช้ Redis ล็อก Session หากล็อกอินเกินโควต้า อุปกรณ์เก่าจะถูกเตะออกทันที
+
+Architecture & Performance: .NET Backend ต้องใช้ Clean Architecture และ CQRS ส่วน Frontend SPA ต้องเรนเดอร์ได้รวดเร็วด้วย Signals
+
+UI/UX: Responsive 100%, ธีมคลีนสบายตา (Soft Pink / Minimal White) และรองรับ Web Accessibility
+
+PART 3: Claude Prompts for AI Code Generation
+
+หากต้องการใช้ Claude (หรือ AI ตัวอื่น) ช่วยเขียนโค้ดตามสเปคด้านบน ให้นำ Prompt ด้านล่างนี้ไปสั่งงานทีละ Step:
+
+Step 1: Initial Backend Setup Prompt (.NET 10 Web API Clean Architecture)
+
+"Act as a Lead .NET Architect. Write a complete solution structure for SiriLearn using .NET 10 Web API following Clean Architecture (Domain, Application, Infrastructure, API layers).
+Requirements:
+
+Implement domain entities and models for Users, UserSessionLocks, Courses, Episodes, Payments, and Enrollments directly using repository interfaces and domain abstractions. Do not include DB schema/MSSQL logic.
+
+Implement the Bunny Stream Service (IBunnyStreamService) that integrates with Bunny.net Video API to generate signed embed URLs and SHA256 tokenized HLS streaming URLs with user claims (UserId, Email, Timestamp) for dynamic video watermarking and DRM security.
+
+Implement the Concurrent Session Lock Middleware in ASP.NET Core that limits active sessions per account to max 2 devices using Redis / In-memory state.
+
+Use MediatR for CQRS command ProcessCheckoutCommand which calculates the 70/30 revenue split (InstructorShare70 & PlatformShare30) and creates an Enrollment record.
+
+Output clean C# code with modern C# features and OpenAPI/Swagger configuration."
+
+Step 2: Frontend Setup Prompt (Angular v22 Modern Architecture)
+
+"Act as a Senior Frontend Architect specialized in Angular v22. Write the core application code for the SiriLearn platform frontend using Standalone Components, Signals, Angular Router, and Tailwind CSS.
+Key Features to Implement:
+
+State Management: Use Angular Signals (signal, computed, effect) for state management (AuthSignalStore, CartSignalStore).
+
+Interactive Video Player Component (VideoPlayerComponent):
+
+Integration with Bunny Stream HLS video player / iframe embed with signed DRM tokens.
+
+Playback speed controller (0.5x - 2.0x).
+
+Dynamic Bouncing Watermark Directive / Layer: A dynamic floating overlay displaying UserEmail + Timestamp with CSS animation that moves continuously across the video screen to prevent screen recording piracy.
+
+Role Switcher System: Guard logic supporting roles: Learner, Instructor, and SuperAdmin.
+
+Course Catalog & Search Component: Modern UI with search keyword filtering, category selection, and difficulty level dropdown using Angular @if and @for control flow syntax."
+
+Step 3: Instructor Studio & Drag-and-Drop Builder Prompt
+
+"Write the Angular v22 component for the Instructor Course Builder (CourseBuilderComponent) and the .NET 10 API Controller for course management.
+Requirements:
+
+Angular Drag-and-Drop list UI (@angular/cdk/drag-drop) allowing instructors to reorder course modules and episodes easily.
+
+Toggle switches for Free Preview vs Paid Episode.
+SiriLearn — Master System Specification Document
+
+Project Name: SiriLearn — Next-Generation Enterprise E-Learning Platform
+Reference Models: SkillLane (Premium & Corporate) + FutureSkill (Modern Tech & Subscription)
+Target Stack: Angular v22, .NET 10 Web API, Redis, Bunny Stream (DRM)
+
+PART 1: Software Requirements Specification (SRS)
+
+1. System Overview (ภาพรวมของระบบ)
+
+SiriLearn เป็นแพลตฟอร์มการเรียนรู้ออนไลน์ระดับ Enterprise ที่รองรับโมเดลธุรกิจทั้งแบบ B2C (รายบุคคล) และ B2B (องค์กร) โดยมีจุดเด่นด้านระบบความปลอดภัยของวิดีโอระดับสูงสุด (DRM & Dynamic Watermark) และโมเดลการขายที่ยืดหยุ่น
+
+1.1 Core Capabilities (ระบบนี้ทำอะไรได้บ้าง?)
+
+เพื่อความเข้าใจที่ชัดเจน ระบบ SiriLearn ประกอบด้วยฟังก์ชันหลักที่ทรงพลังดังต่อไปนี้:
+
+🛒 1. ระบบร้านค้าและสมาชิก (Store & Subscription):
+
+ขายคอร์สเรียนแบบรายวิชา (A La Carte) และแบบเหมาจ่ายรายเดือน/ปี (Subscription Buffet)
+
+ระบบตะกร้าสินค้า, โปรโมชันโค้ด (Promo Code), และจัดเซ็ตคอร์ส (Course Bundle)
+
+ชำระเงินผ่าน PromptPay QR (อัตโนมัติ), บัตรเครดิต และผ่อนชำระ
+
+🛡️ 2. ระบบความปลอดภัยวิดีโอ (Anti-Piracy & DRM):
+
+บล็อกการดาวน์โหลดวิดีโอด้วย IDM/Video Grabber (DRM Encryption)
+
+มีลายน้ำ (Watermark) เป็นอีเมลผู้เรียน ลอยสุ่มไปมาบนวิดีโอเพื่อป้องกันการอัดหน้าจอ
+
+เตะอุปกรณ์ที่ล็อกอินซ้อนทันที หากล็อกอินเกินกำหนด (Active Session Lock)
+
+🎓 3. ห้องเรียนอัจฉริยะ (Interactive Classroom):
+
+เล่นวิดีโอพร้อมปรับความเร็ว (0.5x - 2.0x) และจำเวลาที่เรียนค้างไว้ (Auto-Resume)
+
+ระบบจดโน้ตผูกกับเวลาวิดีโอ (Timestamp Notes) และดาวน์โหลดเอกสารประกอบ
+
+แบบทดสอบท้ายบท (Quiz) และระบบส่งการบ้าน (Assignment) ให้ผู้สอนตรวจ
+
+กระดานถาม-ตอบ (Q&A) ประจำบทเรียน
+
+🏆 4. ระบบประเมินผลและประกาศนียบัตร (Assessment & Certification):
+
+วัดความคืบหน้า (Progress Tracking) เป็นเปอร์เซ็นต์
+
+ระบบสร้างใบประกาศนียบัตร (e-Certificate) เป็น PDF อัตโนมัติเมื่อเรียนจบ 100% พร้อม QR Code ให้สแกนตรวจสอบความถูกต้อง (Verify)
+
+🏢 5. ระบบองค์กร (B2B Corporate Portal):
+
+HR นำเข้ารายชื่อพนักงาน จัดกลุ่ม และกำหนดคอร์สบังคับเรียน (Mandatory Training)
+
+HR Dashboard ดูรายงานความคืบหน้าของพนักงานรายคน/รายแผนก และ Export เป็น Excel
+
+🎙️ 6. สตูดิโอผู้สอน (Instructor Studio):
+
+สร้างหลักสูตรด้วยการลากวาง (Drag & Drop Builder) กำหนดบทเรียนฟรี (Free Preview)
+
+หน้าจอวิเคราะห์สถิติผู้เรียน เช่น "วิดีโอนี้นักเรียนมักจะกดปิดตอนกี่นาที" (Drop-off Analytics)
+
+💰 7. ระบบจัดการหลังบ้านและการเงิน (Superadmin & Finance):
+
+คำนวณส่วนแบ่งรายได้อัตโนมัติ (เช่น แพลตฟอร์ม 30% / ผู้สอน 70%) และหน้าจอสรุปยอดโอนเงิน
+
+ระบบจัดการแบนเนอร์หน้าเว็บ (CMS) และแบนผู้ใช้งาน
+
+2. User Roles (บทบาทผู้ใช้งาน)
+
+Learner (ผู้เรียนทั่วไป): ผู้ใช้งานที่ซื้อคอร์สหรือสมัครสมาชิกแบบ Subscription
+
+Corporate Learner (ผู้เรียนองค์กร): พนักงานที่ได้รับสิทธิ์เข้าเรียนจากบริษัท
+
+Instructor (ผู้สอน/สถาบัน): ผู้สร้างเนื้อหา, อัปโหลดวิดีโอ, ดูสถิติ และรับส่วนแบ่งรายได้
+
+HR Admin (ผู้ดูแลระบบองค์กร B2B): ตัวแทนบริษัทที่จัดการสิทธิ์ มอบหมายคอร์สเรียน และดูรายงาน
+
+Superadmin (ผู้ดูแลระบบสูงสุด): เจ้าของแพลตฟอร์ม ดูแลภาพรวม การอนุมัติคอร์ส โปรโมชัน และการเงิน
+
+3. Detailed Functional Requirements (ฟังก์ชันโดยละเอียด)
+
+3.1 Learner Module (ระบบสำหรับผู้เรียน)
+
+Authentication & Profile: สมัครสมาชิกผ่าน Email, Google, Facebook, Apple ID พร้อมระบบป้องกันการล็อกอินซ้อน (Concurrent Session Limit) สูงสุด 2 อุปกรณ์
+
+Course Discovery & Learning Path:
+
+Smart Search กรองตาม หมวดหมู่, ระดับ, ผู้สอน, และราคา
+
+Learning Path / Bootcamp จัดกลุ่มคอร์สเรียนต่อเนื่องเพื่อเป้าหมายอาชีพ
+
+3.2 Instructor Studio (ระบบสำหรับผู้สอน)
+
+Course Builder (Drag & Drop): เครื่องมือจัดโครงสร้างหลักสูตร (Syllabus) จัดการ Episode, ตั้งค่า Free Preview และอัปโหลดไฟล์ประกอบ (PDF, Code)
+
+Analytics Dashboard:
+
+รายงานยอดขาย ส่วนแบ่งรายได้ และเรตติ้ง
+
+Student Engagement: กระดานถาม-ตอบ (Q&A) และระบบ Broadcast Announcement
+
+3.3 Superadmin Console (ระบบหลังบ้านส่วนกลาง)
+
+CMS & Marketing: จัดการ Hero Banner, เขียน Blog (SEO), สร้าง Promo Code, Flash Sale
+
+Financial & Payout: ระบบคำนวณส่วนแบ่งรายได้อัตโนมัติ และจัดการรอบบิลการโอนเงิน
+
+Moderation: อนุมัติคอร์สก่อน Public, จัดการข้อพิพาท และระงับผู้ใช้งาน (Ban/Reset)
+
+PART 2: Technical Specification & Technology Stack
+
+1. System Technology Stack
+
+Layer
+
+Technology Specification
+
+Key Features / Paradigms
+
+Frontend Framework
+
+Angular v22
+
+Standalone Components, Angular Signals, @if/@for Control Flow, RxJS, Tailwind CSS v4, Lucide Icons
+
+Backend Framework
+
+.NET 10 Web API
+
+C# 13/14, Clean Architecture, MediatR (CQRS Pattern), FluentValidation, Minimal APIs
+
+Video Hosting & CDN
+
+Bunny.net (Bunny Stream)
+
+Global Video CDN, HLS Streaming, Direct Upload Signature API
+
+Security & Anti-Piracy
+
+Bunny Stream DRM + Dynamic Watermark + Redis
+
+AES-128 HLS DRM Tokenization, Dynamic Floating User Info Overlay (Screen Record Prevention), Redis Active Session Lock
+
+Payment Gateway
+
+Omise / GB Prime Pay
+
+PromptPay QR Generation, Credit Card Processing
+
+2. Non-Functional Requirements (ด้านคุณภาพและเทคนิค)
+
+Anti-Piracy (ความปลอดภัยวิดีโอ): บังคับใช้ DRM Token ป้องกัน Video Grabber/IDM และมี Bouncing Watermark สุ่มลอยบนวิดีโอ
+
+Concurrent Login Prevention: ใช้ Redis ล็อก Session หากล็อกอินเกินโควต้า อุปกรณ์เก่าจะถูกเตะออกทันที
+
+Architecture & Performance: .NET Backend ต้องใช้ Clean Architecture และ CQRS
+
+PART 3: Claude Prompts for AI Code Generation
+
+หากต้องการใช้ Claude (หรือ AI ตัวอื่น) ช่วยเขียนโค้ดตามสเปคด้านบน ให้นำ Prompt ด้านล่างนี้ไปสั่งงานทีละ Step:
+
+Step 1: Initial Backend Setup Prompt (.NET 10 Web API Clean Architecture)
+
+"Act as a Lead .NET Architect. Write a complete solution structure for SiriLearn using .NET 10 Web API following Clean Architecture (Domain, Application, Infrastructure, API layers).
+Requirements:
+
+Implement domain entities and models for Users, UserSessionLocks, Courses, Episodes, Payments, and Enrollments directly using repository interfaces and domain abstractions. Do not include DB schema/MSSQL logic.
+
+Implement the Bunny Stream Service (IBunnyStreamService) that integrates with Bunny.net Video API to generate signed embed URLs and SHA256 tokenized HLS streaming URLs with user claims (UserId, Email, Timestamp) for dynamic video watermarking and DRM security.
+
+Implement the Concurrent Session Lock Middleware in ASP.NET Core that limits active sessions per account to max 2 devices using Redis / In-memory state.
+
+Use MediatR for CQRS command ProcessCheckoutCommand which calculates the 70/30 revenue split (InstructorShare70 & PlatformShare30) and creates an Enrollment record.
+
+Output clean C# code with modern C# features and OpenAPI/Swagger configuration."
+
+Step 2: Frontend Setup Prompt (Angular v22 Modern Architecture)
+
+"Act as a Senior Frontend Architect specialized in Angular v22. Write the core application code for the SiriLearn platform frontend using Standalone Components, Signals, Angular Router, and Tailwind CSS.
+Key Features to Implement:
+
+State Management: Use Angular Signals (signal, computed, effect) for state management (AuthSignalStore, CartSignalStore).
+
+Interactive Video Player Component (VideoPlayerComponent):
+
+Integration with Bunny Stream HLS video player / iframe embed with signed DRM tokens.
+
+Playback speed controller (0.5x - 2.0x).
+
+Dynamic Bouncing Watermark Directive / Layer: A dynamic floating overlay displaying UserEmail + Timestamp with CSS animation that moves continuously across the video screen to prevent screen recording piracy.
+
+Role Switcher System: Guard logic supporting roles: Learner, Instructor, and SuperAdmin.
+
+Course Catalog & Search Component: Modern UI with search keyword filtering, category selection, and difficulty level dropdown using Angular @if and @for control flow syntax."
+
+Step 3: Instructor Studio & Drag-and-Drop Builder Prompt
+
+"Write the Angular v22 component for the Instructor Course Builder (CourseBuilderComponent) and the .NET 10 API Controller for course management.
+Requirements:
+
+Angular Drag-and-Drop list UI (@angular/cdk/drag-drop) allowing instructors to reorder course modules and episodes easily.
+
+Toggle switches for Free Preview vs Paid Episode.
+
+Drop-off analytics visual chart component showing student completion percentage per episode to help instructors identify where learners drop off.
+
+.NET 10 API Endpoint POST /api/instructor/courses/reorder-episodes accepting a JSON payload with updated episode sort orders, and direct video upload signature endpoint for Bunny Stream (POST /api/instructor/videos/bunny-upload-url)."
+
+Step 4: Admin Revenue Split & Certificate Generator Prompt
+
+"Write the code for the Superadmin Console Modules in both .NET 10 and Angular v22:
+Requirements:
+
+Automated Revenue Split Dashboard: Calculate total sales per instructor, auto-calculate 70% instructor payout vs 30% platform margin, and render an Angular table with payout execution buttons.
+
+Certificate Generation Service: A .NET 10 service (ICertificateService) using SkiaSharp / QuestPDF to dynamically generate a PDF Certificate of Completion when a user achieves 100% progress.
+
+Include a PromptPay QR Code payment payload generator service for local banking integration."

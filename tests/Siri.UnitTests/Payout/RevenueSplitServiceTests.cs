@@ -14,7 +14,26 @@ public sealed class RevenueSplitServiceTests
             Task.FromResult(Splits.TryGetValue(id, out var split) ? split : null);
 
         public Task<REVENUE_SPLIT?> GetByOrderItemIdAsync(Guid orderItemId, CancellationToken cancellationToken) =>
-            Task.FromResult(Splits.Values.FirstOrDefault(s => s.ORDER_ITEM_ID == orderItemId));
+            Task.FromResult(Splits.Values.FirstOrDefault(s => s.ORDER_ITEM_ID == orderItemId && s.STATUS != RevenueSplitStatus.Reversed));
+
+        public Task<IReadOnlyList<REVENUE_SPLIT>> GetByOrderItemIdsAsync(IEnumerable<Guid> orderItemIds, CancellationToken cancellationToken)
+        {
+            var idSet = orderItemIds.ToHashSet();
+            var list = Splits.Values.Where(s => idSet.Contains(s.ORDER_ITEM_ID)).ToList();
+            return Task.FromResult<IReadOnlyList<REVENUE_SPLIT>>(list);
+        }
+
+        public Task<IReadOnlyList<REVENUE_SPLIT>> GetEligibleSplitsForPayoutAsync(DateTime holdCutOffUtc, CancellationToken cancellationToken)
+        {
+            var list = Splits.Values.Where(s => (s.STATUS == RevenueSplitStatus.Pending || s.STATUS == RevenueSplitStatus.Payable) && s.CreatedAtUtc <= holdCutOffUtc).ToList();
+            return Task.FromResult<IReadOnlyList<REVENUE_SPLIT>>(list);
+        }
+
+        public Task<IReadOnlyList<REVENUE_SPLIT>> GetSplitsByBatchItemIdAsync(Guid batchItemId, CancellationToken cancellationToken)
+        {
+            var list = Splits.Values.Where(s => s.PAYOUT_BATCH_ITEM_ID == batchItemId).ToList();
+            return Task.FromResult<IReadOnlyList<REVENUE_SPLIT>>(list);
+        }
 
         public IQueryable<REVENUE_SPLIT> Query() => Splits.Values.AsQueryable();
 
@@ -37,7 +56,7 @@ public sealed class RevenueSplitServiceTests
 
         var orderItemId = Guid.NewGuid();
         var instructorId = Guid.NewGuid();
-        var command = new CreateRevenueSplitCommand(orderItemId, instructorId, 1000m, 30m, 291m, 679m, "2026-08");
+        var command = new CreateRevenueSplitCommand(orderItemId, instructorId, 1000m, 30m, 291m, 679m, 70m, "2026-08");
 
         var result = await service.CreateAsync(command, CancellationToken.None);
 
@@ -46,6 +65,7 @@ public sealed class RevenueSplitServiceTests
         Assert.Equal(instructorId, result.Value.InstructorId);
         Assert.Equal(1000m, result.Value.GrossAmount);
         Assert.Equal(679m, result.Value.InstructorAmount);
+        Assert.Equal(70m, result.Value.RevenueSharePercent);
         Assert.Equal(RevenueSplitStatus.Pending, result.Value.Status);
     }
 
@@ -57,7 +77,7 @@ public sealed class RevenueSplitServiceTests
 
         var orderItemId = Guid.NewGuid();
         var instructorId = Guid.NewGuid();
-        var command = new CreateRevenueSplitCommand(orderItemId, instructorId, 1000m, 30m, 291m, 679m, "2026-08");
+        var command = new CreateRevenueSplitCommand(orderItemId, instructorId, 1000m, 30m, 291m, 679m, 70m, "2026-08");
 
         await service.CreateAsync(command, CancellationToken.None);
         var result2 = await service.CreateAsync(command, CancellationToken.None);
@@ -74,7 +94,7 @@ public sealed class RevenueSplitServiceTests
 
         var orderItemId = Guid.NewGuid();
         var instructorId = Guid.NewGuid();
-        var split = REVENUE_SPLIT.Create(orderItemId, instructorId, 1000m, 30m, 291m, 679m, "2026-08");
+        var split = REVENUE_SPLIT.Create(orderItemId, instructorId, 1000m, 30m, 291m, 679m, 70m, "2026-08");
         repo.Add(split);
 
         var result = await service.GetByIdAsync(split.REVENUE_SPLIT_ID, CancellationToken.None);

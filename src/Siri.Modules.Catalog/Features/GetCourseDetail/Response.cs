@@ -27,7 +27,8 @@ public sealed record CourseDetailResponse(
     CourseDetailInstructor Instructor,
     IReadOnlyList<string> Outcomes,
     IReadOnlyList<string> Requirements,
-    IReadOnlyList<CourseDetailSection> Sections);
+    IReadOnlyList<CourseDetailSection> Sections,
+    bool IsWishlisted = false);
 
 public sealed record CourseDetailInstructor(Guid Id, string DisplayName, string? Headline, string? AvatarUrl);
 

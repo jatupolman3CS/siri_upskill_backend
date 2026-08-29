@@ -94,7 +94,11 @@ public sealed class ORDER : IAuditable
     public void MarkPaid(IClock clock)
     {
         ArgumentNullException.ThrowIfNull(clock);
-        if (STATUS != OrderStatus.AwaitingPayment) throw new InvalidOperationException($"Cannot mark an order in {STATUS} status as paid.");
+        if (STATUS is not (OrderStatus.AwaitingPayment or OrderStatus.Cancelled or OrderStatus.Pending))
+        {
+            throw new InvalidOperationException($"Cannot mark an order in {STATUS} status as paid.");
+        }
+
         STATUS = OrderStatus.Paid;
         PAID_AT_UTC = clock.UtcNow;
     }

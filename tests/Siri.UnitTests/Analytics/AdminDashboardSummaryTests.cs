@@ -39,10 +39,14 @@ public sealed class AdminDashboardSummaryTests
 
         public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken)
         {
-            var dict = courseIds.ToDictionary(id => id, id => $"Course {id}");
+            var dict = courseIds.ToDictionary(id => id, id => $"COURSE {id}");
             return Task.FromResult<IReadOnlyDictionary<Guid, string>>(dict);
         }
+
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
     }
+
 
     private sealed class FakeCommerceStatsContract : ICommerceStatsContract
     {

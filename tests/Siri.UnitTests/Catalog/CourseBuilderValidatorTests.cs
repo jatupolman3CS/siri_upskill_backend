@@ -103,7 +103,7 @@ public class CourseBuilderValidatorTests
     public void AutosaveCourseValidator_MissingRowVersion_HasValidationError()
     {
         var command = new AutosaveCourseCommand(
-            "Course Title", null, null, Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai,
+            "COURSE Title", null, null, Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai,
             null, 990m, null, null, null, null, null, null, null, []);
 
         var result = _autosaveValidator.TestValidate(command);
@@ -118,7 +118,7 @@ public class CourseBuilderValidatorTests
             .ToList();
 
         var command = new AutosaveCourseCommand(
-            "Course Title", null, null, Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai,
+            "COURSE Title", null, null, Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai,
             null, 990m, null, null, null, null, null, null, sections, [0x01]);
 
         var result = _autosaveValidator.TestValidate(command);
@@ -138,7 +138,7 @@ public class CourseBuilderValidatorTests
         };
 
         var command = new AutosaveCourseCommand(
-            "Course Title", null, null, Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai,
+            "COURSE Title", null, null, Guid.NewGuid(), CourseLevel.Beginner, CourseLanguage.Thai,
             null, 990m, null, null, null, null, null, null, sections, [0x01]);
 
         var result = _autosaveValidator.TestValidate(command);
@@ -149,7 +149,7 @@ public class CourseBuilderValidatorTests
     public void AutosaveCourseValidator_ValidCommand_PassesValidation()
     {
         var command = new AutosaveCourseCommand(
-            "Course Title",
+            "COURSE Title",
             "Subtitle",
             "Description",
             Guid.NewGuid(),

@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 
 namespace Siri.Modules.Identity.Infrastructure;
@@ -6,7 +6,7 @@ namespace Siri.Modules.Identity.Infrastructure;
 /// <summary>
 /// <see cref="ISecurityTokenGenerator"/> implementation: <see cref="RandomNumberGenerator"/> for the
 /// raw value (a real CSPRNG, not <see cref="Random"/> — that is the whole reason this token's hash
-/// can safely use a fast, unsalted algorithm, see <c>Domain/UserSecurityToken.cs</c>'s doc comment)
+/// can safely use a fast, unsalted algorithm, see <c>Domain/USER_SECURITY_TOKEN.cs</c>'s doc comment)
 /// and SHA-256 for the hash stored at rest. Stateless (no fields), so safe to register as a
 /// singleton — same lifetime story as <see cref="UserPasswordHasher"/>.
 /// </summary>

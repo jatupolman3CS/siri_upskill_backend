@@ -1,7 +1,7 @@
-namespace Siri.Modules.Identity.Domain;
+﻿namespace Siri.Modules.Identity.Domain;
 
 /// <summary>
-/// What a <see cref="UserSecurityToken"/> is for. Stored as a string in the database (see
+/// What a <see cref="USER_SECURITY_TOKEN"/> is for. Stored as a string in the database (see
 /// <c>Infrastructure/UserSecurityTokenConfiguration.cs</c>), following the same
 /// <c>HasConversion&lt;string&gt;()</c> convention <see cref="UserStatus"/> established as the first
 /// enum in the codebase.
@@ -16,7 +16,7 @@ public enum UserSecurityTokenPurpose
     /// expiry — docs/TASKS.md's P0-21 acceptance criterion — much shorter than
     /// <see cref="EmailConfirmation"/>'s 24 hours, since a reset link is the higher-stakes of the two)
     /// and redeemed by <c>Features/ResetPassword/Handler.cs</c>, which also revokes every active
-    /// <see cref="UserSession"/>/<see cref="RefreshToken"/> for the account on success — same
+    /// <see cref="USER_SESSION"/>/<see cref="REFRESH_TOKEN"/> for the account on success — same
     /// one-time-use/hash-only-at-rest mechanism <see cref="EmailConfirmation"/> already established, no
     /// second token scheme was built for this.
     /// </summary>

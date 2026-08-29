@@ -13,13 +13,13 @@ public sealed class IdentityStatsContract(AppDbContext dbContext) : IIdentitySta
 
         var totalLearners = await dbContext.Users()
             .AsNoTracking()
-            .Where(u => u.Roles.Any(r => r.Name == "Learner") && u.Status == UserStatus.Active)
+            .Where(u => u.Roles.Any(r => r.Name == Siri.SharedKernel.RoleNames.Learner) && u.Status == UserStatus.Active)
             .CountAsync(cancellationToken)
             .ConfigureAwait(false);
 
         var todayNewLearners = await dbContext.Users()
             .AsNoTracking()
-            .Where(u => u.Roles.Any(r => r.Name == "Learner") && u.CreatedAtUtc >= todayStart)
+            .Where(u => u.Roles.Any(r => r.Name == Siri.SharedKernel.RoleNames.Learner) && u.CreatedAtUtc >= todayStart)
             .CountAsync(cancellationToken)
             .ConfigureAwait(false);
 

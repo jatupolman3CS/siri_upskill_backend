@@ -37,7 +37,7 @@ public sealed class GetCoursesSitemapPageHandler(AppDbContext dbContext, IOption
             .OrderBy(c => c.Id) // stable order across pages, same reasoning any keyset-style pagination needs
             .Skip((effectivePage - 1) * PageSize)
             .Take(PageSize)
-            // PublishedAtUtc is guaranteed set here — Course.Publish always sets it, and this query is
+            // PublishedAtUtc is guaranteed set here — COURSE.Publish always sets it, and this query is
             // already filtered to Status == Published.
             .Select(c => new { c.Slug, PublishedAtUtc = c.PublishedAtUtc!.Value })
             .ToListAsync(cancellationToken)

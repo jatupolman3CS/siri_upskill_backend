@@ -18,4 +18,12 @@ public sealed class PaymentRepository(AppDbContext dbContext) : IPaymentReposito
         dbContext.Payments().Add(payment);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyList<PAYMENT>> GetPendingByOrderIdAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        return await dbContext.Payments()
+            .Where(p => p.ORDER_ID == orderId && (p.STATUS == PaymentStatus.Pending || p.STATUS == PaymentStatus.Processing))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
 }

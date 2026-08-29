@@ -132,15 +132,15 @@ public sealed class CourseReadModelTests : IAsyncLifetime
 
     // ---- Fixture setup (direct-domain, not HTTP — see other Catalog test files' own doc comments) ----
 
-    private static async Task<User> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email)
+    private static async Task<USER> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email)
     {
         var passwordHasher = services.GetRequiredService<IUserPasswordHasher>();
         var clock = services.GetRequiredService<IClock>();
 
         var normalizedEmail = email.ToUpperInvariant();
-        var throwaway = User.Register(email, normalizedEmail, "placeholder", "Test User");
+        var throwaway = USER.Register(email, normalizedEmail, "placeholder", "Test USER");
         var hash = passwordHasher.HashPassword(throwaway, KnownPassword);
-        var user = User.Register(email, normalizedEmail, hash, "Test User");
+        var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
 
         dbContext.Users().Add(user);
@@ -158,10 +158,10 @@ public sealed class CourseReadModelTests : IAsyncLifetime
         return result.Value.AccessToken;
     }
 
-    private static async Task<InstructorProfile> CreateApprovedInstructorAsync(IServiceProvider services, AppDbContext dbContext)
+    private static async Task<INSTRUCTOR_PROFILE> CreateApprovedInstructorAsync(IServiceProvider services, AppDbContext dbContext)
     {
         var clock = services.GetRequiredService<IClock>();
-        var profile = InstructorProfile.Apply(Guid.NewGuid(), "Test Instructor", "Test Headline", "Test Bio");
+        var profile = INSTRUCTOR_PROFILE.Apply(Guid.NewGuid(), "Test Instructor", "Test Headline", "Test Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
         await dbContext.SaveChangesAsync();
@@ -172,24 +172,24 @@ public sealed class CourseReadModelTests : IAsyncLifetime
     {
         var email = $"admin-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email);
-        user.AssignRole(new Role(Role.AdminId, Role.AdminName));
+        user.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
         await dbContext.SaveChangesAsync();
         return await LoginAndGetAccessTokenAsync(services, email);
     }
 
-    private static async Task<Category> CreateCategoryAsync(AppDbContext dbContext)
+    private static async Task<CATEGORY> CreateCategoryAsync(AppDbContext dbContext)
     {
-        var category = Category.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test Category", null, null, 0);
+        var category = CATEGORY.Create($"category-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test CATEGORY", null, null, 0);
         dbContext.Categories().Add(category);
         await dbContext.SaveChangesAsync();
         return category;
     }
 
-    private static async Task<Course> CreatePublishedCourseAsync(
+    private static async Task<COURSE> CreatePublishedCourseAsync(
         IServiceProvider services, AppDbContext dbContext, Guid instructorId, Guid categoryId, string title)
     {
         var clock = services.GetRequiredService<IClock>();
-        var course = Course.Create($"course-{Guid.NewGuid():N}", title, instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var course = COURSE.Create($"course-{Guid.NewGuid():N}", title, instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var section = course.AddSection("Section 1");
         section.AddEpisode("Free Intro", null, isFreePreview: true).AttachMedia(Guid.NewGuid(), 300);
         section.AddEpisode("Deep Dive", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 900);
@@ -204,10 +204,10 @@ public sealed class CourseReadModelTests : IAsyncLifetime
 
     /// <summary>Builds a course, submits it for review, but stops short of publishing — used by the
     /// cache-invalidation test, which needs to approve it itself mid-test.</summary>
-    private static async Task<Course> CreateInReviewCourseAsync(
+    private static async Task<COURSE> CreateInReviewCourseAsync(
         IServiceProvider services, AppDbContext dbContext, Guid instructorId, Guid categoryId, string title)
     {
-        var course = Course.Create($"course-{Guid.NewGuid():N}", title, instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var course = COURSE.Create($"course-{Guid.NewGuid():N}", title, instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
         course.SubmitForReview();
@@ -233,7 +233,7 @@ public sealed class CourseReadModelTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var instructor = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Detail Test Course");
+        var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Detail Test COURSE");
 
         using var response = await _client.GetAsync($"/api/catalog/courses/{course.Slug}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -256,7 +256,7 @@ public sealed class CourseReadModelTests : IAsyncLifetime
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var instructor = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var draft = Course.Create($"course-{Guid.NewGuid():N}", "Draft Course", instructor.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var draft = COURSE.Create($"course-{Guid.NewGuid():N}", "Draft COURSE", instructor.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         dbContext.Courses().Add(draft);
         await dbContext.SaveChangesAsync();
 
@@ -283,7 +283,7 @@ public sealed class CourseReadModelTests : IAsyncLifetime
         var instructor = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
         var adminToken = await CreateAdminAndLoginAsync(scope.ServiceProvider, dbContext);
         var category = await CreateCategoryAsync(dbContext);
-        var course = await CreateInReviewCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Cache Invalidation Course");
+        var course = await CreateInReviewCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Cache Invalidation COURSE");
         var query = $"/api/catalog/courses/search?categoryId={category.Id}";
 
         var beforeApproveResponse = await _client.GetFromJsonAsync<SearchCoursesResponse>(query, JsonOptions);

@@ -13,6 +13,24 @@ public sealed class InstructorPayoutAccountRepository(AppDbContext dbContext) : 
     public Task<INSTRUCTOR_PAYOUT_ACCOUNT?> GetByInstructorIdAsync(Guid instructorId, CancellationToken cancellationToken) =>
         dbContext.InstructorPayoutAccounts().FirstOrDefaultAsync(a => a.INSTRUCTOR_ID == instructorId, cancellationToken);
 
+    public async Task<IReadOnlyDictionary<Guid, INSTRUCTOR_PAYOUT_ACCOUNT>> GetVerifiedAccountsAsync(
+        IEnumerable<Guid> instructorIds,
+        CancellationToken cancellationToken)
+    {
+        var idList = instructorIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return new Dictionary<Guid, INSTRUCTOR_PAYOUT_ACCOUNT>();
+        }
+
+        var accounts = await dbContext.InstructorPayoutAccounts()
+            .Where(a => idList.Contains(a.INSTRUCTOR_ID) && a.VERIFIED_AT_UTC != null)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return accounts.ToDictionary(a => a.INSTRUCTOR_ID);
+    }
+
     public IQueryable<INSTRUCTOR_PAYOUT_ACCOUNT> Query() => dbContext.InstructorPayoutAccounts().AsNoTracking();
 
     public void Add(INSTRUCTOR_PAYOUT_ACCOUNT account) => dbContext.InstructorPayoutAccounts().Add(account);

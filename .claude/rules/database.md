@@ -20,18 +20,16 @@
 - Enum เก็บเป็น `string` (อ่าน DB รู้เรื่อง + ไม่พังเมื่อเรียงลำดับ enum ใหม่) หรือ smallint พร้อม lookup table — เลือกอย่างใดอย่างหนึ่งแล้วทำเหมือนกันทั้งระบบ
 - Configuration แยกไฟล์ `IEntityTypeConfiguration<T>` ต่อ entity ห้ามใช้ data annotation ปนกับ fluent API
 
-## ชื่อ entity/DB แบบ UPPERCASE (ข้อยกเว้นเฉพาะ 7 โมดูลใหม่)
+## ชื่อ entity/DB แบบ UPPERCASE (ทุกโมดูล)
 
-ตัดสินใจ 2026-08-20 (`docs/DECISIONS.md` D-17) — ใช้กับ **Commerce, Media, Learning, Payout, Cms, Community, Analytics เท่านั้น**. Identity/Catalog/Notification/SharedKernel/Persistence ยังเป็น PascalCase ปกติทั้งหมด ห้ามแก้ย้อนหลัง
+อัปเดต 2026-08-29 — ทุก schema (`CATALOG`, `IDENTITY`, `NOTIFY`, `CMS`, `COMMUNITY`, `COMMERCE`, `LEARNING`, `MEDIA`, `PAYOUT`, `ANALYTICS`), ชื่อ table, column, index และ foreign key constraint เป็น **UPPERCASE / UPPER_SNAKE_CASE ทั้งหมด และห้ามมีจุด (`.`)**:
 
-- DB schema/table name: UPPERCASE, table เป็นพหูพจน์เสมอ (กัน T-SQL reserved word เช่น `ORDER`/`USER`/`GROUP` — ใช้ `ORDERS`/`USERS`/`GROUPS` แทน) เช่น schema `COMMERCE`, table `ORDERS`
-- DB column name: `UPPER_SNAKE_CASE` เช่น `ORDER_ID`, `TOTAL_AMOUNT`
-- C# entity class: UPPERCASE เอกพจน์ (`ORDER`), property: `UPPER_SNAKE_CASE` 1:1 กับ column — แปลงด้วยกฎกลไก `Regex.Replace(name, "(?<=[a-z0-9])(?=[A-Z])", "_").ToUpperInvariant()` (เช่น `SubtotalAmount`→`SUBTOTAL_AMOUNT`) ยกเว้น PK ที่เป็นแค่ `Id` เปล่า ๆ ให้ใส่ชื่อ entity นำหน้าเอง (`ORDER_ID` ไม่ใช่ `ID`)
-- **ข้อยกเว้นบังคับ ห้ามลืม**: property ที่มาจาก `IAuditable`/`ISoftDelete` (`CreatedAtUtc`/`CreatedBy`/`UpdatedAtUtc`/`UpdatedBy`/`IsDeleted`/`DeletedAtUtc`) **ต้องเป็น PascalCase ปกติใน C# เสมอ แม้ entity ที่เหลือจะเป็น UPPERCASE** — เปลี่ยนชื่อแล้วพัง: `AuditableEntityInterceptor` เขียนค่าผ่าน `entry.Property(nameof(IAuditable.CreatedAtUtc)).CurrentValue = ...` ซึ่งเป็นการค้นหาด้วยชื่อ C# property ตรง ๆ (ไม่ใช่ชื่อ column) ถ้าเปลี่ยนชื่อ property จะ throw `InvalidOperationException` ตอน `SaveChangesAsync` ครั้งแรกที่มี entity ติด track — **runtime, ไม่ใช่ compile time หรือ migration time** ส่วน column ของมันยังตั้งเป็น UPPERCASE ได้ปกติผ่าน `.HasColumnName(...)` ตรง ๆ
-- Enum **type และ member เป็น PascalCase ปกติ** เหมือนเดิมทุกที่ — uppercase เฉพาะ **property ที่ถือ enum** เท่านั้น (เช่น `public OrderStatus STATUS { get; }`) เพราะ enum member โผล่ตรงใน JSON response ผ่าน `JsonStringEnumConverter()` อยู่แล้ว ไม่ควรเปลี่ยนโดยไม่มีเหตุผลเรื่อง contract
-- Repository/Service class name, method name, DTO/Request/Response record, namespace, interface: **ไม่แตะ** ยังเป็น PascalCase/camelCase มาตรฐานทั้งหมด (เช่น `IOrderRepository` ไม่ใช่ `IORDERRepository`) — UPPERCASE จำกัดเฉพาะ entity class ที่ map ตรงกับ table เท่านั้น
-- Navigation property ระหว่าง UPPERCASE entity ต้องระบุ `.HasForeignKey()`/`.WithMany(nav)` ชัดเจนเสมอ ห้ามพึ่ง convention discovery (เคยเจอ shadow FK จริงมาแล้วครั้งหนึ่งกับ `Course.Sections` ตอน PascalCase ปกติ — underscore ยิ่งทำให้ convention เดามั่วมากกว่าเดิม)
-- ไม่ต้องแก้ `.editorconfig`/analyzer เพื่อให้ build ผ่าน (repo นี้ไม่ได้เปิด `CA1707`/`IDE1006` อยู่แล้ว) แต่ห้ามประกาศ stub method (`throw new NotImplementedException();` อย่างเดียว) เป็น `async` — ไม่มี `await` จริงจะโดน `CS1998` ซึ่งเป็น warning จริงและ build ตั้ง `TreatWarningsAsErrors=true`
+- DB schema/table name: UPPERCASE, table เป็นพหูพจน์เสมอ (กัน T-SQL reserved word เช่น `ORDER`/`USER`/`GROUP` — ใช้ `ORDERS`/`USERS`/`GROUPS` แทน) เช่น schema `CATALOG`, table `COURSES`, schema `IDENTITY`, table `USERS`
+- DB column name: `UPPER_SNAKE_CASE` เช่น `COURSE_ID`, `USER_ID`, `TOTAL_AMOUNT`
+- EF Core ModelBuilder convention (`ApplyUppercaseNamingConventions`) บังคับใช้ชื่อ UPPERCASE และแปลงจุดเป็น underscore โดยอัตโนมัติ
+- **ข้อยกเว้นบังคับ ห้ามลืม**: property ที่มาจาก `IAuditable`/`ISoftDelete` (`CreatedAtUtc`/`CreatedBy`/`UpdatedAtUtc`/`UpdatedBy`/`IsDeleted`/`DeletedAtUtc`) **ต้องเป็น PascalCase ปกติใน C# เสมอ แม้ entity ที่เหลือจะเป็น UPPERCASE** — `AuditableEntityInterceptor` เขียนค่าผ่าน `entry.Property(nameof(IAuditable.CreatedAtUtc)).CurrentValue = ...` ซึ่งเป็นการค้นหาด้วยชื่อ C# property ตรง ๆ ส่วน column ใน Database จะเป็น `CREATED_AT_UTC`, `IS_DELETED` เสมอ
+- Enum **type และ member เป็น PascalCase ปกติ** เหมือนเดิมทุกที่
+- Repository/Service class name, method name, DTO/Request/Response record, namespace, interface: เป็น PascalCase/camelCase มาตรฐานทั้งหมด (เช่น `ICourseRepository`, `IUserRepository`)
 
 ## Query
 

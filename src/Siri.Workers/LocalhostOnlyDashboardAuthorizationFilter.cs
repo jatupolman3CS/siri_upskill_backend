@@ -51,8 +51,8 @@ namespace Siri.Workers;
 /// </summary>
 public sealed class LocalhostOnlyDashboardAuthorizationFilter : IDashboardAuthorizationFilter
 {
-    private const string AdminRoleName = "Admin"; // must match Siri.Modules.Identity.Domain.Role.AdminName
-    private const string SuperAdminRoleName = "SuperAdmin"; // must match Role.SuperAdminName
+    private const string AdminRoleName = Siri.SharedKernel.RoleNames.Admin;
+    private const string SuperAdminRoleName = Siri.SharedKernel.RoleNames.SuperAdmin;
 
     public bool Authorize(DashboardContext context)
     {

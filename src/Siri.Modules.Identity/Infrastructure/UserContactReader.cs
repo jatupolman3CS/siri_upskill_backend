@@ -29,4 +29,22 @@ public sealed class UserContactReader(AppDbContext dbContext) : IUserContactRead
 
         return row is not null ? (row.Email, row.DisplayName) : (null, null);
     }
+
+    public async Task<IReadOnlyDictionary<Guid, (string Email, string DisplayName)>> GetUsersContactInfoAsync(IEnumerable<Guid> userIds, CancellationToken cancellationToken)
+    {
+        var idList = userIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return new Dictionary<Guid, (string Email, string DisplayName)>();
+        }
+
+        var users = await dbContext.Users()
+            .AsNoTracking()
+            .Where(u => idList.Contains(u.Id))
+            .Select(u => new { u.Id, u.Email, u.DisplayName })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return users.ToDictionary(u => u.Id, u => (u.Email, u.DisplayName));
+    }
 }

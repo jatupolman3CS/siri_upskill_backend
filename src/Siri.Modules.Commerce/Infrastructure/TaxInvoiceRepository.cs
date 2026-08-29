@@ -10,6 +10,9 @@ public sealed class TaxInvoiceRepository(AppDbContext dbContext) : ITaxInvoiceRe
     public Task<TAX_INVOICE?> GetByIdAsync(Guid taxInvoiceId, CancellationToken cancellationToken) =>
         dbContext.TaxInvoices().FirstOrDefaultAsync(t => t.TAX_INVOICE_ID == taxInvoiceId, cancellationToken);
 
+    public Task<TAX_INVOICE?> GetByOrderIdAsync(Guid orderId, CancellationToken cancellationToken) =>
+        dbContext.TaxInvoices().FirstOrDefaultAsync(t => t.ORDER_ID == orderId, cancellationToken);
+
     public async Task AddAsync(TAX_INVOICE taxInvoice, CancellationToken cancellationToken)
     {
         dbContext.TaxInvoices().Add(taxInvoice);

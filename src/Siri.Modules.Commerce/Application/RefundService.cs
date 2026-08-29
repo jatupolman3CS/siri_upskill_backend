@@ -1,4 +1,5 @@
 using Siri.Modules.Commerce.Domain;
+using Siri.Modules.Payout.Contracts;
 using Siri.SharedKernel;
 
 namespace Siri.Modules.Commerce.Application;
@@ -13,7 +14,8 @@ public sealed class RefundService(
     IPaymentRepository paymentRepository,
     IOrderRepository orderRepository,
     IPromoCodeRepository promoCodeRepository,
-    IClock clock)
+    IClock clock,
+    IRevenueSplitContract? revenueSplitContract = null)
 {
     public async Task<Result<RefundResponse>> RequestAsync(Guid userId, RequestRefundCommand command, CancellationToken cancellationToken)
     {
@@ -88,9 +90,18 @@ public sealed class RefundService(
             if (payment is not null)
             {
                 var order = await orderRepository.GetByIdAsync(payment.ORDER_ID, cancellationToken).ConfigureAwait(false);
-                if (order is not null && order.PROMO_CODE_ID.HasValue)
+                if (order is not null)
                 {
-                    await promoCodeRepository.RevertRedemptionAsync(order.PROMO_CODE_ID.Value, order.ORDER_ID, cancellationToken).ConfigureAwait(false);
+                    if (order.PROMO_CODE_ID.HasValue)
+                    {
+                        await promoCodeRepository.RevertRedemptionAsync(order.PROMO_CODE_ID.Value, order.ORDER_ID, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    if (revenueSplitContract is not null)
+                    {
+                        var orderItemIds = order.ORDER_ITEMS.Select(i => i.ORDER_ITEM_ID).ToList();
+                        await revenueSplitContract.ReverseRevenueSplitsForOrderAsync(order.ORDER_ID, orderItemIds, cancellationToken).ConfigureAwait(false);
+                    }
                 }
             }
         }

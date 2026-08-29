@@ -11,6 +11,12 @@ public sealed class AssignmentSubmissionRepository(AppDbContext dbContext) : IAs
     public Task<ASSIGNMENT_SUBMISSION?> GetByIdAsync(Guid submissionId, CancellationToken cancellationToken) =>
         dbContext.AssignmentSubmissions().FirstOrDefaultAsync(s => s.ASSIGNMENT_SUBMISSION_ID == submissionId, cancellationToken);
 
+    public Task<ASSIGNMENT_SUBMISSION?> GetLatestByEnrollmentAndAssignmentAsync(Guid enrollmentId, Guid assignmentId, CancellationToken cancellationToken) =>
+        dbContext.AssignmentSubmissions()
+            .Where(s => s.ENROLLMENT_ID == enrollmentId && s.ASSIGNMENT_ID == assignmentId)
+            .OrderByDescending(s => s.SUBMITTED_AT_UTC)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<PagedResult<ASSIGNMENT_SUBMISSION>> ListByAssignmentAsync(Guid assignmentId, int page, int pageSize, CancellationToken cancellationToken)
     {
         var query = dbContext.AssignmentSubmissions().Where(s => s.ASSIGNMENT_ID == assignmentId);
