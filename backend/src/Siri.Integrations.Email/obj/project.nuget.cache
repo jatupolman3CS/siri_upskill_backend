@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "dgSpecHash": "6bGVYd8hKus=",
+  "success": true,
+  "projectFilePath": "c:\\ProjectSiriUpSkill\\siri_upskill_backend\\.git-rewrite\\t\\backend\\src\\Siri.Integrations.Email\\Siri.Integrations.Email.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\jatup\\.nuget\\packages\\bouncycastle.cryptography\\2.6.2\\bouncycastle.cryptography.2.6.2.nupkg.sha512",
+    "C:\\Users\\jatup\\.nuget\\packages\\mailkit\\4.17.0\\mailkit.4.17.0.nupkg.sha512",
+    "C:\\Users\\jatup\\.nuget\\packages\\mimekit\\4.17.0\\mimekit.4.17.0.nupkg.sha512",
+    "C:\\Users\\jatup\\.nuget\\packages\\system.security.cryptography.pkcs\\10.0.0\\system.security.cryptography.pkcs.10.0.0.nupkg.sha512"
+  ],
+  "logs": []
+}

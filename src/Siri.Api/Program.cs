@@ -1,4 +1,3 @@
-using DotNetEnv;
 using System.Text;
 using System.Text.Json.Serialization;
 using Hangfire;
@@ -34,31 +33,79 @@ using Siri.Persistence.DependencyInjection;
 using Siri.SharedKernel;
 using Siri.Workers;
 
-// Load .env by traversing parent directories from AppContext.BaseDirectory and CurrentDirectory.
-// The file is gitignored — it never ships to production. On production servers, real environment
-// variables are injected by the host (Docker / systemd / cloud PaaS) and Env.Load() is a no-op
-// when the file is absent.
-// Key convention: nested config sections use __ as the separator
-//   (e.g.  VideoProvider__ApiKey  →  VideoProvider:ApiKey in IConfiguration)
-LoadDotEnv();
-
-static void LoadDotEnv()
+// Load `.env` / `.env_prd` into the process environment before the host boots. This keeps the
+// configuration flow in the standard ASP.NET Core pattern: appsettings + real environment variables
+// + command-line arguments remain the source of truth, and local developer secret files act as a
+// default fallback rather than a hard override.
+static void ApplyDotEnvValues()
 {
+    var candidates = new[]
+    {
+        ".env",
+        ".env_prd",
+        ".env.production",
+        ".env.local",
+    };
+
     var searchDirs = new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() };
+
     foreach (var baseDir in searchDirs)
     {
         var dir = new DirectoryInfo(baseDir);
         while (dir != null)
         {
-            var candidate = Path.Combine(dir.FullName, ".env");
-            if (File.Exists(candidate))
+            foreach (var fileName in candidates)
             {
-                Env.Load(candidate, new LoadOptions(clobberExistingVars: true));
-                return;
+                var candidate = Path.Combine(dir.FullName, fileName);
+                if (File.Exists(candidate))
+                {
+                    foreach (var entry in ParseDotEnvFile(candidate))
+                    {
+                        if (Environment.GetEnvironmentVariable(entry.Key) is null)
+                        {
+                            Environment.SetEnvironmentVariable(entry.Key, entry.Value);
+                        }
+                    }
+
+                    return;
+                }
             }
+
             dir = dir.Parent;
         }
     }
+}
+
+static Dictionary<string, string?> ParseDotEnvFile(string filePath)
+{
+    var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
+    foreach (var rawLine in File.ReadAllLines(filePath))
+    {
+        var line = rawLine.Trim();
+        if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+        {
+            continue;
+        }
+
+        var separatorIndex = line.IndexOf('=');
+        if (separatorIndex <= 0)
+        {
+            continue;
+        }
+
+        var key = line[..separatorIndex].Trim();
+        var value = line[(separatorIndex + 1)..].Trim();
+
+        if (value.Length >= 2 && value.StartsWith('"') && value.EndsWith('"'))
+        {
+            value = value[1..^1];
+        }
+
+        values[key] = value;
+    }
+
+    return values;
 }
 
 // Bootstrap logger: catches anything that goes wrong before the host's own Serilog pipeline
@@ -71,6 +118,8 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
+    ApplyDotEnvValues();
+
     var builder = WebApplication.CreateBuilder(args);
 
     // P0-13 observability: read the section directly here (same reasoning as JwtOptions below —
