@@ -32,6 +32,17 @@
     <PackageReference Include="Serilog.Sinks.OpenTelemetry" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Prevent duplicate publish output files when this worker is referenced by the API project.
+         The API already publishes its own appsettings.* files; the worker is a dependency for the
+         Hangfire filter and jobs, not a runtime host container payload. -->
+    <Content Remove="appsettings*.json" />
+    <None Include="appsettings*.json">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
