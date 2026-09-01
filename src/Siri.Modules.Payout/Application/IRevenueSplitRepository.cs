@@ -23,6 +23,26 @@ public interface IRevenueSplitRepository
     /// <summary>Tracked lookup of splits linked to a specific payout batch item.</summary>
     Task<IReadOnlyList<REVENUE_SPLIT>> GetSplitsByBatchItemIdAsync(Guid batchItemId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Batched form of <see cref="GetSplitsByBatchItemIdAsync"/> — tracked lookup of every split linked to
+    /// any of <paramref name="batchItemIds"/> in one query, consumed by
+    /// <c>PayoutBatchService.ExecuteBatchAsync</c> to mark all of a batch's splits Paid without looping
+    /// the single-item lookup once per <c>PAYOUT_BATCH_ITEM</c>. Default implementation loops
+    /// <see cref="GetSplitsByBatchItemIdAsync"/> (functionally correct, not batched) so existing test
+    /// doubles for this interface keep compiling/behaving correctly without changes — only
+    /// <c>Infrastructure.RevenueSplitRepository</c> overrides this with a real single-query implementation.
+    /// </summary>
+    async Task<IReadOnlyList<REVENUE_SPLIT>> GetSplitsByBatchItemIdsAsync(IReadOnlyCollection<Guid> batchItemIds, CancellationToken cancellationToken)
+    {
+        var results = new List<REVENUE_SPLIT>();
+        foreach (var batchItemId in batchItemIds)
+        {
+            results.AddRange(await GetSplitsByBatchItemIdAsync(batchItemId, cancellationToken).ConfigureAwait(false));
+        }
+
+        return results;
+    }
+
     /// <summary>Untracked (<c>AsNoTracking</c>) query source for read scenarios.</summary>
     IQueryable<REVENUE_SPLIT> Query();
 

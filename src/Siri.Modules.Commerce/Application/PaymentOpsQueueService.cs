@@ -249,15 +249,22 @@ public sealed class PaymentOpsQueueService
 
                 var coursePrices = await _catalogPriceContract.GetPublishedCoursePricesAsync(courseIds, cancellationToken).ConfigureAwait(false);
 
-                foreach (var courseId in courseIds)
-                {
-                    DateTime? expiresAtUtc = coursePrices.TryGetValue(courseId, out var enrolledCourseInfo) && enrolledCourseInfo.AccessDurationDays is { } days
-                        ? _clock.UtcNow.AddDays(days)
-                        : null;
+                // One batched call (one query to load existing enrollments for this course set, one
+                // SaveChangesAsync) instead of looping EnrollUserAsync per course — same fix already
+                // applied to StripeWebhookHandler.HandlePaymentIntentSucceededAsync and
+                // OrderService.CreateAsync's 100%-discount enroll path.
+                var enrollmentGrants = courseIds
+                    .Select(courseId =>
+                    {
+                        DateTime? expiresAtUtc = coursePrices.TryGetValue(courseId, out var enrolledCourseInfo) && enrolledCourseInfo.AccessDurationDays is { } days
+                            ? _clock.UtcNow.AddDays(days)
+                            : null;
+                        return new CourseEnrollmentGrant(courseId, order.ORDER_ID, expiresAtUtc);
+                    })
+                    .ToList();
 
-                    await _learningAccessContract.EnrollUserAsync(
-                        order.USER_ID, courseId, order.ORDER_ID, "OpsResolution", expiresAtUtc, cancellationToken).ConfigureAwait(false);
-                }
+                await _learningAccessContract.EnrollUserInCoursesAsync(
+                    order.USER_ID, "OpsResolution", enrollmentGrants, cancellationToken).ConfigureAwait(false);
 
                 if (request.Action == PaymentOpsResolutionAction.ReopenAndFulfillOrder && _revenueSplitContract is not null)
                 {

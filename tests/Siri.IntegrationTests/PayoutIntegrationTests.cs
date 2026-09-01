@@ -29,6 +29,7 @@ using Siri.Modules.Payout.Application;
 using Siri.Modules.Payout.Domain;
 using Siri.Modules.Payout.Infrastructure;
 using Siri.Persistence;
+using Siri.Persistence.Conventions;
 using Siri.Persistence.DependencyInjection;
 using Siri.SharedKernel;
 
@@ -269,5 +270,95 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
         var batchResult = await batchService.CreateAsync(batchCmd, CancellationToken.None);
         Assert.True(batchResult.IsSuccess);
         Assert.NotNull(batchResult.Value);
+    }
+
+    /// <summary>
+    /// Covers the N+1 fix on <see cref="PayoutBatchService.CreateAsync"/>'s split-linking loop (used to
+    /// re-fetch each split individually via <c>GetByIdAsync</c> and set <c>PAYOUT_BATCH_ITEM_ID</c> via
+    /// reflection) and <see cref="PayoutBatchService.ExecuteBatchAsync"/>'s mark-paid loop (used to call
+    /// <c>GetSplitsByBatchItemIdAsync</c> once per batch item) — against a real SQL Server database via
+    /// Testcontainers, not the in-memory fakes the unit tests use, since both fixes depend on EF Core's
+    /// real change-tracking/identity-map behavior (a Fake repository can't prove a tracked-entity
+    /// assumption is actually correct against a real <c>DbContext</c>). Two distinct instructors/batch
+    /// items exercise the batched-lookup grouping in <c>ExecuteBatchAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task PayoutBatch_CreateThenExecute_LinksAndPaysSplitsAcrossMultipleBatchItems()
+    {
+        await using var scope = _app.Services.CreateAsyncScope();
+        var splitService = scope.ServiceProvider.GetRequiredService<RevenueSplitService>();
+        var payoutAccountService = scope.ServiceProvider.GetRequiredService<InstructorPayoutAccountService>();
+        var batchService = scope.ServiceProvider.GetRequiredService<PayoutBatchService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+
+        // Second instructor, independent of the one seeded in InitializeAsync, so this batch aggregates
+        // into two distinct PAYOUT_BATCH_ITEM rows.
+        var secondInstructor = await CreateUserAsync(_app.Services, db, $"instructor_payout2_{Guid.NewGuid():N}@test.com");
+        secondInstructor.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        var secondProfile = INSTRUCTOR_PROFILE.Apply(secondInstructor.Id, "Second Payout Instructor", "Headline", "Bio");
+        secondProfile.Approve(clock);
+        db.InstructorProfiles().Add(secondProfile);
+        await db.SaveChangesAsync();
+
+        Assert.True((await payoutAccountService.CreateForCurrentUserAsync(
+            _instructorUserId,
+            new CreateInstructorPayoutAccountCommand("KBANK", "1112223334", "Instructor One", "1100500111111", TaxPayerType.Individual),
+            CancellationToken.None)).IsSuccess);
+        Assert.True((await payoutAccountService.VerifyAsync(_instructorUserId, CancellationToken.None)).IsSuccess);
+
+        Assert.True((await payoutAccountService.CreateForCurrentUserAsync(
+            secondInstructor.Id,
+            new CreateInstructorPayoutAccountCommand("SCB", "5556667778", "Instructor Two", "1100500222222", TaxPayerType.Individual),
+            CancellationToken.None)).IsSuccess);
+        Assert.True((await payoutAccountService.VerifyAsync(secondInstructor.Id, CancellationToken.None)).IsSuccess);
+
+        const string periodKey = "2026-06";
+
+        var split1Result = await splitService.CreateAsync(
+            new CreateRevenueSplitCommand(Guid.NewGuid(), _instructorUserId, 2000m, 60m, 582m, 1358m, 70.00m, periodKey),
+            CancellationToken.None);
+        Assert.True(split1Result.IsSuccess);
+
+        var split2Result = await splitService.CreateAsync(
+            new CreateRevenueSplitCommand(Guid.NewGuid(), secondInstructor.Id, 3000m, 90m, 873m, 2037m, 70.00m, periodKey),
+            CancellationToken.None);
+        Assert.True(split2Result.IsSuccess);
+
+        // Backdate past the 14-day hold so GetEligibleSplitsForPayoutAsync picks both up — CreatedAtUtc is
+        // only auto-stamped on insert (AuditableEntityInterceptor), so setting it here on an already
+        // "Modified" tracked entity sticks.
+        var split1 = await db.RevenueSplits().FirstAsync(s => s.REVENUE_SPLIT_ID == split1Result.Value.Id);
+        split1.MarkPayable();
+        ((IAuditable)split1).CreatedAtUtc = clock.UtcNow.AddDays(-20);
+
+        var split2 = await db.RevenueSplits().FirstAsync(s => s.REVENUE_SPLIT_ID == split2Result.Value.Id);
+        split2.MarkPayable();
+        ((IAuditable)split2).CreatedAtUtc = clock.UtcNow.AddDays(-20);
+
+        await db.SaveChangesAsync();
+
+        var batchResult = await batchService.CreateAsync(new CreatePayoutBatchCommand(periodKey), CancellationToken.None);
+        Assert.True(batchResult.IsSuccess);
+        Assert.Equal(2, batchResult.Value.Items.Count);
+
+        // Fix #3: linkage set via REVENUE_SPLIT.AssignToBatchItem against a real (non-Fake) DbContext —
+        // not a reflection SetValue against the private setter, and not a redundant GetByIdAsync re-fetch.
+        var split1AfterCreate = await db.RevenueSplits().AsNoTracking().FirstAsync(s => s.REVENUE_SPLIT_ID == split1Result.Value.Id);
+        var split2AfterCreate = await db.RevenueSplits().AsNoTracking().FirstAsync(s => s.REVENUE_SPLIT_ID == split2Result.Value.Id);
+        Assert.NotNull(split1AfterCreate.PAYOUT_BATCH_ITEM_ID);
+        Assert.NotNull(split2AfterCreate.PAYOUT_BATCH_ITEM_ID);
+        Assert.NotEqual(split1AfterCreate.PAYOUT_BATCH_ITEM_ID, split2AfterCreate.PAYOUT_BATCH_ITEM_ID);
+
+        var executeResult = await batchService.ExecuteBatchAsync(batchResult.Value.Id, _adminUserId, CancellationToken.None);
+        Assert.True(executeResult.IsSuccess);
+        Assert.Equal(PayoutBatchStatus.Executed, executeResult.Value.Status);
+
+        // Fix #4: both batch items' splits marked Paid via the batched GetSplitsByBatchItemIdsAsync
+        // lookup (one query covering both PAYOUT_BATCH_ITEM rows) instead of one lookup per item.
+        var split1AfterExecute = await db.RevenueSplits().AsNoTracking().FirstAsync(s => s.REVENUE_SPLIT_ID == split1Result.Value.Id);
+        var split2AfterExecute = await db.RevenueSplits().AsNoTracking().FirstAsync(s => s.REVENUE_SPLIT_ID == split2Result.Value.Id);
+        Assert.Equal(RevenueSplitStatus.Paid, split1AfterExecute.STATUS);
+        Assert.Equal(RevenueSplitStatus.Paid, split2AfterExecute.STATUS);
     }
 }

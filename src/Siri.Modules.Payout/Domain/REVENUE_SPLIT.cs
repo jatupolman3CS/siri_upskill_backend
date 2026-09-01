@@ -133,6 +133,25 @@ public sealed class REVENUE_SPLIT : IAuditable
         }
     }
 
+    /// <summary>
+    /// Links this split to the <see cref="PAYOUT_BATCH_ITEM"/> it was grouped into during payout-batch
+    /// creation (<see cref="PayoutBatchStatus.Draft"/> aggregation) — deliberately does not change
+    /// <see cref="STATUS"/>; that only transitions to <see cref="RevenueSplitStatus.Paid"/> later,
+    /// atomically with actual execution, via <see cref="MarkPaid"/>. Exists so callers never have to
+    /// reach past <see cref="PAYOUT_BATCH_ITEM_ID"/>'s private setter with reflection to record this
+    /// linkage — see <c>PayoutBatchService.CreateAsync</c>'s own comment for the incident that made this
+    /// method necessary.
+    /// </summary>
+    public void AssignToBatchItem(Guid payoutBatchItemId)
+    {
+        if (payoutBatchItemId == Guid.Empty)
+        {
+            throw new ArgumentException("Payout batch item ID cannot be empty.", nameof(payoutBatchItemId));
+        }
+
+        PAYOUT_BATCH_ITEM_ID = payoutBatchItemId;
+    }
+
     public void MarkPaid(Guid payoutBatchItemId)
     {
         if (payoutBatchItemId == Guid.Empty) throw new ArgumentException("Payout batch item ID cannot be empty.", nameof(payoutBatchItemId));

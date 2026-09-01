@@ -175,6 +175,11 @@ public class StripeWebhookHandlerTests
         Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == course1 && g.OrderId == order.ORDER_ID && g.ExpiresAtUtc == _clock.UtcNow.AddDays(30));
         Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == course2 && g.OrderId == order.ORDER_ID && g.ExpiresAtUtc == null);
 
+        // Proves the batch: one EnrollUserInCoursesAsync call carrying both courses, not two
+        // EnrollUserAsync calls (one per course, the old N+1 shape this fix removes).
+        Assert.Equal(1, _learningAccessContract.EnrollUserInCoursesCallCount);
+        Assert.Equal(0, _learningAccessContract.EnrollUserCallCount);
+
         Assert.Single(_revenueSplitContract.Recorded);
 
         // The real user email, not a fabricated @example.test fallback derived from the user id.
@@ -439,13 +444,30 @@ public class StripeWebhookHandlerTests
     {
         public readonly List<(Guid UserId, Guid CourseId, Guid? OrderId, string Source, DateTime? ExpiresAtUtc)> Grants = [];
 
+        // Proves the webhook handler calls the batched overload once for the whole order instead of
+        // looping EnrollUserAsync once per course (the N+1 this fix removes).
+        public int EnrollUserCallCount;
+        public int EnrollUserInCoursesCallCount;
+
         public Task<bool> CanUserAccessEpisodeAsync(Guid userId, Guid episodeId, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<bool> HasActiveEnrollmentAsync(Guid userId, Guid courseId, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<Result> EnrollUserAsync(Guid userId, Guid courseId, Guid? orderId, string source, DateTime? expiresAtUtc, CancellationToken cancellationToken)
         {
+            EnrollUserCallCount++;
             Grants.Add((userId, courseId, orderId, source, expiresAtUtc));
+            return Task.FromResult(Result.Success());
+        }
+
+        public Task<Result> EnrollUserInCoursesAsync(Guid userId, string source, IReadOnlyCollection<CourseEnrollmentGrant> grants, CancellationToken cancellationToken)
+        {
+            EnrollUserInCoursesCallCount++;
+            foreach (var grant in grants)
+            {
+                Grants.Add((userId, grant.CourseId, grant.OrderId, source, grant.ExpiresAtUtc));
+            }
+
             return Task.FromResult(Result.Success());
         }
     }

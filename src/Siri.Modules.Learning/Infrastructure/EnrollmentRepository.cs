@@ -13,6 +13,19 @@ public sealed class EnrollmentRepository(AppDbContext dbContext) : IEnrollmentRe
     public Task<ENROLLMENT?> GetByUserAndCourseAsync(Guid userId, Guid courseId, CancellationToken cancellationToken) =>
         dbContext.Enrollments().FirstOrDefaultAsync(e => e.USER_ID == userId && e.COURSE_ID == courseId, cancellationToken);
 
+    public async Task<IReadOnlyList<ENROLLMENT>> GetByUserAndCoursesAsync(Guid userId, IReadOnlyCollection<Guid> courseIds, CancellationToken cancellationToken)
+    {
+        if (courseIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await dbContext.Enrollments()
+            .Where(e => e.USER_ID == userId && courseIds.Contains(e.COURSE_ID))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public IQueryable<ENROLLMENT> Query() => dbContext.Enrollments().AsNoTracking();
 
     public void Add(ENROLLMENT enrollment) => dbContext.Enrollments().Add(enrollment);
