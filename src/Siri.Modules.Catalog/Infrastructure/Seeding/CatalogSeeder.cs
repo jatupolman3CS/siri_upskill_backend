@@ -219,11 +219,13 @@ public sealed class CatalogSeeder(AppDbContext dbContext, IClock clock, ILogger<
 
                 foreach (var episodeSpec in sectionSpec.Episodes)
                 {
-                    var episode = section.AddEpisode(episodeSpec.Title, description: null, isFreePreview: isFirstEpisode);
-                    // Placeholder media — see CatalogSeedData's own doc comment for why (no real Bunny
-                    // Stream asset exists yet). Only here to satisfy COURSE.Publish's "≥1 episode with
-                    // media" invariant with a believable duration.
-                    episode.AttachMedia(UuidV7.NewId(), episodeSpec.DurationSeconds);
+                    // Through COURSE, not COURSE_SECTION/COURSE_EPISODE directly — keeps
+                    // EpisodeCount/TotalDurationSeconds in sync automatically (COURSE.RecalculateEpisodeStats,
+                    // called internally by both of these). Placeholder media — see CatalogSeedData's own
+                    // doc comment for why (no real Bunny Stream asset exists yet); only here to satisfy
+                    // COURSE.Publish's "≥1 episode with media" invariant with a believable duration.
+                    var episode = course.AddEpisode(section.Id, episodeSpec.Title, description: null, isFreePreview: isFirstEpisode);
+                    course.AttachEpisodeMedia(episode.Id, UuidV7.NewId(), episodeSpec.DurationSeconds);
                     isFirstEpisode = false;
                 }
             }
@@ -240,7 +242,40 @@ public sealed class CatalogSeeder(AppDbContext dbContext, IClock clock, ILogger<
             createdCount,
             specs.Count - createdCount);
 
+        await BackfillEpisodeStatsAsync(allSlugs, cancellationToken).ConfigureAwait(false);
+
         return createdCount;
+    }
+
+    /// <summary>
+    /// One-time self-heal for sample courses created by a build of this seeder older than
+    /// <c>COURSE.RecalculateEpisodeStats</c>: those rows were built by calling
+    /// <c>COURSE_SECTION.AddEpisode</c>/<c>COURSE_EPISODE.AttachMedia</c> directly, which never touched
+    /// <c>COURSE.EpisodeCount</c>/<c>TotalDurationSeconds</c>, so they are stuck at their zero defaults in
+    /// the database despite genuinely having episodes with real durations.
+    /// <para>
+    /// Re-fetches every sample course that already exists (tracked, with its Sections/Episodes) and
+    /// recalculates those two columns — a no-op for a database that has never been touched by the old,
+    /// buggy seeder path, since every course this inspects would already report the correct totals and
+    /// EF's change tracking only writes back properties whose value actually changed. Cheap enough (a
+    /// handful of rows, dev/seed-only) to just always run rather than tracking "did I already fix this
+    /// row" as separate state. Freshly-created-this-run courses are not included here — they went through
+    /// <see cref="COURSE.AddEpisode(Guid,string,string?,bool)"/>/<see cref="COURSE.AttachEpisodeMedia"/>
+    /// above already and are correct from the moment they were built.
+    /// </para>
+    /// </summary>
+    private async Task BackfillEpisodeStatsAsync(IReadOnlyCollection<string> slugs, CancellationToken cancellationToken)
+    {
+        var existingCourses = await dbContext.Courses()
+            .Include(c => c.Sections).ThenInclude(s => s.Episodes)
+            .Where(c => slugs.Contains(c.Slug))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var course in existingCourses)
+        {
+            course.RecalculateEpisodeStats();
+        }
     }
 
     private static string BuildBaseSlug(CourseSeedSpec spec)
