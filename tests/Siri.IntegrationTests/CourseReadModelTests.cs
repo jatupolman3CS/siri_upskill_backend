@@ -16,6 +16,7 @@ using Siri.Modules.Catalog;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Features.GetCourseDetail;
 using Siri.Modules.Catalog.Features.SearchCourses;
+using Siri.Modules.Catalog.Features.UnpublishCourse;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Modules.Identity;
 using Siri.Modules.Identity.Domain;
@@ -295,5 +296,37 @@ public sealed class CourseReadModelTests : IAsyncLifetime
 
         var afterApproveResponse = await _client.GetFromJsonAsync<SearchCoursesResponse>(query, JsonOptions);
         Assert.Contains(afterApproveResponse!.Results.Items, c => c.Id == course.Id);
+    }
+
+    /// <summary>
+    /// Regression test (audit fix, 2026-09-01): UnpublishCourseHandler used to move a course out of
+    /// public visibility without evicting <see cref="CourseOutputCache.Tag"/> — the same class of gap
+    /// <see cref="SearchThenApprove_NewlyPublishedCourseAppearsInSearchDespiteEarlierCachedResult"/> proves
+    /// is closed for the opposite (Draft→Published) transition. Same black-box technique: search while
+    /// published (populating a cached "found" result), unpublish, search again with the identical query,
+    /// and assert the course is now gone. If the eviction call were missing, this test would still see the
+    /// stale cached result and fail.
+    /// </summary>
+    [Fact]
+    public async Task SearchThenUnpublish_CourseDisappearsFromSearchDespiteEarlierCachedResult()
+    {
+        await using var scope = _app.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var instructor = await CreateApprovedInstructorAsync(scope.ServiceProvider, dbContext);
+        var adminToken = await CreateAdminAndLoginAsync(scope.ServiceProvider, dbContext);
+        var category = await CreateCategoryAsync(dbContext);
+        var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, instructor.Id, category.Id, "Unpublish Cache Invalidation COURSE");
+        var query = $"/api/catalog/courses/search?categoryId={category.Id}";
+
+        var beforeUnpublishResponse = await _client.GetFromJsonAsync<SearchCoursesResponse>(query, JsonOptions);
+        Assert.Contains(beforeUnpublishResponse!.Results.Items, c => c.Id == course.Id);
+
+        using var unpublishRequest = AuthenticatedRequest(HttpMethod.Post, $"/api/catalog/admin/courses/{course.Id}/unpublish", adminToken);
+        unpublishRequest.Content = JsonContent.Create(new UnpublishCourseCommand("ละเมิดนโยบายเนื้อหา"));
+        using var unpublishResponse = await _client.SendAsync(unpublishRequest);
+        Assert.Equal(HttpStatusCode.OK, unpublishResponse.StatusCode);
+
+        var afterUnpublishResponse = await _client.GetFromJsonAsync<SearchCoursesResponse>(query, JsonOptions);
+        Assert.DoesNotContain(afterUnpublishResponse!.Results.Items, c => c.Id == course.Id);
     }
 }

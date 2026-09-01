@@ -23,7 +23,9 @@ public sealed class AddToWishlistHandler(AppDbContext dbContext, IClock clock)
             return Result.Failure(DomainError.NotFound("ไม่พบคอร์สที่ระบุ"));
         }
 
+        // Read-only check (only ever null-checked below, never mutated) — AsNoTracking per database.md.
         var existing = await dbContext.Wishlists()
+            .AsNoTracking()
             .FirstOrDefaultAsync(w => w.UserId == userId && w.CourseId == courseId, cancellationToken)
             .ConfigureAwait(false);
 

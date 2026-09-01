@@ -24,7 +24,11 @@ public sealed class EpisodeAttachmentConfiguration : IEntityTypeConfiguration<EP
         builder.Property(a => a.UpdatedAtUtc);
         builder.Property(a => a.UpdatedBy);
 
-        builder.HasIndex(a => a.EpisodeId);
+        // GetEpisodeAttachmentsHandler filters Where(EpisodeId == ...) then OrderBy(CreatedAtUtc) — solo
+        // EpisodeId index below doesn't cover the ORDER BY. Low-traffic (attachments per episode are
+        // inherently few) but bundled into the same migration as the CourseReview/InstructorProfile index
+        // fixes since it's already being touched.
+        builder.HasIndex(a => new { a.EpisodeId, a.CreatedAtUtc });
 
         builder.HasOne<COURSE_EPISODE>()
             .WithMany()

@@ -36,6 +36,9 @@ public sealed class CourseReviewConfiguration : IEntityTypeConfiguration<COURSE_
         builder.HasIndex(r => new { r.CourseId, r.UserId })
             .IsUnique();
 
-        builder.HasIndex(r => r.CourseId);
+        // GetCourseReviewsHandler filters Where(CourseId == ...) then OrderByDescending(CreatedAtUtc) —
+        // a solo CourseId index doesn't cover the ORDER BY. This composite index serves both via
+        // leftmost-prefix match, so the old solo CourseId index (below) is redundant and removed.
+        builder.HasIndex(r => new { r.CourseId, r.CreatedAtUtc });
     }
 }

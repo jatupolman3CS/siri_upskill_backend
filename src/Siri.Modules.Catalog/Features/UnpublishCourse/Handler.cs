@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
@@ -12,7 +13,8 @@ public sealed class UnpublishCourseHandler(
     AppDbContext dbContext,
     ISecurityAuditContract securityAudit,
     IUserContactReader userContactReader,
-    IEmailOutbox emailOutbox)
+    IEmailOutbox emailOutbox,
+    IOutputCacheStore outputCacheStore)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
     private static readonly DomainError NotPublishedError = DomainError.Conflict("ระงับหรือยกเลิกการเผยแพร่ได้เฉพาะคอร์สที่เผยแพร่อยู่เท่านั้น");
@@ -79,6 +81,13 @@ public sealed class UnpublishCourseHandler(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // Unpublishing moves a course from publicly-visible back to not-visible — the same class of
+        // visibility change ApproveCourseHandler evicts the output cache for (see that handler's own doc
+        // comment, which names this exact case as the "whichever future handler moves visibility" gap).
+        // Without this, a freshly-unpublished course could still be served to new visitors out of the
+        // 5-minute output cache.
+        await outputCacheStore.EvictByTagAsync(CourseOutputCache.Tag, cancellationToken).ConfigureAwait(false);
 
         return new UnpublishCourseResponse(course.Id, course.Status, command.Reason);
     }
