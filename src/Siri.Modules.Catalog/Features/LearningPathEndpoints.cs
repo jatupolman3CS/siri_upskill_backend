@@ -20,15 +20,17 @@ public static class LearningPathEndpoints
 
         publicGroup.MapGet("/", async (
             GetLearningPathsHandler handler,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            int page = 1,
+            int pageSize = GetLearningPathsHandler.DefaultPageSize) =>
         {
-            var paths = await handler.HandleAsync(activeOnly: true, cancellationToken).ConfigureAwait(false);
+            var paths = await handler.HandleAsync(activeOnly: true, page, pageSize, cancellationToken).ConfigureAwait(false);
             return Results.Ok(paths);
         })
         .AllowAnonymous()
         .WithName("GetPublicLearningPaths")
         .WithSummary("ดึงรายการเส้นทางการเรียนที่เปิดใช้งาน")
-        .Produces<IReadOnlyList<LearningPathSummaryResponse>>(StatusCodes.Status200OK);
+        .Produces<PagedResult<LearningPathSummaryResponse>>(StatusCodes.Status200OK);
 
         publicGroup.MapGet("/{slug}", async (
             string slug,
@@ -51,14 +53,16 @@ public static class LearningPathEndpoints
 
         adminGroup.MapGet("/", async (
             GetLearningPathsHandler handler,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            int page = 1,
+            int pageSize = GetLearningPathsHandler.DefaultPageSize) =>
         {
-            var paths = await handler.HandleAsync(activeOnly: false, cancellationToken).ConfigureAwait(false);
+            var paths = await handler.HandleAsync(activeOnly: false, page, pageSize, cancellationToken).ConfigureAwait(false);
             return Results.Ok(paths);
         })
         .WithName("GetAdminLearningPaths")
         .WithSummary("ดึงรายการเส้นทางการเรียนทั้งหมด (แอดมิน)")
-        .Produces<IReadOnlyList<LearningPathSummaryResponse>>(StatusCodes.Status200OK);
+        .Produces<PagedResult<LearningPathSummaryResponse>>(StatusCodes.Status200OK);
 
         adminGroup.MapPost("/", async (
             CreateLearningPathCommand command,
