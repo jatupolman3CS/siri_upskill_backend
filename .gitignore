@@ -27,6 +27,7 @@ appsettings.Local.json
 appsettings.*.local.json
 .env
 .env.*
+.env_*
 *.pfx
 *.key
 
