@@ -20,12 +20,14 @@ public class LearningPathsController : ControllerBase
     [AllowAnonymous]
     [EndpointName("GetPublicLearningPaths")]
     [EndpointSummary("ดึงรายการเส้นทางการเรียนที่เปิดใช้งาน")]
-    [ProducesResponseType(typeof(IReadOnlyList<LearningPathSummaryResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<LearningPathSummaryResponse>), StatusCodes.Status200OK)]
     public async Task<IResult> GetLearningPaths(
         [FromServices] GetLearningPathsHandler handler,
-        CancellationToken cancellationToken)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = GetLearningPathsHandler.DefaultPageSize,
+        CancellationToken cancellationToken = default)
     {
-        var paths = await handler.HandleAsync(activeOnly: true, cancellationToken).ConfigureAwait(false);
+        var paths = await handler.HandleAsync(activeOnly: true, page, pageSize, cancellationToken).ConfigureAwait(false);
         return Results.Ok(paths);
     }
 
@@ -48,12 +50,14 @@ public class LearningPathsController : ControllerBase
     [Authorize(Policy = AuthorizationPolicyNames.AdminOnly)]
     [EndpointName("GetAdminLearningPaths")]
     [EndpointSummary("ดึงรายการเส้นทางการเรียนทั้งหมด (แอดมิน)")]
-    [ProducesResponseType(typeof(IReadOnlyList<LearningPathSummaryResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<LearningPathSummaryResponse>), StatusCodes.Status200OK)]
     public async Task<IResult> GetAdminLearningPaths(
         [FromServices] GetLearningPathsHandler handler,
-        CancellationToken cancellationToken)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = GetLearningPathsHandler.DefaultPageSize,
+        CancellationToken cancellationToken = default)
     {
-        var paths = await handler.HandleAsync(activeOnly: false, cancellationToken).ConfigureAwait(false);
+        var paths = await handler.HandleAsync(activeOnly: false, page, pageSize, cancellationToken).ConfigureAwait(false);
         return Results.Ok(paths);
     }
 

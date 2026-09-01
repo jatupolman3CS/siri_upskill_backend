@@ -19,6 +19,10 @@ public sealed class InstructorProfileConfiguration : IEntityTypeConfiguration<IN
         builder.Property(p => p.UserId).IsRequired();
         builder.HasIndex(p => p.UserId).IsUnique();
 
+        // GetPendingInstructorApplicationsHandler filters Where(Status == Pending) then
+        // OrderBy(CreatedAtUtc) — not covered by the UserId index above (a different leftmost column).
+        builder.HasIndex(p => new { p.Status, p.CreatedAtUtc });
+
         builder.Property(p => p.DisplayName).HasMaxLength(200).IsRequired();
         builder.Property(p => p.Headline).HasMaxLength(200);
         builder.Property(p => p.Bio).HasMaxLength(2000).IsRequired();
