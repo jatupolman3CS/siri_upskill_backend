@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Siri.Modules.Commerce.Application;
 using Siri.SharedKernel;
@@ -67,6 +68,7 @@ public class OrdersController : ControllerBase
     }
 
     [HttpPost("")]
+    [EnableRateLimiting("default")]
     [EndpointName("CommerceCreateOrder")]
     [EndpointSummary("สร้างคำสั่งซื้อใหม่")]
     [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status201Created)]
