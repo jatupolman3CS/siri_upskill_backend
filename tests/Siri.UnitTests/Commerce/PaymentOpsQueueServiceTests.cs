@@ -154,6 +154,58 @@ public sealed class PaymentOpsQueueServiceTests
         Assert.Single(_learningAccessContract.Grants);
         Assert.Equal(courseId, _learningAccessContract.Grants[0].CourseId);
         Assert.Single(_emailOutbox.Sent);
+
+        // Proves the batch: one EnrollUserInCoursesAsync call, not the old per-course EnrollUserAsync loop.
+        Assert.Equal(1, _learningAccessContract.EnrollUserInCoursesCallCount);
+        Assert.Equal(0, _learningAccessContract.EnrollUserCallCount);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WithReopenAndFulfillOrderAction_MultiCourseOrder_EnrollsAllCoursesInOneBatchedCall()
+    {
+        var service = CreateService();
+        var adminId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var course1 = Guid.NewGuid();
+        var course2 = Guid.NewGuid();
+        _userContactReader.Emails[userId] = "buyer@example.test";
+
+        // course1 is time-limited (30 days), course2 is lifetime (null) — proves each grant in the
+        // batch carries its own course-specific expiry, not one value applied to the whole order.
+        _catalogPriceContract.Prices[course1] = new CoursePriceInfo(course1, "COURSE 1", 1000m, Guid.NewGuid(), 30);
+        _catalogPriceContract.Prices[course2] = new CoursePriceInfo(course2, "COURSE 2", 500m, Guid.NewGuid(), null);
+
+        var order = ORDER.Create("ORD-REOPEN-2", userId, 1500m, 0m, 0m, 1500m);
+        order.AddItem(course1, "COURSE 1", 1000m, 1000m);
+        order.AddItem(course2, "COURSE 2", 500m, 500m);
+        order.MarkAwaitingPayment();
+        var statusProp = typeof(ORDER).GetProperty(nameof(ORDER.STATUS));
+        statusProp!.SetValue(order, OrderStatus.Cancelled); // Cancelled prematurely by expiry
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, "pi_late_paid_2", 1500m, _clock);
+        payment.MarkSucceeded(_clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var entry = PAYMENT_OPS_QUEUE.Create(payment.PAYMENT_ID, "Late payment succeeded after cancellation");
+        await _opsQueueRepo.AddAsync(entry, CancellationToken.None);
+
+        var resolveRequest = new ResolvePaymentOpsRequest(
+            PaymentOpsResolutionAction.ReopenAndFulfillOrder,
+            "Reopened order and enrolled student");
+
+        var result = await service.ResolveAsync(entry.PAYMENT_OPS_QUEUE_ID, adminId, resolveRequest, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OrderStatus.Paid, order.STATUS);
+
+        // Single batched call for the whole order (not one EnrollUserAsync call per course).
+        Assert.Equal(1, _learningAccessContract.EnrollUserInCoursesCallCount);
+        Assert.Equal(0, _learningAccessContract.EnrollUserCallCount);
+
+        Assert.Equal(2, _learningAccessContract.Grants.Count);
+        Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == course1 && g.OrderId == order.ORDER_ID && g.Source == "OpsResolution" && g.ExpiresAtUtc == _clock.UtcNow.AddDays(30));
+        Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == course2 && g.OrderId == order.ORDER_ID && g.Source == "OpsResolution" && g.ExpiresAtUtc == null);
     }
 
     [Fact]
@@ -340,12 +392,29 @@ public sealed class PaymentOpsQueueServiceTests
     {
         public readonly List<(Guid UserId, Guid CourseId, Guid? OrderId, string Source, DateTime? ExpiresAtUtc)> Grants = [];
 
+        // Proves PaymentOpsQueueService.ResolveAsync calls the batched overload once for the whole
+        // order instead of looping EnrollUserAsync once per course (the N+1 this fix removes).
+        public int EnrollUserCallCount;
+        public int EnrollUserInCoursesCallCount;
+
         public Task<bool> CanUserAccessEpisodeAsync(Guid userId, Guid episodeId, CancellationToken cancellationToken) => Task.FromResult(false);
         public Task<bool> HasActiveEnrollmentAsync(Guid userId, Guid courseId, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<Result> EnrollUserAsync(Guid userId, Guid courseId, Guid? orderId, string source, DateTime? expiresAtUtc, CancellationToken cancellationToken)
         {
+            EnrollUserCallCount++;
             Grants.Add((userId, courseId, orderId, source, expiresAtUtc));
+            return Task.FromResult(Result.Success());
+        }
+
+        public Task<Result> EnrollUserInCoursesAsync(Guid userId, string source, IReadOnlyCollection<CourseEnrollmentGrant> grants, CancellationToken cancellationToken)
+        {
+            EnrollUserInCoursesCallCount++;
+            foreach (var grant in grants)
+            {
+                Grants.Add((userId, grant.CourseId, grant.OrderId, source, grant.ExpiresAtUtc));
+            }
+
             return Task.FromResult(Result.Success());
         }
     }
