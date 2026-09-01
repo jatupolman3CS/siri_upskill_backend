@@ -472,4 +472,149 @@ public class CourseTests
         Assert.Equal("Req 2", course.Requirements.ElementAt(1).Text);
         Assert.Equal(1, course.Requirements.ElementAt(1).SortOrder);
     }
+
+    // ---- EpisodeCount/TotalDurationSeconds self-maintenance -------------------------------------
+    // Regression coverage for the bug where seeded/created courses always reported 0 episodes and 0
+    // duration: COURSE.AddEpisode/AttachEpisodeMedia/RemoveEpisodeMedia/RemoveEpisode/RemoveSection/
+    // AddSection must all keep these two denormalized columns correct via RecalculateEpisodeStats.
+
+    [Fact]
+    public void AddEpisode_ThroughCourse_IncreasesEpisodeCountButNotDurationBeforeMediaAttached()
+    {
+        var course = CreateDraftCourse();
+        var section = course.AddSection("Section 1");
+
+        course.AddEpisode(section.Id, "Episode 1", null, isFreePreview: false);
+
+        Assert.Equal(1, course.EpisodeCount);
+        Assert.Equal(0, course.TotalDurationSeconds); // no media attached yet -> DurationSeconds is null
+    }
+
+    [Fact]
+    public void AddEpisode_UnknownSectionId_ThrowsInvalidOperationException()
+    {
+        var course = CreateDraftCourse();
+        course.AddSection("Section 1");
+
+        Assert.Throws<InvalidOperationException>(() => course.AddEpisode(Guid.NewGuid(), "Episode 1", null, isFreePreview: false));
+    }
+
+    [Fact]
+    public void AttachEpisodeMedia_ThroughCourse_IncreasesTotalDurationSeconds()
+    {
+        var course = CreateDraftCourse();
+        var section = course.AddSection("Section 1");
+        var episode = course.AddEpisode(section.Id, "Episode 1", null, isFreePreview: false);
+
+        course.AttachEpisodeMedia(episode.Id, Guid.NewGuid(), 600);
+
+        Assert.Equal(1, course.EpisodeCount);
+        Assert.Equal(600, course.TotalDurationSeconds);
+    }
+
+    [Fact]
+    public void AttachEpisodeMedia_MultipleEpisodesAcrossSections_SumsAllDurations()
+    {
+        var course = CreateDraftCourse();
+        var section1 = course.AddSection("Section 1");
+        var section2 = course.AddSection("Section 2");
+        var ep1 = course.AddEpisode(section1.Id, "Episode 1", null, isFreePreview: true);
+        var ep2 = course.AddEpisode(section1.Id, "Episode 2", null, isFreePreview: false);
+        var ep3 = course.AddEpisode(section2.Id, "Episode 3", null, isFreePreview: false);
+
+        course.AttachEpisodeMedia(ep1.Id, Guid.NewGuid(), 300);
+        course.AttachEpisodeMedia(ep2.Id, Guid.NewGuid(), 450);
+        course.AttachEpisodeMedia(ep3.Id, Guid.NewGuid(), 900);
+
+        Assert.Equal(3, course.EpisodeCount);
+        Assert.Equal(1650, course.TotalDurationSeconds);
+    }
+
+    [Fact]
+    public void AttachEpisodeMedia_UnknownEpisodeId_ThrowsInvalidOperationException()
+    {
+        var course = CreateDraftCourse();
+        course.AddSection("Section 1");
+
+        Assert.Throws<InvalidOperationException>(() => course.AttachEpisodeMedia(Guid.NewGuid(), Guid.NewGuid(), 600));
+    }
+
+    [Fact]
+    public void RemoveEpisodeMedia_ThroughCourse_DecreasesTotalDurationSecondsButKeepsEpisodeCount()
+    {
+        var course = CreateDraftCourse();
+        var section = course.AddSection("Section 1");
+        var episode = course.AddEpisode(section.Id, "Episode 1", null, isFreePreview: false);
+        course.AttachEpisodeMedia(episode.Id, Guid.NewGuid(), 600);
+
+        course.RemoveEpisodeMedia(episode.Id);
+
+        Assert.Equal(1, course.EpisodeCount);
+        Assert.Equal(0, course.TotalDurationSeconds);
+    }
+
+    [Fact]
+    public void RemoveEpisode_ThroughCourse_DecreasesEpisodeCountAndTotalDurationSeconds()
+    {
+        var course = CreateDraftCourse();
+        var section = course.AddSection("Section 1");
+        var ep1 = course.AddEpisode(section.Id, "Episode 1", null, isFreePreview: true);
+        course.AttachEpisodeMedia(ep1.Id, Guid.NewGuid(), 300);
+        var ep2 = course.AddEpisode(section.Id, "Episode 2", null, isFreePreview: false);
+        course.AttachEpisodeMedia(ep2.Id, Guid.NewGuid(), 700);
+
+        course.RemoveEpisode(ep2.Id);
+
+        Assert.Equal(1, course.EpisodeCount);
+        Assert.Equal(300, course.TotalDurationSeconds);
+    }
+
+    [Fact]
+    public void AddSection_WithMultipleEpisodesEach_EpisodeCountAndTotalDurationSecondsReflectWholeCourse()
+    {
+        var course = CreateDraftCourse();
+        var section1 = course.AddSection("Section 1");
+        var ep1 = course.AddEpisode(section1.Id, "Episode 1", null, isFreePreview: true);
+        course.AttachEpisodeMedia(ep1.Id, Guid.NewGuid(), 120);
+        var ep2 = course.AddEpisode(section1.Id, "Episode 2", null, isFreePreview: false);
+        course.AttachEpisodeMedia(ep2.Id, Guid.NewGuid(), 180);
+
+        var section2 = course.AddSection("Section 2");
+        var ep3 = course.AddEpisode(section2.Id, "Episode 3", null, isFreePreview: false);
+        course.AttachEpisodeMedia(ep3.Id, Guid.NewGuid(), 240);
+
+        Assert.Equal(3, course.EpisodeCount);
+        Assert.Equal(540, course.TotalDurationSeconds);
+    }
+
+    [Fact]
+    public void RemoveSection_WithEpisodes_DecreasesEpisodeCountAndTotalDurationSecondsByWholeSection()
+    {
+        var course = CreateDraftCourse();
+        var section1 = course.AddSection("Section 1");
+        var ep1 = course.AddEpisode(section1.Id, "Episode 1", null, isFreePreview: true);
+        course.AttachEpisodeMedia(ep1.Id, Guid.NewGuid(), 300);
+
+        var section2 = course.AddSection("Section 2");
+        var ep2 = course.AddEpisode(section2.Id, "Episode 2", null, isFreePreview: false);
+        course.AttachEpisodeMedia(ep2.Id, Guid.NewGuid(), 400);
+        var ep3 = course.AddEpisode(section2.Id, "Episode 3", null, isFreePreview: false);
+        course.AttachEpisodeMedia(ep3.Id, Guid.NewGuid(), 500);
+
+        course.RemoveSection(section2.Id);
+
+        Assert.Equal(1, course.EpisodeCount);
+        Assert.Equal(300, course.TotalDurationSeconds);
+    }
+
+    [Fact]
+    public void AddSection_EmptyCourse_DoesNotChangeEpisodeCountOrTotalDurationSeconds()
+    {
+        var course = CreateDraftCourse();
+
+        course.AddSection("Section 1");
+
+        Assert.Equal(0, course.EpisodeCount);
+        Assert.Equal(0, course.TotalDurationSeconds);
+    }
 }
