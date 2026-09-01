@@ -58,5 +58,16 @@ public sealed class WatchEventConfiguration : IEntityTypeConfiguration<WATCH_EVE
         builder.Property(x => x.OCCURRED_AT_UTC).HasColumnName("OCCURRED_AT_UTC").HasPrecision(3).IsRequired();
 
         builder.HasIndex(x => new { x.ENROLLMENT_ID, x.OCCURRED_AT_UTC }).HasDatabaseName("IX_WATCH_EVENTS_ENROLLMENT_ID_OCCURRED_AT_UTC");
+
+        // Query-performance audit (2026-09): three separate LearningAnalyticsContract query shapes
+        // (GetEpisodeDropOffRollupAsync, the WatchEvents-Enrollments join inside
+        // GetDailyCourseActivityAsync, and PurgeOldWatchEventsAsync) all filter this table by
+        // OCCURRED_AT_UTC range/threshold alone — none of them has an ENROLLMENT_ID predicate. The
+        // (ENROLLMENT_ID, OCCURRED_AT_UTC) index above is ENROLLMENT_ID-leftmost, so it cannot seek a
+        // date-only predicate, and this is this database's largest table by far (one row per video-
+        // heartbeat event — see this class's own doc comment). A second index led by OCCURRED_AT_UTC
+        // alone lets the nightly analytics rollup and purge job (AnalyticsRollupJob) seek its date window
+        // instead of scanning the whole table.
+        builder.HasIndex(x => x.OCCURRED_AT_UTC).HasDatabaseName("IX_WATCH_EVENTS_OCCURRED_AT_UTC");
     }
 }
