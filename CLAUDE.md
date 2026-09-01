@@ -18,7 +18,7 @@ E-Learning marketplace (แนว SkillLane / FutureSkill): ผู้เรี�
 
 | Layer | Technology | Version |
 |-------|-----------|---------|
-| Backend | ASP.NET Core Web API (Minimal API, vertical slice + repository/service) | **.NET 10 LTS** |
+| Backend | ASP.NET Core Web API (MVC Controllers — attribute routing, ตัดสินใจแล้ว 2026-09-01 ดู `docs/DECISIONS.md` D-19; ชั้น business logic ยังแยก vertical slice + repository/service เหมือนเดิม ไม่เปลี่ยน) | **.NET 10 LTS** |
 | ORM | EF Core (SQL Server provider) | **10.x** |
 | Database | SQL Server | **2022+** |
 | Cache/Session | Redis | 7+ |
