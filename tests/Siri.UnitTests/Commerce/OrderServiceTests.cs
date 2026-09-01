@@ -43,11 +43,28 @@ public sealed class OrderServiceTests
     {
         public readonly HashSet<(Guid UserId, Guid CourseId)> Enrolled = [];
 
+        // Call counts prove OrderService uses the batched overloads for a multi-course order instead of
+        // looping the single-course ones (the N+1 this fix removes).
+        public int HasActiveEnrollmentCallCount;
+        public int HasActiveEnrollmentsCallCount;
+        public int EnrollUserCallCount;
+        public int EnrollUserInCoursesCallCount;
+
         public Task<bool> CanUserAccessEpisodeAsync(Guid userId, Guid episodeId, CancellationToken cancellationToken) =>
             Task.FromResult(false);
 
-        public Task<bool> HasActiveEnrollmentAsync(Guid userId, Guid courseId, CancellationToken cancellationToken) =>
-            Task.FromResult(Enrolled.Contains((userId, courseId)));
+        public Task<bool> HasActiveEnrollmentAsync(Guid userId, Guid courseId, CancellationToken cancellationToken)
+        {
+            HasActiveEnrollmentCallCount++;
+            return Task.FromResult(Enrolled.Contains((userId, courseId)));
+        }
+
+        public Task<IReadOnlySet<Guid>> HasActiveEnrollmentsAsync(Guid userId, IReadOnlyCollection<Guid> courseIds, CancellationToken cancellationToken)
+        {
+            HasActiveEnrollmentsCallCount++;
+            var active = courseIds.Where(id => Enrolled.Contains((userId, id))).ToHashSet();
+            return Task.FromResult<IReadOnlySet<Guid>>(active);
+        }
 
         public Task<Result> EnrollUserAsync(
             Guid userId,
@@ -57,7 +74,23 @@ public sealed class OrderServiceTests
             DateTime? expiresAtUtc,
             CancellationToken cancellationToken)
         {
+            EnrollUserCallCount++;
             Enrolled.Add((userId, courseId));
+            return Task.FromResult(Result.Success());
+        }
+
+        public Task<Result> EnrollUserInCoursesAsync(
+            Guid userId,
+            string source,
+            IReadOnlyCollection<CourseEnrollmentGrant> grants,
+            CancellationToken cancellationToken)
+        {
+            EnrollUserInCoursesCallCount++;
+            foreach (var grant in grants)
+            {
+                Enrolled.Add((userId, grant.CourseId));
+            }
+
             return Task.FromResult(Result.Success());
         }
     }
@@ -282,6 +315,76 @@ public sealed class OrderServiceTests
         Assert.Equal(OrderStatus.Paid, order.STATUS);
         Assert.NotNull(order.PAID_AT_UTC);
         Assert.Contains((userId, courseId), learning.Enrolled);
+
+        // Single-course order still uses the batched overload (not the per-course EnrollUserAsync).
+        Assert.Equal(1, learning.EnrollUserInCoursesCallCount);
+        Assert.Equal(0, learning.EnrollUserCallCount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_MultiCourseOrderWith100PercentPromoCode_EnrollsAllCoursesInOneBatchedCall()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+
+        var course1 = Guid.NewGuid();
+        var course2 = Guid.NewGuid();
+        // course2 is time-limited (AccessDurationDays = 30) — proves the batched grant still carries a
+        // real, course-specific expiry instead of collapsing every course to the same value.
+        catalog.Prices[course1] = new CoursePriceInfo(course1, "COURSE 1", 500m, Guid.NewGuid(), null);
+        catalog.Prices[course2] = new CoursePriceInfo(course2, "COURSE 2", 500m, Guid.NewGuid(), 30);
+
+        var promo = PROMO_CODE.Create("FREEALL", PromoCodeDiscountType.Percentage, 100m, 10, 1, 0m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
+        await promoRepo.AddAsync(promo, CancellationToken.None);
+
+        var userId = Guid.NewGuid();
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var result = await service.CreateAsync(userId, new CreateOrderCommand([course1, course2], "freeall"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OrderStatus.Paid, orderRepo.Orders[result.Value.Id].STATUS);
+        Assert.Contains((userId, course1), learning.Enrolled);
+        Assert.Contains((userId, course2), learning.Enrolled);
+
+        // Proves the batch: one EnrollUserInCoursesAsync call carrying both courses, not two
+        // EnrollUserAsync calls (one per course, the old N+1 shape).
+        Assert.Equal(1, learning.EnrollUserInCoursesCallCount);
+        Assert.Equal(0, learning.EnrollUserCallCount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_OneOfMultipleCoursesAlreadyActivelyEnrolled_ReturnsConflictViaOneBatchedCheck()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+
+        var courseA = Guid.NewGuid();
+        var courseB = Guid.NewGuid();
+        catalog.Prices[courseA] = new CoursePriceInfo(courseA, "COURSE A", 500m, Guid.NewGuid(), null);
+        catalog.Prices[courseB] = new CoursePriceInfo(courseB, "COURSE B", 500m, Guid.NewGuid(), null);
+
+        var userId = Guid.NewGuid();
+        learning.Enrolled.Add((userId, courseB));
+
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var result = await service.CreateAsync(userId, new CreateOrderCommand([courseA, courseB]), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("conflict", result.Error.Code);
+        Assert.Contains(courseB.ToString(), result.Error.Message);
+        Assert.Empty(orderRepo.Orders);
+
+        // Proves the batch: one HasActiveEnrollmentsAsync call for the whole course set, not one
+        // HasActiveEnrollmentAsync call per course.
+        Assert.Equal(1, learning.HasActiveEnrollmentsCallCount);
+        Assert.Equal(0, learning.HasActiveEnrollmentCallCount);
     }
 
     [Fact]

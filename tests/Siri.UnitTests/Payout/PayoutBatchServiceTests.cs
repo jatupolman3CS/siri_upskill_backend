@@ -70,8 +70,19 @@ public sealed class PayoutBatchServiceTests
     {
         public readonly Dictionary<Guid, REVENUE_SPLIT> Splits = [];
 
-        public Task<REVENUE_SPLIT?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult(Splits.TryGetValue(id, out var split) ? split : null);
+        // Call counts prove PayoutBatchService no longer re-fetches each split individually
+        // (CreateAsync used to call GetByIdAsync once per linked split) and batches the
+        // mark-paid lookup in ExecuteBatchAsync (one GetSplitsByBatchItemIdsAsync call instead of one
+        // GetSplitsByBatchItemIdAsync call per batch item).
+        public int GetByIdCallCount;
+        public int GetSplitsByBatchItemIdCallCount;
+        public int GetSplitsByBatchItemIdsCallCount;
+
+        public Task<REVENUE_SPLIT?> GetByIdAsync(Guid id, CancellationToken cancellationToken)
+        {
+            GetByIdCallCount++;
+            return Task.FromResult(Splits.TryGetValue(id, out var split) ? split : null);
+        }
 
         public Task<REVENUE_SPLIT?> GetByOrderItemIdAsync(Guid orderItemId, CancellationToken cancellationToken) =>
             Task.FromResult(Splits.Values.FirstOrDefault(s => s.ORDER_ITEM_ID == orderItemId && s.STATUS != RevenueSplitStatus.Reversed));
@@ -94,7 +105,16 @@ public sealed class PayoutBatchServiceTests
 
         public Task<IReadOnlyList<REVENUE_SPLIT>> GetSplitsByBatchItemIdAsync(Guid batchItemId, CancellationToken cancellationToken)
         {
+            GetSplitsByBatchItemIdCallCount++;
             var list = Splits.Values.Where(s => s.PAYOUT_BATCH_ITEM_ID == batchItemId).ToList();
+            return Task.FromResult<IReadOnlyList<REVENUE_SPLIT>>(list);
+        }
+
+        public Task<IReadOnlyList<REVENUE_SPLIT>> GetSplitsByBatchItemIdsAsync(IReadOnlyCollection<Guid> batchItemIds, CancellationToken cancellationToken)
+        {
+            GetSplitsByBatchItemIdsCallCount++;
+            var idSet = batchItemIds.ToHashSet();
+            var list = Splits.Values.Where(s => s.PAYOUT_BATCH_ITEM_ID.HasValue && idSet.Contains(s.PAYOUT_BATCH_ITEM_ID.Value)).ToList();
             return Task.FromResult<IReadOnlyList<REVENUE_SPLIT>>(list);
         }
 
@@ -211,6 +231,22 @@ public sealed class PayoutBatchServiceTests
         Assert.Equal(30m, item.WithholdingTaxAmount); // 3% of 1000 = 30
         Assert.Equal(970m, item.NetAmount); // 1000 - 30 = 970
         Assert.Equal(970m, result.Value.TotalAmount);
+
+        // split1 is actually linked to the created batch item via AssignToBatchItem — same outcome the
+        // old GetByIdAsync-per-split re-fetch + reflection produced, just without the redundant round
+        // trips or bypassing the domain's encapsulation.
+        Assert.Equal(item.Id, split1.PAYOUT_BATCH_ITEM_ID);
+        Assert.Equal(RevenueSplitStatus.Payable, split1.STATUS);
+
+        // Splits that were excluded from this batch (failed the hold window, unverified account, below
+        // threshold) must not have been linked to any batch item.
+        Assert.Null(split2.PAYOUT_BATCH_ITEM_ID);
+        Assert.Null(split3.PAYOUT_BATCH_ITEM_ID);
+        Assert.Null(split4.PAYOUT_BATCH_ITEM_ID);
+
+        // Proves the fix: no per-split GetByIdAsync re-fetch — eligibleSplits (already tracked from the
+        // batched GetEligibleSplitsForPayoutAsync query) are mutated directly.
+        Assert.Equal(0, splitRepo.GetByIdCallCount);
     }
 
     [Fact]
@@ -253,7 +289,7 @@ public sealed class PayoutBatchServiceTests
         itemRepo.Items[item.PAYOUT_BATCH_ITEM_ID] = item;
 
         var split = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorId, 1428.57m, 0m, 428.57m, 1000m, 70m, "2026-08");
-        typeof(REVENUE_SPLIT).GetProperty(nameof(REVENUE_SPLIT.PAYOUT_BATCH_ITEM_ID))!.SetValue(split, item.PAYOUT_BATCH_ITEM_ID);
+        split.AssignToBatchItem(item.PAYOUT_BATCH_ITEM_ID);
         splitRepo.Add(split);
 
         var adminId = Guid.NewGuid();
@@ -263,6 +299,57 @@ public sealed class PayoutBatchServiceTests
         Assert.Equal(PayoutBatchStatus.Executed, result.Value.Status);
         Assert.Equal(PayoutBatchItemStatus.Transferred, result.Value.Items[0].Status);
         Assert.Equal(RevenueSplitStatus.Paid, split.STATUS);
+    }
+
+    [Fact]
+    public async Task ExecuteBatchAsync_WithMultipleBatchItems_MarksAllLinkedSplitsPaidInOneBatchedQuery()
+    {
+        var batchRepo = new FakePayoutBatchRepository();
+        var itemRepo = new FakePayoutBatchItemRepository();
+        var splitRepo = new FakeRevenueSplitRepository();
+        var accountRepo = new FakeInstructorPayoutAccountRepository();
+        var options = Options.Create(new PayoutOptions());
+        var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+
+        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock);
+
+        var batch = PAYOUT_BATCH.Create("2026-08");
+        var instructorA = Guid.NewGuid();
+        var instructorB = Guid.NewGuid();
+        var itemA = batch.AddItem(instructorA, 1000m, 3m, 30m, 970m);
+        var itemB = batch.AddItem(instructorB, 2000m, 3m, 60m, 1940m);
+        batchRepo.Add(batch);
+        itemRepo.Items[itemA.PAYOUT_BATCH_ITEM_ID] = itemA;
+        itemRepo.Items[itemB.PAYOUT_BATCH_ITEM_ID] = itemB;
+
+        // Instructor A has two splits linked to the same batch item (e.g. two order items rolled into one
+        // payout) — proves the grouping-by-batch-item-id in memory handles more than one split per item.
+        var splitA1 = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorA, 714.29m, 0m, 214.29m, 500m, 70m, "2026-08");
+        splitA1.AssignToBatchItem(itemA.PAYOUT_BATCH_ITEM_ID);
+        splitRepo.Add(splitA1);
+
+        var splitA2 = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorA, 714.29m, 0m, 214.29m, 500m, 70m, "2026-08");
+        splitA2.AssignToBatchItem(itemA.PAYOUT_BATCH_ITEM_ID);
+        splitRepo.Add(splitA2);
+
+        var splitB = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorB, 2857.14m, 0m, 857.14m, 2000m, 70m, "2026-08");
+        splitB.AssignToBatchItem(itemB.PAYOUT_BATCH_ITEM_ID);
+        splitRepo.Add(splitB);
+
+        var adminId = Guid.NewGuid();
+        var result = await service.ExecuteBatchAsync(batch.PAYOUT_BATCH_ID, adminId, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(RevenueSplitStatus.Paid, splitA1.STATUS);
+        Assert.Equal(RevenueSplitStatus.Paid, splitA2.STATUS);
+        Assert.Equal(RevenueSplitStatus.Paid, splitB.STATUS);
+        Assert.Equal(itemA.PAYOUT_BATCH_ITEM_ID, splitA1.PAYOUT_BATCH_ITEM_ID);
+        Assert.Equal(itemB.PAYOUT_BATCH_ITEM_ID, splitB.PAYOUT_BATCH_ITEM_ID);
+
+        // Proves the batch: one GetSplitsByBatchItemIdsAsync call covering both batch items, not one
+        // GetSplitsByBatchItemIdAsync call per item (the old N+1 shape this fix removes).
+        Assert.Equal(1, splitRepo.GetSplitsByBatchItemIdsCallCount);
+        Assert.Equal(0, splitRepo.GetSplitsByBatchItemIdCallCount);
     }
 
     [Fact]

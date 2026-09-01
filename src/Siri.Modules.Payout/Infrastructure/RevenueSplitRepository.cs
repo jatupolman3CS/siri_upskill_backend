@@ -45,6 +45,19 @@ public sealed class RevenueSplitRepository(AppDbContext dbContext) : IRevenueSpl
             .ConfigureAwait(false);
     }
 
+    public async Task<IReadOnlyList<REVENUE_SPLIT>> GetSplitsByBatchItemIdsAsync(IReadOnlyCollection<Guid> batchItemIds, CancellationToken cancellationToken)
+    {
+        if (batchItemIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await dbContext.RevenueSplits()
+            .Where(r => r.PAYOUT_BATCH_ITEM_ID != null && batchItemIds.Contains(r.PAYOUT_BATCH_ITEM_ID.Value))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public IQueryable<REVENUE_SPLIT> Query() => dbContext.RevenueSplits().AsNoTracking();
 
     public async Task<decimal> GetTotalEarningsAsync(Guid instructorId, CancellationToken cancellationToken) =>
