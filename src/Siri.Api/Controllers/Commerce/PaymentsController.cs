@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Siri.Modules.Commerce.Application;
 using Siri.SharedKernel;
@@ -31,6 +32,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpPost("")]
+    [EnableRateLimiting("default")]
     [EndpointName("CommerceCreatePayment")]
     [EndpointSummary("เริ่มการชำระเงินสำหรับคำสั่งซื้อ")]
     [ProducesResponseType(typeof(PaymentResponse), StatusCodes.Status201Created)]
