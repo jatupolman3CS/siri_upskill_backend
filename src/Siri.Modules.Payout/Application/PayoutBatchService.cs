@@ -101,7 +101,14 @@ public sealed class PayoutBatchService
         _batchRepository.Add(batch);
         await _batchRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
-        // Link splits to created batch items
+        // Link splits to created batch items. `eligibleSplits` are already the tracked entities from the
+        // batched GetEligibleSplitsForPayoutAsync query above, so we mutate them directly — a previous
+        // version of this code re-fetched each one individually via GetByIdAsync inside this loop, which
+        // issued one redundant round trip per split even though EF's identity map already held it (a
+        // tracked query never skips hitting the database; only Find/FindAsync check the local cache
+        // first). It also set PAYOUT_BATCH_ITEM_ID via reflection against the private setter instead of
+        // AssignToBatchItem, bypassing the domain encapsulation every other state change on this entity
+        // goes through.
         if (batch.Items.Count > 0)
         {
             var itemsByInstructor = batch.Items.ToDictionary(i => i.INSTRUCTOR_ID);
@@ -109,15 +116,7 @@ public sealed class PayoutBatchService
             {
                 if (itemsByInstructor.TryGetValue(split.INSTRUCTOR_ID, out var item))
                 {
-                    // Update split's batch item linkage
-                    var splitEntry = await _splitRepository.GetByIdAsync(split.REVENUE_SPLIT_ID, cancellationToken).ConfigureAwait(false);
-                    if (splitEntry is not null)
-                    {
-                        // We link by updating PAYOUT_BATCH_ITEM_ID on the split
-                        typeof(REVENUE_SPLIT)
-                            .GetProperty(nameof(REVENUE_SPLIT.PAYOUT_BATCH_ITEM_ID))?
-                            .SetValue(splitEntry, item.PAYOUT_BATCH_ITEM_ID);
-                    }
+                    split.AssignToBatchItem(item.PAYOUT_BATCH_ITEM_ID);
                 }
             }
             await _splitRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -170,11 +169,17 @@ public sealed class PayoutBatchService
 
         batch.MarkExecuted(executedByUserId, _clock);
 
-        // Mark all associated splits as Paid
+        // Mark all associated splits as Paid — one batched query for every split across all of this
+        // batch's items instead of one GetSplitsByBatchItemIdAsync round trip per item.
+        var batchItemIds = batch.Items.Select(i => i.PAYOUT_BATCH_ITEM_ID).ToList();
+        var allSplits = await _splitRepository.GetSplitsByBatchItemIdsAsync(batchItemIds, cancellationToken).ConfigureAwait(false);
+        var splitsByBatchItemId = allSplits
+            .Where(s => s.PAYOUT_BATCH_ITEM_ID.HasValue)
+            .ToLookup(s => s.PAYOUT_BATCH_ITEM_ID!.Value);
+
         foreach (var item in batch.Items)
         {
-            var splits = await _splitRepository.GetSplitsByBatchItemIdAsync(item.PAYOUT_BATCH_ITEM_ID, cancellationToken).ConfigureAwait(false);
-            foreach (var split in splits)
+            foreach (var split in splitsByBatchItemId[item.PAYOUT_BATCH_ITEM_ID])
             {
                 split.MarkPaid(item.PAYOUT_BATCH_ITEM_ID);
             }

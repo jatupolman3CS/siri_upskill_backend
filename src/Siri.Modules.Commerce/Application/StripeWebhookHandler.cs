@@ -190,16 +190,23 @@ public sealed class StripeWebhookHandler
             // (needs InstructorId) read the same published-course snapshot.
             var coursePrices = await _catalogPriceContract.GetPublishedCoursePricesAsync(courseIds, cancellationToken).ConfigureAwait(false);
 
-            // 1. Auto-enroll student into all courses in order.
-            foreach (var courseId in courseIds)
-            {
-                DateTime? expiresAtUtc = coursePrices.TryGetValue(courseId, out var enrolledCourseInfo) && enrolledCourseInfo.AccessDurationDays is { } days
-                    ? _clock.UtcNow.AddDays(days)
-                    : null;
+            // 1. Auto-enroll student into all courses in order — one batched call (one query to load
+            // existing enrollments for this course set, one SaveChangesAsync) instead of looping
+            // EnrollUserAsync per course. This is the payment-confirmation webhook: money is already
+            // captured by Stripe, so granting access reliably in one round trip matters more here than
+            // almost anywhere else in the codebase.
+            var enrollmentGrants = courseIds
+                .Select(courseId =>
+                {
+                    DateTime? expiresAtUtc = coursePrices.TryGetValue(courseId, out var enrolledCourseInfo) && enrolledCourseInfo.AccessDurationDays is { } days
+                        ? _clock.UtcNow.AddDays(days)
+                        : null;
+                    return new CourseEnrollmentGrant(courseId, order.ORDER_ID, expiresAtUtc);
+                })
+                .ToList();
 
-                await _learningAccessContract.EnrollUserAsync(
-                    order.USER_ID, courseId, order.ORDER_ID, "Purchase", expiresAtUtc, cancellationToken).ConfigureAwait(false);
-            }
+            await _learningAccessContract.EnrollUserInCoursesAsync(
+                order.USER_ID, "Purchase", enrollmentGrants, cancellationToken).ConfigureAwait(false);
 
             // 2. Record Revenue Splits for instructors
             var splitItems = new List<OrderItemSplitInfo>();

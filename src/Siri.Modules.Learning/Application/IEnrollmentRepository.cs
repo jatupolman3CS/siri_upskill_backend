@@ -19,6 +19,30 @@ public interface IEnrollmentRepository
     /// key.</summary>
     Task<ENROLLMENT?> GetByUserAndCourseAsync(Guid userId, Guid courseId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Batched form of <see cref="GetByUserAndCourseAsync"/> — tracked lookup of this user's existing
+    /// enrollments across <paramref name="courseIds"/> in one query, consumed by
+    /// <c>Infrastructure.Contracts.LearningAccessContract.EnrollUserInCoursesAsync</c> to decide
+    /// create-vs-reactivate per course without looping the single-course lookup. Default implementation
+    /// loops <see cref="GetByUserAndCourseAsync"/> (functionally correct, not batched) so existing test
+    /// doubles for this interface keep compiling/behaving correctly without changes — only
+    /// <c>Infrastructure.EnrollmentRepository</c> overrides this with a real single-query implementation.
+    /// </summary>
+    async Task<IReadOnlyList<ENROLLMENT>> GetByUserAndCoursesAsync(Guid userId, IReadOnlyCollection<Guid> courseIds, CancellationToken cancellationToken)
+    {
+        var results = new List<ENROLLMENT>();
+        foreach (var courseId in courseIds)
+        {
+            var enrollment = await GetByUserAndCourseAsync(userId, courseId, cancellationToken).ConfigureAwait(false);
+            if (enrollment is not null)
+            {
+                results.Add(enrollment);
+            }
+        }
+
+        return results;
+    }
+
     /// <summary>Untracked (<c>AsNoTracking</c>) query source for read scenarios — the caller composes its
     /// own filtering/paging/projection (database.md: "Projection ไปเป็น DTO ตรง ๆ ดีกว่าดึง entity มาทั้งก้อน
     /// แล้ว map").</summary>

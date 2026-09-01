@@ -34,14 +34,13 @@ public sealed class OrderService(
             return Result.Failure<OrderResponse>(DomainError.Validation("กรุณาระบุคอร์สเรียนที่ต้องการสั่งซื้อ"));
         }
 
-        // Check duplicate active enrollment
-        foreach (var courseId in command.CourseIds)
+        // Check duplicate active enrollment — one batched query across the whole course set instead of
+        // looping HasActiveEnrollmentAsync per course.
+        var alreadyActiveCourseIds = await learningAccessContract.HasActiveEnrollmentsAsync(userId, command.CourseIds, cancellationToken).ConfigureAwait(false);
+        if (alreadyActiveCourseIds.Count > 0)
         {
-            var alreadyEnrolled = await learningAccessContract.HasActiveEnrollmentAsync(userId, courseId, cancellationToken).ConfigureAwait(false);
-            if (alreadyEnrolled)
-            {
-                return Result.Failure<OrderResponse>(DomainError.Conflict($"คุณได้ลงทะเบียนเรียนคอร์สนี้แล้ว ({courseId})"));
-            }
+            var firstAlreadyEnrolledCourseId = command.CourseIds.First(alreadyActiveCourseIds.Contains);
+            return Result.Failure<OrderResponse>(DomainError.Conflict($"คุณได้ลงทะเบียนเรียนคอร์สนี้แล้ว ({firstAlreadyEnrolledCourseId})"));
         }
 
         var pricingResult = await pricingEngine.CalculatePricingAsync(
@@ -87,21 +86,22 @@ public sealed class OrderService(
                 await orderRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
                 var coursePrices = await catalogPriceContract.GetPublishedCoursePricesAsync(command.CourseIds, cancellationToken).ConfigureAwait(false);
-                foreach (var courseId in command.CourseIds)
-                {
-                    coursePrices.TryGetValue(courseId, out var courseInfo);
-                    DateTime? expiresAt = courseInfo?.AccessDurationDays.HasValue == true
-                        ? clock.UtcNow.AddDays(courseInfo.AccessDurationDays.Value)
-                        : null;
 
-                    await learningAccessContract.EnrollUserAsync(
-                        userId,
-                        courseId,
-                        order.ORDER_ID,
-                        "PromoCode_100",
-                        expiresAt,
-                        cancellationToken).ConfigureAwait(false);
-                }
+                // One batched enroll call (one query to load existing enrollments for this course set,
+                // one SaveChangesAsync) instead of looping EnrollUserAsync per course.
+                var enrollmentGrants = command.CourseIds
+                    .Select(courseId =>
+                    {
+                        coursePrices.TryGetValue(courseId, out var courseInfo);
+                        DateTime? expiresAt = courseInfo?.AccessDurationDays.HasValue == true
+                            ? clock.UtcNow.AddDays(courseInfo.AccessDurationDays.Value)
+                            : null;
+                        return new CourseEnrollmentGrant(courseId, order.ORDER_ID, expiresAt);
+                    })
+                    .ToList();
+
+                await learningAccessContract.EnrollUserInCoursesAsync(
+                    userId, "PromoCode_100", enrollmentGrants, cancellationToken).ConfigureAwait(false);
             }
 
             return Result.Success(ToResponse(order));
