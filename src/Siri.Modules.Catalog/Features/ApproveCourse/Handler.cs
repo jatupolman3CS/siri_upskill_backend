@@ -15,13 +15,15 @@ namespace Siri.Modules.Catalog.Features.ApproveCourse;
 /// what actually enforces "only from InReview" — see <c>COURSE.Publish</c>'s own doc comment for why that
 /// split is deliberate.
 /// <para>
-/// <b>Output-cache invalidation (task P1-07)</b>: this is the only handler in the module that currently
-/// needs to evict <see cref="CourseOutputCache.Tag"/> — it is the only one that moves a course from
-/// not-publicly-visible to visible. <c>UpdateCourseHandler</c>/<c>DeleteCourseHandler</c> only ever act on
-/// <see cref="CourseStatus.Draft"/> courses (their own Draft-only gate), which were never in the public
-/// cache to begin with, so neither needs to invalidate anything — including "changed the price", since
-/// there is currently no way to change a <em>Published</em> course's price at all until a later task adds
-/// that capability (whichever one does must also call this same eviction).
+/// <b>Output-cache invalidation (task P1-07)</b>: this handler evicts <see cref="CourseOutputCache.Tag"/>
+/// because it moves a course from not-publicly-visible to visible. <c>UnpublishCourseHandler</c> now does
+/// the same for the reverse transition (visible → not-visible) — this was the "whichever future handler
+/// moves visibility must also call this same eviction" case this comment used to flag as unaddressed.
+/// <c>UpdateCourseHandler</c>/<c>DeleteCourseHandler</c> still only ever act on <see cref="CourseStatus.Draft"/>
+/// courses (their own Draft-only gate), which were never in the public cache to begin with, so neither needs
+/// to invalidate anything — including "changed the price", since there is currently no way to change a
+/// <em>Published</em> course's price at all until a later task adds that capability (whichever one does
+/// must also call this same eviction).
 /// </para>
 /// </summary>
 public sealed class ApproveCourseHandler(AppDbContext dbContext, IClock clock, IOutputCacheStore outputCacheStore)

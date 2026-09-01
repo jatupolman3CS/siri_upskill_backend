@@ -16,7 +16,12 @@ public sealed class GetWishlistHandler(AppDbContext dbContext)
             from w in dbContext.Wishlists().AsNoTracking()
             where w.UserId == userId
             join c in dbContext.Courses().AsNoTracking() on w.CourseId equals c.Id
-            join p in dbContext.InstructorProfiles().AsNoTracking() on c.InstructorId equals p.UserId into profs
+            // COURSE.InstructorId is a FK to INSTRUCTOR_PROFILE.Id (see CourseConfiguration.cs), not
+            // InstructorProfile.UserId — those are different columns. Joining on UserId here previously
+            // resolved to null via DefaultIfEmpty() for every row, silently falling back to the generic
+            // "ผู้สอน" placeholder for every wishlisted course. Fixed to match the FK's actual target,
+            // consistent with EpisodeAccessHelper.cs's `course.InstructorId == instructorProfile.Id`.
+            join p in dbContext.InstructorProfiles().AsNoTracking() on c.InstructorId equals p.Id into profs
             from p in profs.DefaultIfEmpty()
             where c.Status == CourseStatus.Published && !c.IsDeleted
             orderby w.CreatedAtUtc descending

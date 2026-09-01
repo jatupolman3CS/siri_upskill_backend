@@ -168,6 +168,30 @@ public sealed class WishlistIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetWishlist_ReturnsRealInstructorName_NotGenericFallback()
+    {
+        // Regression test: GetWishlistHandler used to join COURSE.InstructorId (FK to
+        // INSTRUCTOR_PROFILE.Id) against InstructorProfile.UserId — a different column — which always
+        // resolved to null and silently fell back to the generic "ผู้สอน" placeholder. The seeded
+        // instructor profile's Id (UuidV7, generated independently) is never equal to its UserId, so this
+        // scenario reproduces the bug exactly as it manifested for every wishlisted course in production.
+        var userToken = await LoginAndGetAccessTokenAsync(_app.Services, "wishlist-a@example.test");
+        var userClient = _app.GetTestClient();
+        userClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
+
+        await userClient.PostAsync($"/api/catalog/wishlist/{_course1Id}", null);
+
+        var getResponse = await userClient.GetAsync("/api/catalog/wishlist");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        var wishlist = await getResponse.Content.ReadFromJsonAsync<IReadOnlyList<WishlistCourseItemResponse>>(JsonOptions);
+        Assert.NotNull(wishlist);
+        var item = Assert.Single(wishlist, w => w.CourseId == _course1Id);
+        Assert.Equal("Inst Wish Profile", item.InstructorName);
+        Assert.NotEqual("ผู้สอน", item.InstructorName);
+    }
+
+    [Fact]
     public async Task RemoveFromWishlist_RemovesCourseFromUserWishlist()
     {
         var userToken = await LoginAndGetAccessTokenAsync(_app.Services, "wishlist-a@example.test");

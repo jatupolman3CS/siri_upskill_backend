@@ -60,14 +60,32 @@ public sealed class GetCourseReviewsHandler(
         var userIds = reviews.Select(r => r.UserId).Distinct().ToList();
         var contacts = await userContactReader.GetUsersContactInfoAsync(userIds, cancellationToken).ConfigureAwait(false);
 
-        var allRatings = await query.Select(r => r.Rating).ToListAsync(cancellationToken).ConfigureAwait(false);
-        var avg = allRatings.Count > 0 ? Math.Round((decimal)allRatings.Average(), 1) : 0m;
+        // RatingAverage is already denormalized on COURSE (CourseConfiguration.cs, kept in sync by
+        // CreateCourseReviewHandler's COURSE.UpdateRatingStats call on every review create/update) — read
+        // it instead of re-averaging the entire unbounded review set on every paginated page request.
+        var avg = await dbContext.Courses()
+            .AsNoTracking()
+            .Where(c => c.Id == courseId)
+            .Select(c => (decimal?)c.RatingAverage)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false) ?? 0m;
+
+        // One GROUP BY aggregate (at most 5 rows back) instead of pulling every published review's rating
+        // into memory just to run five separate .Count(r => r == N) passes over it.
+        var ratingCounts = await query
+            .GroupBy(r => r.Rating)
+            .Select(g => new { Rating = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        int CountForStar(int star) => ratingCounts.Find(x => x.Rating == star)?.Count ?? 0;
+
         var dist = new RatingDistributionResponse(
-            allRatings.Count(r => r == 5),
-            allRatings.Count(r => r == 4),
-            allRatings.Count(r => r == 3),
-            allRatings.Count(r => r == 2),
-            allRatings.Count(r => r == 1));
+            CountForStar(5),
+            CountForStar(4),
+            CountForStar(3),
+            CountForStar(2),
+            CountForStar(1));
 
         var items = reviews.Select(r =>
         {
