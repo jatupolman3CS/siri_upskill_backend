@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Siri.Modules.Commerce.Application;
 using Siri.SharedKernel;
@@ -14,6 +15,7 @@ namespace Siri.Api.Controllers.Commerce;
 public class PromoCodesController : ControllerBase
 {
     [HttpPost("promo-codes/validate")]
+    [EnableRateLimiting("default")]
     [EndpointName("CommerceValidatePromoCode")]
     [EndpointSummary("ตรวจสอบและคำนวณส่วนลดจากโค้ดส่วนลด")]
     [ProducesResponseType(typeof(ValidatePromoCodeResponse), StatusCodes.Status200OK)]
