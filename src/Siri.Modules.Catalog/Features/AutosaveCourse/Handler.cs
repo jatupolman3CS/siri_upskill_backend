@@ -115,7 +115,7 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
 
                     foreach (var epToRemove in episodesToRemove)
                     {
-                        section.RemoveEpisode(epToRemove.Id);
+                        course.RemoveEpisode(epToRemove.Id);
                     }
 
                     foreach (var epItem in sectionItem.Episodes.OrderBy(e => e.SortOrder))
@@ -135,7 +135,7 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
                         }
                         else
                         {
-                            section.AddEpisode(epItem.Title, epItem.Description, epItem.IsFreePreview);
+                            course.AddEpisode(section.Id, epItem.Title, epItem.Description, epItem.IsFreePreview);
                         }
                     }
                 }
