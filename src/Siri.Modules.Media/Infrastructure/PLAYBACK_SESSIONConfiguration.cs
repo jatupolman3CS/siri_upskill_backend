@@ -32,5 +32,14 @@ public sealed class PLAYBACK_SESSIONConfiguration : IEntityTypeConfiguration<PLA
         // user's sessions to investigate a leak" (see class doc comment), so (UserId, IssuedAtUtc) is the
         // obvious first index to ship with it rather than add later under pressure.
         builder.HasIndex(p => new { p.USER_ID, p.ISSUED_AT_UTC });
+
+        // Query-performance audit (2026-09): PlaybackAnomalyDetectionJob's rolling 1-hour fraud-detection
+        // scan (PlaybackSessionRepository.GetUserActivitySinceAsync) filters solely by
+        // `ISSUED_AT_UTC >= sinceUtc` — no USER_ID predicate at all, it groups by USER_ID only after
+        // fetching. The (USER_ID, ISSUED_AT_UTC) index above is USER_ID-leftmost, so it cannot seek that
+        // date-only predicate; every run of that job (an anti-piracy job, run on a schedule) full-scanned
+        // this append-only "every playback token ever issued" table. A second index led by ISSUED_AT_UTC
+        // alone lets it seek the last-hour window instead.
+        builder.HasIndex(p => p.ISSUED_AT_UTC);
     }
 }
