@@ -20,11 +20,20 @@
 
 ## Endpoint
 
-- Minimal API + `MapGroup()` ต่อ module, ตั้ง `.RequireAuthorization()` ที่ระดับ group แล้วค่อย `.AllowAnonymous()` เป็นราย endpoint (default deny)
-- Endpoint ต้องบางที่สุด: bind → เรียก handler → map ผลลัพธ์เป็น HTTP **ห้ามมี business logic ใน endpoint**
+**ASP.NET Core MVC Controllers (attribute routing)** — ตัดสินใจแล้ว 2026-09-01 (`docs/DECISIONS.md` D-19), แทนที่ Minimal API `MapGroup()`/`*Endpoints.cs` เดิม การเปลี่ยนนี้จำกัดแค่ชั้น routing/binding เท่านั้น — DTO, validator, และ business logic ใน `{UseCase}Handler`/`{Entity}Service` **ไม่เปลี่ยน**
+
+- Controller หนึ่งไฟล์ต่อ resource ใต้ `src/Siri.Api/Controllers/<Module>/<Resource>Controller.cs` — `[ApiController]` + `[Route("api/...")]` + `[Tags("...")]`, สืบทอดจาก `ControllerBase` ตรง ๆ (ไม่มี shared base controller ในโค้ดเบสนี้)
+- **Default deny ผ่าน `[Authorize]` ที่ต้องใส่ชัดเจนเสมอ — ไม่มี global fallback policy** (`AddSiriAuthorizationPolicies()` ไม่ได้ตั้ง `FallbackPolicy`) ดังนั้น action ที่ไม่มีทั้ง `[Authorize]` และ `[AllowAnonymous]` จะ**เปิดสาธารณะโดย default ของ ASP.NET Core เอง** (ตรงข้ามกับ Minimal API เดิมที่ framework บังคับ deny เองที่ระดับ group) — ใส่ attribute ให้ครบทุก action เสมอ ห้ามลืม:
+  - Controller ที่ทุก action ใช้ policy เดียวกันหมด: ใส่ `[Authorize]` (ต้อง login) หรือ `[Authorize(Policy = AuthorizationPolicyNames.AdminOnly)]`/`InstructorOnly` ที่ระดับ class เช่น `OrdersController`, `PaymentOpsController`
+  - Controller ที่ปนกันระหว่าง public/protected: ใส่ `[Authorize]`/`[AllowAnonymous]` ที่ระดับ **method** ทุกตัว เช่น `CoursesController` (`SearchCourses`/`GetCourseDetail`/`GetCourseReviews` = `[AllowAnonymous]`, `CreateCourseReview` = `[Authorize]`)
+  - Controller ที่ public ทั้งคลาสจริง ๆ (ไม่มี auth เลย): ใส่ `[AllowAnonymous]` ที่ระดับ class ให้ชัดว่าตั้งใจ (มีแค่ 3 ตัวในระบบ: Stripe webhook, Bunny webhook, sitemap)
+- Action คืน `IResult` (ไม่ใช่ `IActionResult`) ผ่าน `Results.Ok()`/`Results.Created()`/`Results.Unauthorized()`/`Results.File()` ฯลฯ — ตัวเดียวกับที่ Minimal API เคยใช้
+- Action ต้องบางที่สุด: bind → inject handler/service ตัวเดิมผ่าน `[FromServices]` → เรียก `.HandleAsync()`/`{Verb}Async()` → map ผลลัพธ์เป็น HTTP **ห้ามมี business logic ใน action**
 - Response ต้องเป็น DTO เสมอ **ห้ามคืน EF entity ออก API**
-- Error → RFC 9457 `ProblemDetails` เสมอ; ใส่ `traceId` ทุกครั้ง
-- ตั้ง `.WithName()` + `.Produces<T>()` ให้ครบ เพื่อให้ OpenAPI สร้าง client ฝั่ง Angular ได้
+- Error → `Result<T>.Error.ToProblemHttpResult(HttpContext)` (`Siri.SharedKernel`) เสมอ ได้ RFC 9457 `ProblemDetails` พร้อม `traceId` อัตโนมัติ — ตัวเดียวกับสมัย Minimal API ไม่เปลี่ยน
+- FluentValidation ไม่ต้องผูกเองต่อ action: `ValidationActionFilter` (`Siri.SharedKernel`) เป็น global MVC action filter (ผูกครั้งเดียวที่ `Program.cs`'s `AddControllers(options => options.Filters.Add<ValidationActionFilter>())`) หา `IValidator<T>` ที่ลงทะเบียนไว้ให้กับ action argument ทุกตัวอัตโนมัติ แล้วตอบ `ValidationProblemDetails` เองถ้าไม่ผ่าน — แค่ `services.AddScoped<IValidator<TCommand>, TValidator>()` ให้ครบก็พอ
+- ตั้ง `[EndpointName("...")]` + `[EndpointSummary("...")]` + `[ProducesResponseType(typeof(T), StatusCodes...)]` ให้ครบทุก action (แทนที่ `.WithName()`/`.WithSummary()`/`.Produces<T>()` เดิม) เพื่อให้ OpenAPI สร้าง client ฝั่ง Angular ได้
+- Rate limit ผ่าน `[EnableRateLimiting("policyName")]` ที่ action (แทนที่ `.RequireRateLimiting(...)` เดิม)
 
 ## Result & error handling
 
