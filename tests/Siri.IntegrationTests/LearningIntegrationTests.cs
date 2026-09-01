@@ -21,6 +21,7 @@ using Siri.Modules.Identity.Features.Login;
 using Siri.Modules.Identity.Infrastructure;
 using Siri.Modules.Learning;
 using Siri.Modules.Learning.Application;
+using Siri.Modules.Learning.Contracts;
 using Siri.Modules.Learning.Domain;
 using Siri.Modules.Learning.Infrastructure;
 using Siri.Modules.Notification;
@@ -387,5 +388,71 @@ public sealed class LearningIntegrationTests : IAsyncLifetime
         Assert.True(verifyResult.IsSuccess);
         Assert.Equal(issueResult.Value.VerifyCode, verifyResult.Value.VerifyCode);
         Assert.True(verifyResult.Value.IsValid);
+    }
+
+    /// <summary>
+    /// Query-performance audit (2026-09) regression test for <see cref="LearningAnalyticsContract
+    /// .PurgeOldWatchEventsAsync"/> — proves the switch away from load-then-RemoveRange to a batched
+    /// <c>ExecuteDeleteAsync</c> still deletes exactly the rows strictly older than the cutoff, and
+    /// leaves everything else (including a row landing exactly ON the cutoff, and newer rows) intact.
+    /// An off-by-one here (e.g. accidentally using <c>&lt;=</c> instead of <c>&lt;</c>) would silently
+    /// destroy analytics data that should have survived, so this asserts the boundary directly against
+    /// real SQL Server rather than trusting the LINQ predicate at face value.
+    /// </summary>
+    [Fact]
+    public async Task PurgeOldWatchEventsAsync_DeletesOnlyEventsStrictlyOlderThanCutoff()
+    {
+        await using var scope = _app.Services.CreateAsyncScope();
+        var enrollmentService = scope.ServiceProvider.GetRequiredService<EnrollmentService>();
+        var analyticsContract = scope.ServiceProvider.GetRequiredService<ILearningAnalyticsContract>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+
+        var enrollResult = await enrollmentService.CreateAsync(
+            new CreateEnrollmentCommand(_learnerUserId, _courseId, null, EnrollmentSource.Purchase, null),
+            CancellationToken.None);
+        Assert.True(enrollResult.IsSuccess);
+        var enrollmentId = enrollResult.Value.Id;
+
+        var cutoffUtc = clock.UtcNow.AddDays(-90);
+
+        // WATCH_EVENT.Create() always stamps IClock.UtcNow and OCCURRED_AT_UTC has a private setter, so
+        // seed via the domain factory first, then backdate each row's timestamp with a direct SQL UPDATE
+        // (the only way to plant an exact historical timestamp from outside the module).
+        var wellOutsideCutoff = WATCH_EVENT.Create(enrollmentId, _episodeId, WatchEventType.Play, 0, clock);
+        var justInsideCutoff = WATCH_EVENT.Create(enrollmentId, _episodeId, WatchEventType.Heartbeat, 10, clock);
+        var exactlyAtCutoff = WATCH_EVENT.Create(enrollmentId, _episodeId, WatchEventType.Heartbeat, 20, clock);
+        var justOutsideCutoff = WATCH_EVENT.Create(enrollmentId, _episodeId, WatchEventType.Heartbeat, 30, clock);
+        var wellInsideCutoff = WATCH_EVENT.Create(enrollmentId, _episodeId, WatchEventType.Ended, 300, clock);
+
+        db.WatchEvents().AddRange(wellOutsideCutoff, justInsideCutoff, exactlyAtCutoff, justOutsideCutoff, wellInsideCutoff);
+        await db.SaveChangesAsync();
+
+        async Task BackdateAsync(long watchEventId, DateTime occurredAtUtc) =>
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE LEARNING.WATCH_EVENTS SET OCCURRED_AT_UTC = {occurredAtUtc} WHERE WATCH_EVENT_ID = {watchEventId}");
+
+        await BackdateAsync(wellOutsideCutoff.WATCH_EVENT_ID, cutoffUtc.AddDays(-5)); // should be purged
+        await BackdateAsync(justInsideCutoff.WATCH_EVENT_ID, cutoffUtc.AddSeconds(-1)); // should be purged
+        await BackdateAsync(exactlyAtCutoff.WATCH_EVENT_ID, cutoffUtc); // must survive (predicate is strictly <)
+        await BackdateAsync(justOutsideCutoff.WATCH_EVENT_ID, cutoffUtc.AddSeconds(1)); // must survive
+        await BackdateAsync(wellInsideCutoff.WATCH_EVENT_ID, cutoffUtc.AddDays(5)); // must survive
+
+        var deletedCount = await analyticsContract.PurgeOldWatchEventsAsync(cutoffUtc, CancellationToken.None);
+
+        Assert.Equal(2, deletedCount);
+
+        var remainingIds = await db.WatchEvents()
+            .AsNoTracking()
+            .Where(w => w.ENROLLMENT_ID == enrollmentId)
+            .Select(w => w.WATCH_EVENT_ID)
+            .ToListAsync();
+
+        Assert.DoesNotContain(wellOutsideCutoff.WATCH_EVENT_ID, remainingIds);
+        Assert.DoesNotContain(justInsideCutoff.WATCH_EVENT_ID, remainingIds);
+        Assert.Contains(exactlyAtCutoff.WATCH_EVENT_ID, remainingIds);
+        Assert.Contains(justOutsideCutoff.WATCH_EVENT_ID, remainingIds);
+        Assert.Contains(wellInsideCutoff.WATCH_EVENT_ID, remainingIds);
+        Assert.Equal(3, remainingIds.Count);
     }
 }
