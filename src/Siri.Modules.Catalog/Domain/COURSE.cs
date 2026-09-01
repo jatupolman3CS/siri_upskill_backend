@@ -19,11 +19,19 @@ namespace Siri.Modules.Catalog.Domain;
 /// (→ <c>media.MediaAssets</c>, a different module/schema — no FK constraint, ever, by design).
 /// </para>
 /// <para>
-/// <see cref="EpisodeCount"/>/<see cref="TotalDurationSeconds"/>/<see cref="RatingAverage"/>/
-/// <see cref="RatingCount"/>/<see cref="EnrollmentCount"/> are denormalized (DATABASE.md: "ห้าม UPDATE
-/// ตรงจาก handler อื่น ให้ผ่าน CourseStatsUpdater ที่เดียว") — no method on this aggregate touches them;
-/// that updater does not exist yet (a later task), so they simply stay at their zero defaults through
-/// everything P1-02 does.
+/// All five stats columns are denormalized (DATABASE.md: "ห้าม UPDATE ตรงจาก handler อื่น ให้ผ่าน
+/// updater ที่เดียว"), but they split into two groups with different owners. <see cref="RatingAverage"/>/
+/// <see cref="RatingCount"/>/<see cref="EnrollmentCount"/> depend on data this aggregate does not own
+/// (reviews live in Community, enrollments in Learning) — no method here touches them; they wait for the
+/// future cross-module <c>CourseStatsUpdater</c> and stay at their zero defaults until then.
+/// <see cref="EpisodeCount"/>/<see cref="TotalDurationSeconds"/> are different: everything they depend on
+/// (<see cref="Sections"/> and each section's episodes) is already owned by this aggregate, so there is
+/// no reason to wait for a cross-module updater — <see cref="RecalculateEpisodeStats"/> is the single
+/// place both are written, called automatically by every method on this aggregate that can change the
+/// episode set or a episode's duration (<see cref="AddSection"/>/<see cref="RemoveSection"/>/
+/// <see cref="AddEpisode(Guid,string,string?,bool)"/>/<see cref="RemoveEpisode"/>/
+/// <see cref="AttachEpisodeMedia"/>/<see cref="RemoveEpisodeMedia"/>) — production code never needs to
+/// remember to call it itself.
 /// </para>
 /// </summary>
 public sealed class COURSE : IAuditable, ISoftDelete
@@ -88,11 +96,12 @@ public sealed class COURSE : IAuditable, ISoftDelete
     /// course never shows a stale reason from a previous rejection.</summary>
     public string? RejectionReason { get; private set; }
 
-    // ---- Denormalized (CourseStatsUpdater-only — see class doc comment) ------------------------
+    // ---- Denormalized, self-maintained (RecalculateEpisodeStats — see class doc comment) --------
     public int TotalDurationSeconds { get; private set; }
 
     public int EpisodeCount { get; private set; }
 
+    // ---- Denormalized, CourseStatsUpdater-only (cross-module — see class doc comment) ------------
     public decimal RatingAverage { get; private set; }
 
     public int RatingCount { get; private set; }
@@ -272,6 +281,9 @@ public sealed class COURSE : IAuditable, ISoftDelete
     {
         var section = COURSE_SECTION.Create(Id, title, _sections.Count);
         _sections.Add(section);
+        RecalculateEpisodeStats(); // no-op today (a new section starts with 0 episodes) but keeps this
+                                    // method consistent with every other structural mutation below rather
+                                    // than being a silent exception to the rule.
         return section;
     }
 
@@ -314,6 +326,8 @@ public sealed class COURSE : IAuditable, ISoftDelete
         {
             _sections[index].Reorder(index);
         }
+
+        RecalculateEpisodeStats(); // the removed section takes its episodes with it.
     }
 
     /// <summary>
@@ -331,6 +345,58 @@ public sealed class COURSE : IAuditable, ISoftDelete
             ?? throw new InvalidOperationException($"Episode {episodeId} was not found on this course.");
 
         section.RemoveEpisode(episodeId);
+        RecalculateEpisodeStats();
+    }
+
+    /// <summary>
+    /// Adds an episode to the section identified by <paramref name="sectionId"/> and keeps
+    /// <see cref="EpisodeCount"/>/<see cref="TotalDurationSeconds"/> in sync — the aggregate-root entry
+    /// point production code (handlers, the catalog seeder) should call instead of finding the section
+    /// via <see cref="Sections"/> and calling <see cref="COURSE_SECTION.AddEpisode"/> on it directly.
+    /// <para>
+    /// <see cref="COURSE_SECTION.AddEpisode"/> itself stays public rather than becoming <c>internal</c>:
+    /// a large number of existing unit/integration tests build course fixtures by calling it directly on
+    /// a section (they don't need a full <see cref="COURSE"/> reference and don't assert on this
+    /// aggregate's stats), and <see cref="COURSE_SECTION"/> deliberately has no back-navigation to
+    /// <see cref="COURSE"/> (see this class's own doc comment) so it has no way to keep these two
+    /// properties in sync even if it wanted to. This method is what closes that gap for the call sites
+    /// that do need it kept in sync.
+    /// </para>
+    /// </summary>
+    public COURSE_EPISODE AddEpisode(Guid sectionId, string title, string? description, bool isFreePreview)
+    {
+        var section = _sections.FirstOrDefault(s => s.Id == sectionId)
+            ?? throw new InvalidOperationException($"Section {sectionId} was not found on this course.");
+
+        var episode = section.AddEpisode(title, description, isFreePreview);
+        RecalculateEpisodeStats();
+        return episode;
+    }
+
+    /// <summary>Attaches (or replaces) media on the episode identified by <paramref name="episodeId"/>,
+    /// wherever it lives among <see cref="Sections"/>, and keeps <see cref="TotalDurationSeconds"/> in
+    /// sync — same "aggregate-root entry point" reasoning as <see cref="AddEpisode(Guid,string,string?,bool)"/>.</summary>
+    public COURSE_EPISODE AttachEpisodeMedia(Guid episodeId, Guid mediaAssetId, int durationSeconds)
+    {
+        var episode = _sections.SelectMany(s => s.Episodes).FirstOrDefault(e => e.Id == episodeId)
+            ?? throw new InvalidOperationException($"Episode {episodeId} was not found on this course.");
+
+        episode.AttachMedia(mediaAssetId, durationSeconds);
+        RecalculateEpisodeStats();
+        return episode;
+    }
+
+    /// <summary>Removes media from the episode identified by <paramref name="episodeId"/> and keeps
+    /// <see cref="TotalDurationSeconds"/> in sync — same "aggregate-root entry point" reasoning as
+    /// <see cref="AddEpisode(Guid,string,string?,bool)"/>.</summary>
+    public COURSE_EPISODE RemoveEpisodeMedia(Guid episodeId)
+    {
+        var episode = _sections.SelectMany(s => s.Episodes).FirstOrDefault(e => e.Id == episodeId)
+            ?? throw new InvalidOperationException($"Episode {episodeId} was not found on this course.");
+
+        episode.RemoveMedia();
+        RecalculateEpisodeStats();
+        return episode;
     }
 
     public COURSE_OUTCOME AddOutcome(string text)
@@ -512,4 +578,28 @@ public sealed class COURSE : IAuditable, ISoftDelete
     }
 
     private bool HasEpisodeWithMedia() => _sections.SelectMany(s => s.Episodes).Any(e => e.MediaAssetId is not null);
+
+    /// <summary>
+    /// The single place <see cref="EpisodeCount"/>/<see cref="TotalDurationSeconds"/> are ever assigned —
+    /// database.md's "denormalized values updated from exactly one place" rule, scoped to the half of
+    /// this aggregate's stats that don't need cross-module data (see class doc comment). Recomputes both
+    /// from <see cref="Sections"/> as currently held in memory; an episode with no media yet contributes
+    /// 0 to <see cref="TotalDurationSeconds"/> (its <see cref="COURSE_EPISODE.DurationSeconds"/> is
+    /// <c>null</c> until <see cref="COURSE_EPISODE.AttachMedia"/>), not a missing/undefined value.
+    /// <para>
+    /// <c>internal</c>, not <c>private</c>: every structural mutation on this aggregate already calls it
+    /// automatically, so production code never has a reason to call it directly — but it is also the
+    /// designated one-time backfill/self-heal hook for rows written by a build of <c>CatalogSeeder</c>
+    /// older than this method (which built courses by calling <see cref="COURSE_SECTION.AddEpisode"/>/
+    /// <see cref="COURSE_EPISODE.AttachMedia"/> directly, bypassing this aggregate's stats entirely — see
+    /// <c>CatalogSeeder.BackfillEpisodeStatsAsync</c>, same assembly). Not <c>public</c>: nothing outside
+    /// this module should ever be able to force a recompute.
+    /// </para>
+    /// </summary>
+    internal void RecalculateEpisodeStats()
+    {
+        var episodes = _sections.SelectMany(s => s.Episodes).ToList();
+        EpisodeCount = episodes.Count;
+        TotalDurationSeconds = episodes.Sum(e => e.DurationSeconds ?? 0);
+    }
 }

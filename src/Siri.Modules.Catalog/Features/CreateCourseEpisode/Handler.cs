@@ -46,7 +46,7 @@ public sealed class CreateCourseEpisodeHandler(AppDbContext dbContext)
             return Result.Failure<CourseEpisodeResponse>(NotFoundError);
         }
 
-        var episode = section.AddEpisode(command.Title, command.Description, command.IsFreePreview);
+        var episode = course.AddEpisode(sectionId, command.Title, command.Description, command.IsFreePreview);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return Result.Success(new CourseEpisodeResponse(
