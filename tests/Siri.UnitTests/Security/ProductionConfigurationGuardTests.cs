@@ -110,6 +110,33 @@ public sealed class ProductionConfigurationGuardTests
         Assert.Contains($"{StripeOptions.SectionName}:SecretKey", ex.Message);
     }
 
+    [Fact]
+    public void ValidateProductionConfiguration_WithThaiCompanyPayerInfo_Passes()
+    {
+        var validKeyBase64 = Convert.ToBase64String(new byte[32]);
+
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DataProtection:EncryptionKeyBase64"] = validKeyBase64,
+                ["Identity:Jwt:SigningKey"] = "wX8hR9mK2pL5vN8qY1tU4xZ7aB0cD3eF4gH6jI9kL1nO4pQ7sT0uV3wX6yZ9aB2c",
+                [$"{StripeOptions.SectionName}:SecretKey"] = "sk_test_REDACTED",
+                [$"{StripeOptions.SectionName}:WebhookSecret"] = "whsec_suyLpPcKhIGcLh8w2WRsCpFd8x7FnST4",
+                ["Cors:AllowedOrigins:0"] = "https://siriupskill.siristudiophoto.com",
+                ["Cors:AllowedOrigins:1"] = "https://admin.siriupskill.siristudiophoto.com",
+                ["Seo:PublicBaseUrl"] = "https://siriupskill.siristudiophoto.com",
+                [$"{PayoutOptions.SectionName}:PayerCompanyName"] = "บริษัท สิริ อัพสกิล จำกัด",
+                [$"{PayoutOptions.SectionName}:PayerTaxId"] = "0105550000000",
+                [$"{PayoutOptions.SectionName}:PayerAddress"] = "Bangkok, Thailand",
+            })
+            .Build();
+
+        var env = new FakeHostEnvironment("Production");
+
+        // Should not throw
+        ProductionConfigurationGuard.ValidateProductionConfiguration(config, env);
+    }
+
     private sealed class FakeHostEnvironment(string environmentName) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = environmentName;
