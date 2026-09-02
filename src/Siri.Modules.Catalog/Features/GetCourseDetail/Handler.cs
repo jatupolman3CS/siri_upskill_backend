@@ -18,12 +18,17 @@ public sealed class GetCourseDetailHandler(AppDbContext dbContext, IUserContext 
 
     public async Task<Result<CourseDetailResponse>> HandleAsync(string slug, CancellationToken cancellationToken)
     {
+        var decodedSlug = Uri.UnescapeDataString(slug).Trim();
+        var generatedSlug = ThaiSlugGenerator.GenerateBaseSlug(decodedSlug);
+
         var course = await dbContext.Courses()
             .AsNoTracking()
             .Include(c => c.Sections).ThenInclude(s => s.Episodes)
             .Include(c => c.Outcomes)
             .Include(c => c.Requirements)
-            .FirstOrDefaultAsync(c => c.Slug == slug && c.Status == CourseStatus.Published, cancellationToken)
+            .FirstOrDefaultAsync(c => 
+                (c.Slug == slug || c.Slug == decodedSlug || c.Slug == generatedSlug || c.Title == decodedSlug) 
+                && c.Status == CourseStatus.Published, cancellationToken)
             .ConfigureAwait(false);
 
         if (course is null)

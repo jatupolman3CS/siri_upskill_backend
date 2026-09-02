@@ -33,6 +33,11 @@ public sealed class CategoryTreeCache(IConnectionMultiplexer redis, ILogger<Cate
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (!redis.IsConnected)
+        {
+            return null;
+        }
+
         try
         {
             var database = redis.GetDatabase();
@@ -49,6 +54,11 @@ public sealed class CategoryTreeCache(IConnectionMultiplexer redis, ILogger<Cate
     public async Task SetAsync(string treeJson, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (!redis.IsConnected)
+        {
+            return;
+        }
 
         try
         {
@@ -67,6 +77,11 @@ public sealed class CategoryTreeCache(IConnectionMultiplexer redis, ILogger<Cate
     public async Task InvalidateAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (!redis.IsConnected)
+        {
+            return;
+        }
 
         try
         {
