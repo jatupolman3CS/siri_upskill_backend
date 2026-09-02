@@ -38,15 +38,15 @@ using Siri.Workers;
 // configuration flow in the standard ASP.NET Core pattern: appsettings + real environment variables
 // + command-line arguments remain the source of truth, and local developer secret files act as a
 // default fallback rather than a hard override.
-static void ApplyDotEnvValues()
+static Dictionary<string, string?> ApplyDotEnvValues(string[] args)
 {
-    var candidates = new[]
-    {
-        ".env",
-        ".env_prd",
-        ".env.production",
-        ".env.local",
-    };
+    var isProduction = string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Production", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"), "Production", StringComparison.OrdinalIgnoreCase) ||
+                       args.Any(a => a.Contains("Production", StringComparison.OrdinalIgnoreCase));
+
+    var candidates = isProduction
+        ? new[] { ".env.production", ".env_prd", ".env", ".env.local" }
+        : new[] { ".env", ".env.local", ".env.development", ".env_prd", ".env.production" };
 
     var searchDirs = new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() };
 
@@ -60,21 +60,30 @@ static void ApplyDotEnvValues()
                 var candidate = Path.Combine(dir.FullName, fileName);
                 if (File.Exists(candidate))
                 {
-                    foreach (var entry in ParseDotEnvFile(candidate))
+                    var entries = ParseDotEnvFile(candidate);
+                    foreach (var entry in entries)
                     {
-                        if (Environment.GetEnvironmentVariable(entry.Key) is null)
+                        Environment.SetEnvironmentVariable(entry.Key, entry.Value);
+
+                        if (entry.Key.Contains("__"))
                         {
-                            Environment.SetEnvironmentVariable(entry.Key, entry.Value);
+                            Environment.SetEnvironmentVariable(entry.Key.Replace("__", ":"), entry.Value);
+                        }
+                        else if (entry.Key.Contains(':'))
+                        {
+                            Environment.SetEnvironmentVariable(entry.Key.Replace(":", "__"), entry.Value);
                         }
                     }
 
-                    return;
+                    return entries;
                 }
             }
 
             dir = dir.Parent;
         }
     }
+
+    return new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 }
 
 static Dictionary<string, string?> ParseDotEnvFile(string filePath)
@@ -98,7 +107,9 @@ static Dictionary<string, string?> ParseDotEnvFile(string filePath)
         var key = line[..separatorIndex].Trim();
         var value = line[(separatorIndex + 1)..].Trim();
 
-        if (value.Length >= 2 && value.StartsWith('"') && value.EndsWith('"'))
+        if (value.Length >= 2 &&
+            ((value.StartsWith('"') && value.EndsWith('"')) ||
+             (value.StartsWith('\'') && value.EndsWith('\''))))
         {
             value = value[1..^1];
         }
@@ -119,9 +130,19 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    ApplyDotEnvValues();
+    var dotEnvValues = ApplyDotEnvValues(args);
 
     var builder = WebApplication.CreateBuilder(args);
+
+    if (dotEnvValues.Count > 0)
+    {
+        var inMemoryEnv = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (k, v) in dotEnvValues)
+        {
+            inMemoryEnv[k.Replace("__", ":")] = v;
+        }
+        builder.Configuration.AddInMemoryCollection(inMemoryEnv);
+    }
 
     // P0-13 observability: read the section directly here (same reasoning as JwtOptions below —
     // Serilog's pipeline and AddOpenTelemetry's exporter registration both happen before the DI

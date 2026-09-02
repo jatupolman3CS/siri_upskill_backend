@@ -137,17 +137,27 @@ public static class Program
 
     private static void LoadDotEnv()
     {
+        var isProduction = string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Production", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"), "Production", StringComparison.OrdinalIgnoreCase);
+
+        var candidates = isProduction
+            ? new[] { ".env.production", ".env_prd", ".env", ".env.local" }
+            : new[] { ".env", ".env.local", ".env.development", ".env_prd", ".env.production" };
+
         var searchDirs = new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() };
         foreach (var baseDir in searchDirs)
         {
             var dir = new DirectoryInfo(baseDir);
             while (dir != null)
             {
-                var candidate = Path.Combine(dir.FullName, ".env");
-                if (File.Exists(candidate))
+                foreach (var fileName in candidates)
                 {
-                    Env.Load(candidate, new LoadOptions(clobberExistingVars: true));
-                    return;
+                    var candidate = Path.Combine(dir.FullName, fileName);
+                    if (File.Exists(candidate))
+                    {
+                        Env.Load(candidate, new LoadOptions(clobberExistingVars: true));
+                        return;
+                    }
                 }
                 dir = dir.Parent;
             }
