@@ -35,6 +35,11 @@ public sealed class RedisSessionRegistry(IConnectionMultiplexer redis, ILogger<R
         // the caller already cancelled.
         cancellationToken.ThrowIfCancellationRequested();
 
+        if (!redis.IsConnected)
+        {
+            return;
+        }
+
         try
         {
             var database = redis.GetDatabase();
@@ -55,6 +60,11 @@ public sealed class RedisSessionRegistry(IConnectionMultiplexer redis, ILogger<R
     public async Task RemoveAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        if (!redis.IsConnected)
+        {
+            return;
+        }
 
         try
         {

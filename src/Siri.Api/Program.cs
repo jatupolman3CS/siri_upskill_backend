@@ -27,6 +27,7 @@ using Siri.Modules.Identity.Infrastructure;
 using Siri.Modules.Identity.Infrastructure.Seeding;
 using Siri.Modules.Learning;
 using Siri.Modules.Media;
+using Siri.Modules.Media.Infrastructure.Seeding;
 using Siri.Modules.Notification;
 using Siri.Modules.Payout;
 using Siri.Persistence.DependencyInjection;
@@ -182,25 +183,26 @@ try
     {
         options.AddPolicy("Default", policy =>
         {
-            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-
-            if (allowedOrigins.Length > 0)
+            if (builder.Environment.IsDevelopment())
             {
-                // AllowCredentials is required for the httpOnly refresh-token cookie (security.md /
-                // RefreshTokenCookie.cs) to be set/sent on cross-origin requests from the Angular dev
-                // server. Only ever paired with an explicit origin list - AllowAnyOrigin +
-                // AllowCredentials is invalid per the CORS spec (browsers reject it outright), so the
-                // wildcard branch below must never call AllowCredentials.
-                policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+                policy
+                    .SetIsOriginAllowed(_ => true)
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials();
             }
             else
             {
-                // No frontend origin is finalized for this environment (e.g. production domain not
-                // decided yet - see CLAUDE.md "ยังค้าง"/ROADMAP). Wide open for browsing, but credentialed
-                // requests (login/refresh, which set/read the httpOnly cookie) will not work until a
-                // real origin is configured via Cors:AllowedOrigins - that's a real, known limitation of
-                // this fallback, not an oversight; tighten by setting the config once an origin exists.
-                policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+                var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+
+                if (allowedOrigins.Length > 0)
+                {
+                    policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+                }
+                else
+                {
+                    policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+                }
             }
         });
     });
@@ -377,6 +379,10 @@ try
         var catalogSeeder = seedScope.ServiceProvider.GetRequiredService<CatalogSeeder>();
         await catalogSeeder.SeedAsync(userIdsByEmail, CancellationToken.None);
 
+        var mediaSeeder = seedScope.ServiceProvider.GetRequiredService<MediaSeeder>();
+        var firstInstructorUserId = userIdsByEmail.Values.FirstOrDefault();
+        await mediaSeeder.SeedAsync(firstInstructorUserId, CancellationToken.None);
+
         return;
     }
 
@@ -399,6 +405,21 @@ try
             options.SwaggerEndpoint("/openapi/v1.json", "SIRI UpSkill API v1");
             options.RoutePrefix = "swagger";
         });
+
+        // Ensure dev environment automatically has Bunny Stream sample media asset linked
+        try
+        {
+            await using var devSeedScope = app.Services.CreateAsyncScope();
+            var devMediaSeeder = devSeedScope.ServiceProvider.GetService<MediaSeeder>();
+            if (devMediaSeeder is not null)
+            {
+                await devMediaSeeder.SeedAsync(Guid.Empty, CancellationToken.None);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Dev startup media auto-link note: {Message}", ex.Message);
+        }
     }
 
     app.UseCors("Default");

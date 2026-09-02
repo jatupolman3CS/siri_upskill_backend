@@ -40,6 +40,9 @@ public static class SharedRedisServiceCollectionExtensions
             var redisOptions = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
             var configurationOptions = ConfigurationOptions.Parse(redisOptions.ConnectionString);
             configurationOptions.AbortOnConnectFail = false;
+            configurationOptions.ConnectTimeout = 1000;
+            configurationOptions.SyncTimeout = 1000;
+            configurationOptions.AsyncTimeout = 1000;
             return ConnectionMultiplexer.Connect(configurationOptions);
         });
 
