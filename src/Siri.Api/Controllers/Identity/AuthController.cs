@@ -8,6 +8,7 @@ using Siri.Modules.Identity.Features.ConfirmEmail;
 using Siri.Modules.Identity.Features.DataExport;
 using Siri.Modules.Identity.Features.ForgotPassword;
 using Siri.Modules.Identity.Features.Login;
+using Siri.Modules.Identity.Features.Logout;
 using Siri.Modules.Identity.Features.Refresh;
 using Siri.Modules.Identity.Features.Register;
 using Siri.Modules.Identity.Features.ResetPassword;
@@ -126,6 +127,22 @@ public class AuthController : ControllerBase
         RefreshTokenCookie.Set(HttpContext, result.Value.RawRefreshToken, result.Value.RefreshTokenExpiresAtUtc);
 
         return Results.Ok(new RefreshResponse(result.Value.AccessToken, result.Value.AccessTokenExpiresAtUtc));
+    }
+
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    [EndpointName("IdentityLogout")]
+    [EndpointSummary("ออกจากระบบและยกเลิกโทเคนเซสชัน")]
+    [ProducesResponseType(typeof(LogoutResponse), StatusCodes.Status200OK)]
+    public async Task<IResult> Logout(
+        [FromServices] LogoutHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var rawRefreshToken = RefreshTokenCookie.Read(HttpContext);
+        await handler.HandleAsync(rawRefreshToken, cancellationToken).ConfigureAwait(false);
+        RefreshTokenCookie.Clear(HttpContext);
+
+        return Results.Ok(new LogoutResponse("ออกจากระบบเรียบร้อยแล้ว"));
     }
 
     [HttpPost("forgot-password")]

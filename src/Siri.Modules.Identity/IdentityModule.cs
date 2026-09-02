@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -11,6 +11,7 @@ using Siri.Modules.Identity.Features.DataExport;
 using Siri.Modules.Identity.Features.ForgotPassword;
 using Siri.Modules.Identity.Features.ListSessions;
 using Siri.Modules.Identity.Features.Login;
+using Siri.Modules.Identity.Features.Logout;
 using Siri.Modules.Identity.Features.Refresh;
 using Siri.Modules.Identity.Features.Register;
 using Siri.Modules.Identity.Features.ResetPassword;
@@ -131,6 +132,7 @@ public static class IdentityModule
         services.AddScoped<RegisterHandler>();
         services.AddScoped<ConfirmEmailHandler>();
         services.AddScoped<LoginHandler>();
+        services.AddScoped<LogoutHandler>();
         services.AddScoped<RefreshHandler>();
         services.AddScoped<ForgotPasswordHandler>();
         services.AddScoped<ResetPasswordHandler>();
@@ -185,6 +187,7 @@ public static class IdentityModule
         group.MapRegisterEndpoint();
         group.MapConfirmEmailEndpoint();
         group.MapLoginEndpoint();
+        group.MapLogoutEndpoint();
         group.MapRefreshEndpoint();
         group.MapForgotPasswordEndpoint();
         group.MapResetPasswordEndpoint();

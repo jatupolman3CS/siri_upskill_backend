@@ -59,6 +59,7 @@ public class IdentityEndpointAuthorizationTests
     [InlineData("/api/identity/register")]
     [InlineData("/api/identity/confirm-email")]
     [InlineData("/api/identity/login")]
+    [InlineData("/api/identity/logout")]
     [InlineData("/api/identity/refresh")]
     [InlineData("/api/identity/forgot-password")]
     [InlineData("/api/identity/reset-password")]
@@ -96,10 +97,10 @@ public class IdentityEndpointAuthorizationTests
     }
 
     [Fact]
-    public void MapIdentityEndpoints_MapsExactlyTheEighteenKnownEndpoints()
+    public void MapIdentityEndpoints_MapsExactlyTheNineteenKnownEndpoints()
     {
         var endpoints = MapIdentityRouteEndpoints();
 
-        Assert.Equal(18, endpoints.Count);
+        Assert.Equal(19, endpoints.Count);
     }
 }

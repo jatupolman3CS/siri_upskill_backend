@@ -16,16 +16,32 @@ public static class RefreshTokenCookie
     private const string CookieName = "siri_refresh_token";
     private const string CookiePath = "/api/identity";
 
+    private static bool IsSecureConnection(HttpContext httpContext) =>
+        httpContext.Request.IsHttps ||
+        string.Equals(httpContext.Request.Headers["X-Forwarded-Proto"], "https", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Sets/replaces the cookie — used by Login (new session) and Refresh (rotation).</summary>
     public static void Set(HttpContext httpContext, string rawToken, DateTime expiresAtUtc)
     {
         httpContext.Response.Cookies.Append(CookieName, rawToken, new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Strict,
+            Secure = IsSecureConnection(httpContext),
+            SameSite = SameSiteMode.Lax,
             Path = CookiePath,
             Expires = new DateTimeOffset(DateTime.SpecifyKind(expiresAtUtc, DateTimeKind.Utc)),
+        });
+    }
+
+    /// <summary>Clears the cookie upon sign-out / logout.</summary>
+    public static void Clear(HttpContext httpContext)
+    {
+        httpContext.Response.Cookies.Delete(CookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = IsSecureConnection(httpContext),
+            SameSite = SameSiteMode.Lax,
+            Path = CookiePath,
         });
     }
 
