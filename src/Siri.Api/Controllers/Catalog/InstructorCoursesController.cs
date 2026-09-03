@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Siri.Modules.Catalog.Features.AttachEpisodeMedia;
 using Siri.Modules.Catalog.Features.AutosaveCourse;
 using Siri.Modules.Catalog.Features.CreateCourse;
 using Siri.Modules.Catalog.Features.CreateCourseEpisode;
@@ -439,6 +440,62 @@ public class InstructorCoursesController : ControllerBase
         }
 
         var result = await handler.HandleAsync(userId, courseId, command, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(HttpContext);
+    }
+
+    [HttpPut("{courseId:guid}/sections/{sectionId:guid}/episodes/{episodeId:guid}/media")]
+    [EndpointName("CatalogAttachEpisodeMedia")]
+    [EndpointSummary("ผูกวิดีโอ (Media Asset) เข้ากับบทเรียน")]
+    [ProducesResponseType(typeof(EpisodeMediaResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IResult> AttachEpisodeMedia(
+        [FromRoute] Guid courseId,
+        [FromRoute] Guid sectionId,
+        [FromRoute] Guid episodeId,
+        [FromBody] AttachEpisodeMediaCommand command,
+        [FromServices] AttachEpisodeMediaHandler handler,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await handler.AttachAsync(userId, courseId, sectionId, episodeId, command, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(HttpContext);
+    }
+
+    [HttpDelete("{courseId:guid}/sections/{sectionId:guid}/episodes/{episodeId:guid}/media")]
+    [EndpointName("CatalogRemoveEpisodeMedia")]
+    [EndpointSummary("ถอดวิดีโอ (Media Asset) ออกจากบทเรียน")]
+    [ProducesResponseType(typeof(EpisodeMediaResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IResult> RemoveEpisodeMedia(
+        [FromRoute] Guid courseId,
+        [FromRoute] Guid sectionId,
+        [FromRoute] Guid episodeId,
+        [FromServices] AttachEpisodeMediaHandler handler,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await handler.RemoveAsync(userId, courseId, sectionId, episodeId, cancellationToken).ConfigureAwait(false);
 
         return result.IsSuccess
             ? Results.Ok(result.Value)

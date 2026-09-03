@@ -18,7 +18,8 @@ public sealed record AutosaveCourseCommand(
     IReadOnlyList<string>? Outcomes,
     IReadOnlyList<string>? Requirements,
     IReadOnlyList<AutosaveSectionItem>? Sections,
-    byte[] RowVersion);
+    byte[] RowVersion,
+    Guid? TrailerMediaAssetId = null);
 
 public sealed record AutosaveSectionItem(
     Guid? Id,
@@ -31,4 +32,6 @@ public sealed record AutosaveEpisodeItem(
     string Title,
     string? Description,
     int SortOrder,
-    bool IsFreePreview);
+    bool IsFreePreview,
+    Guid? MediaAssetId = null,
+    int? DurationSeconds = null);

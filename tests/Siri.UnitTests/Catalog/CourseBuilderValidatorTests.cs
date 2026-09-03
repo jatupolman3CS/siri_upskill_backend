@@ -1,5 +1,6 @@
 using FluentValidation.TestHelper;
 using Siri.Modules.Catalog.Domain;
+using Siri.Modules.Catalog.Features.AttachEpisodeMedia;
 using Siri.Modules.Catalog.Features.AutosaveCourse;
 using Siri.Modules.Catalog.Features.CreateCourseEpisode;
 using Siri.Modules.Catalog.Features.CreateCourseSection;
@@ -19,6 +20,7 @@ public class CourseBuilderValidatorTests
     private readonly UpdateCourseEpisodeValidator _updateEpisodeValidator = new();
     private readonly ReorderCourseEpisodesValidator _reorderEpisodesValidator = new();
     private readonly AutosaveCourseValidator _autosaveValidator = new();
+    private readonly AttachEpisodeMediaValidator _attachEpisodeMediaValidator = new();
 
     [Theory]
     [InlineData("")]
@@ -175,6 +177,61 @@ public class CourseBuilderValidatorTests
             [0x00, 0x01, 0x02, 0x03]);
 
         var result = _autosaveValidator.TestValidate(command);
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void AutosaveCourseValidator_WithMediaAssetId_PassesValidation()
+    {
+        var command = new AutosaveCourseCommand(
+            "COURSE Title",
+            "Subtitle",
+            "Description",
+            Guid.NewGuid(),
+            CourseLevel.Beginner,
+            CourseLanguage.Thai,
+            "https://example.com/thumb.jpg",
+            990m,
+            1990m,
+            365,
+            "SEO Title",
+            "SEO Description",
+            ["Outcome 1"],
+            ["Requirement 1"],
+            [
+                new AutosaveSectionItem(
+                    Guid.NewGuid(),
+                    "Section 1",
+                    0,
+                    [
+                        new AutosaveEpisodeItem(Guid.NewGuid(), "Episode 1", "Desc", 0, true, Guid.NewGuid(), 600),
+                    ]),
+            ],
+            [0x00, 0x01, 0x02, 0x03],
+            Guid.NewGuid());
+
+        var result = _autosaveValidator.TestValidate(command);
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void AttachEpisodeMediaValidator_EmptyMediaAssetId_HasValidationError()
+    {
+        var result = _attachEpisodeMediaValidator.TestValidate(new AttachEpisodeMediaCommand(Guid.Empty));
+        result.ShouldHaveValidationErrorFor(x => x.MediaAssetId);
+    }
+
+    [Fact]
+    public void AttachEpisodeMediaValidator_NegativeDuration_HasValidationError()
+    {
+        var result = _attachEpisodeMediaValidator.TestValidate(new AttachEpisodeMediaCommand(Guid.NewGuid(), -10));
+        result.ShouldHaveValidationErrorFor(x => x.DurationSeconds);
+    }
+
+    [Fact]
+    public void AttachEpisodeMediaValidator_ValidCommand_PassesValidation()
+    {
+        var result = _attachEpisodeMediaValidator.TestValidate(new AttachEpisodeMediaCommand(Guid.NewGuid(), 300));
         result.ShouldNotHaveAnyValidationErrors();
     }
 }

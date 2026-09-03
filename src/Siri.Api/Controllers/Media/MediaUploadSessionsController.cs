@@ -61,4 +61,16 @@ public class MediaUploadSessionsController : ControllerBase
             ? Results.Ok(result.Value)
             : result.Error.ToProblemHttpResult(HttpContext);
     }
+
+    [Route("/api/media/mock-upload/{videoId}")]
+    [HttpPost]
+    [HttpPut]
+    [HttpPatch]
+    [AllowAnonymous]
+    [EndpointName("MediaMockUpload")]
+    [EndpointSummary("Mock upload endpoint for local development testing")]
+    public IResult MockUpload([FromRoute] string videoId)
+    {
+        return Results.Ok(new { success = true, videoId });
+    }
 }

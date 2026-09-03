@@ -617,4 +617,26 @@ public class CourseTests
         Assert.Equal(0, course.EpisodeCount);
         Assert.Equal(0, course.TotalDurationSeconds);
     }
+
+    [Fact]
+    public void SetTrailer_ValidMediaAssetId_SetsTrailerMediaAssetId()
+    {
+        var course = CreateDraftCourse();
+        var trailerId = Guid.NewGuid();
+
+        course.SetTrailer(trailerId);
+
+        Assert.Equal(trailerId, course.TrailerMediaAssetId);
+    }
+
+    [Fact]
+    public void SetTrailer_Null_ClearsTrailerMediaAssetId()
+    {
+        var course = CreateDraftCourse();
+        course.SetTrailer(Guid.NewGuid());
+
+        course.SetTrailer(null);
+
+        Assert.Null(course.TrailerMediaAssetId);
+    }
 }

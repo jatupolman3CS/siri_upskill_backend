@@ -9,6 +9,7 @@ using Siri.Modules.Catalog.Features;
 using Siri.Modules.Catalog.Features.ApplyAsInstructor;
 using Siri.Modules.Catalog.Features.ApproveCourse;
 using Siri.Modules.Catalog.Features.ApproveInstructorApplication;
+using Siri.Modules.Catalog.Features.AttachEpisodeMedia;
 using Siri.Modules.Catalog.Features.AutosaveCourse;
 using Siri.Modules.Catalog.Features.CreateCategory;
 using Siri.Modules.Catalog.Features.CreateCourse;
@@ -168,6 +169,7 @@ public static class CatalogModule
         services.AddScoped<IValidator<UpdateCourseEpisodeCommand>, UpdateCourseEpisodeValidator>();
         services.AddScoped<IValidator<ReorderCourseEpisodesCommand>, ReorderCourseEpisodesValidator>();
         services.AddScoped<IValidator<AutosaveCourseCommand>, AutosaveCourseValidator>();
+        services.AddScoped<IValidator<AttachEpisodeMediaCommand>, AttachEpisodeMediaValidator>();
 
         services.AddScoped<GetCourseBuilderHandler>();
         services.AddScoped<CreateCourseSectionHandler>();
@@ -179,6 +181,7 @@ public static class CatalogModule
         services.AddScoped<DeleteCourseEpisodeHandler>();
         services.AddScoped<ReorderCourseEpisodesHandler>();
         services.AddScoped<AutosaveCourseHandler>();
+        services.AddScoped<AttachEpisodeMediaHandler>();
 
         // Learning Paths & Attachments
         services.AddScoped<IValidator<Features.CreateLearningPath.CreateLearningPathCommand>, Features.CreateLearningPath.CreateLearningPathValidator>();

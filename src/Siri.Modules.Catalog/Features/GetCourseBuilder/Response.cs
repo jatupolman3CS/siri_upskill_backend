@@ -23,7 +23,8 @@ public sealed record CourseBuilderResponse(
     byte[] RowVersion,
     IReadOnlyList<string> Outcomes,
     IReadOnlyList<string> Requirements,
-    IReadOnlyList<CourseBuilderSectionResponse> Sections);
+    IReadOnlyList<CourseBuilderSectionResponse> Sections,
+    Guid? TrailerMediaAssetId = null);
 
 public sealed record CourseBuilderSectionResponse(
     Guid Id,
