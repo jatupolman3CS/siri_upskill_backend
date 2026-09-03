@@ -81,6 +81,7 @@ public sealed class GetCourseBuilderHandler(AppDbContext dbContext)
             course.RowVersion,
             outcomes,
             requirements,
-            sections);
+            sections,
+            course.TrailerMediaAssetId);
     }
 }

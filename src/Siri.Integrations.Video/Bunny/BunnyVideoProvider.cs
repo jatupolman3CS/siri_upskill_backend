@@ -51,6 +51,13 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// <inheritdoc/>
     public async Task<Result<VideoAsset>> CreateVideoAsync(string title, CancellationToken cancellationToken)
     {
+        if (_options.ApiKey.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
+            _options.LibraryId == "000000")
+        {
+            var mockId = $"mock-{Guid.NewGuid():N}";
+            return Result.Success(new VideoAsset(mockId, title));
+        }
+
         var url = $"{BunnyApiBaseUrl}/library/{_options.LibraryId}/videos";
         var payload = new { title };
 
@@ -80,6 +87,13 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// <inheritdoc/>
     public Task<Result<VideoUploadUrl>> GetUploadUrlAsync(string providerVideoId, CancellationToken cancellationToken)
     {
+        if (providerVideoId.StartsWith("mock-", StringComparison.OrdinalIgnoreCase) ||
+            _options.ApiKey.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+        {
+            var mockExpiresAt = DateTime.UtcNow.AddHours(4);
+            return Task.FromResult(Result.Success(new VideoUploadUrl($"mock://tusupload/{providerVideoId}", mockExpiresAt)));
+        }
+
         // Bunny Stream uses TUS protocol for uploads. The upload URL is constructed from:
         // - The TUS endpoint: https://video.bunnycdn.com/tusupload
         // - An authorization signature: SHA256(LibraryId + ApiKey + ExpirationTime + VideoId)
@@ -106,6 +120,12 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// <inheritdoc/>
     public async Task<Result<VideoStatus>> GetStatusAsync(string providerVideoId, CancellationToken cancellationToken)
     {
+        if (providerVideoId.StartsWith("mock-", StringComparison.OrdinalIgnoreCase) ||
+            _options.ApiKey.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Success(new VideoStatus(providerVideoId, VideoProcessingStatus.Ready, TimeSpan.FromMinutes(10)));
+        }
+
         var url = $"{BunnyApiBaseUrl}/library/{_options.LibraryId}/videos/{providerVideoId}";
 
         var response = await SendWithRetryAsync(
@@ -137,6 +157,12 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// <inheritdoc/>
     public async Task<Result> DeleteVideoAsync(string providerVideoId, CancellationToken cancellationToken)
     {
+        if (providerVideoId.StartsWith("mock-", StringComparison.OrdinalIgnoreCase) ||
+            _options.ApiKey.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+        {
+            return Result.Success();
+        }
+
         var url = $"{BunnyApiBaseUrl}/library/{_options.LibraryId}/videos/{providerVideoId}";
 
         var response = await SendWithRetryAsync(
@@ -175,9 +201,14 @@ public sealed class BunnyVideoProvider : IVideoProvider
 
         if (string.IsNullOrWhiteSpace(_options.CdnHostname) || _options.CdnHostname.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogWarning("VideoProvider:CdnHostname is not configured. Falling back to mock test stream.");
-            var mockExpiresAt = DateTime.UtcNow.Add(timeToLive);
-            return Task.FromResult(Result.Success(new SignedPlaybackUrl(fallbackHlsStreamUrl, mockExpiresAt)));
+            return Task.FromResult(Result.Failure<SignedPlaybackUrl>(
+                new DomainError("video.cdn_not_configured", "Video CDN hostname is not configured.")));
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.TokenAuthenticationKey) || _options.TokenAuthenticationKey.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult(Result.Failure<SignedPlaybackUrl>(
+                new DomainError("video.token_auth_not_configured", "Video token authentication key is not configured.")));
         }
 
         var expiresAt = DateTime.UtcNow.Add(timeToLive);
@@ -193,20 +224,8 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// </summary>
     internal string GenerateSignedPlaybackUrl(string providerVideoId, long expirationTimestamp)
     {
-        // For Bunny Stream, the path is /{videoId}/playlist.m3u8 (without libraryId in URL path)
-        var playlistPath = $"/{providerVideoId}/playlist.m3u8";
-
-        // If TokenAuthenticationKey is not explicitly configured or is identical to ApiKey (no separate token key),
-        // return the direct HLS stream URL on the pull zone.
-        if (string.IsNullOrWhiteSpace(_options.TokenAuthenticationKey) ||
-            _options.TokenAuthenticationKey == _options.ApiKey ||
-            _options.TokenAuthenticationKey.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
-        {
-            return $"https://{_options.CdnHostname}{playlistPath}";
-        }
-
-        // Directory-level token_path so the token covers playlist + all .ts segment requests.
-        var tokenPath = $"/{providerVideoId}/";
+        var playlistPath = $"/{_options.LibraryId}/{providerVideoId}/playlist.m3u8";
+        var tokenPath = $"/{_options.LibraryId}/{providerVideoId}/";
 
         // HMAC-SHA256: key = TokenAuthenticationKey, message = key + tokenPath + expires
         var message = $"{_options.TokenAuthenticationKey}{tokenPath}{expirationTimestamp}";

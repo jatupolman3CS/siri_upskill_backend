@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -69,6 +69,7 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
 
         course.SetOutcomes(command.Outcomes ?? []);
         course.SetRequirements(command.Requirements ?? []);
+        course.SetTrailer(command.TrailerMediaAssetId);
 
         if (command.Sections != null)
         {
@@ -120,9 +121,11 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
 
                     foreach (var epItem in sectionItem.Episodes.OrderBy(e => e.SortOrder))
                     {
+                        COURSE_EPISODE targetEp;
                         if (epItem.Id.HasValue && epItem.Id.Value != Guid.Empty &&
                             section.Episodes.FirstOrDefault(e => e.Id == epItem.Id.Value) is { } existingEp)
                         {
+                            targetEp = existingEp;
                             existingEp.UpdateDetails(epItem.Title, epItem.Description);
                             if (epItem.IsFreePreview)
                             {
@@ -135,7 +138,13 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
                         }
                         else
                         {
-                            course.AddEpisode(section.Id, epItem.Title, epItem.Description, epItem.IsFreePreview);
+                            targetEp = course.AddEpisode(section.Id, epItem.Title, epItem.Description, epItem.IsFreePreview);
+                        }
+
+                        if (epItem.MediaAssetId.HasValue && epItem.MediaAssetId.Value != Guid.Empty)
+                        {
+                            var duration = epItem.DurationSeconds.GetValueOrDefault(targetEp.DurationSeconds.GetValueOrDefault(1));
+                            course.AttachEpisodeMedia(targetEp.Id, epItem.MediaAssetId.Value, duration > 0 ? duration : 1);
                         }
                     }
                 }

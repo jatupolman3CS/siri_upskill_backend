@@ -43,6 +43,7 @@ public static class MediaModule
         services.AddScoped<MediaAssetService>();
         services.AddScoped<MediaUploadSessionService>();
         services.AddScoped<PlaybackSessionService>();
+        services.AddScoped<Siri.SharedKernel.Contracts.IMediaAssetContract, MediaAssetContractService>();
         services.AddScoped<BunnyWebhookHandler>();
         services.AddScoped<PlaybackAnomalyDetectionJob>();
         services.AddScoped<Infrastructure.Seeding.MediaSeeder>();
