@@ -39,7 +39,7 @@ public sealed class UserSecurityTokenConfiguration : IEntityTypeConfiguration<US
         // filtered-index shape as UserSessionConfiguration's "IX_UserSessions_Active".
         builder.HasIndex(t => new { t.UserId, t.Purpose })
             .HasDatabaseName("IX_USER_SECURITY_TOKENS_ACTIVE")
-            .HasFilter("[CONSUMED_AT_UTC] IS NULL");
+            .HasFilter("\"CONSUMED_AT_UTC\" IS NULL");
 
         // Restrict (not the EF default Cascade) — same reasoning as every other Identity FK to
         // Users: an auth/security row must never disappear via a cascade off some other delete.

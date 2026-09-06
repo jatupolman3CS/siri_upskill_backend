@@ -2,9 +2,9 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Siri.Persistence;
 
 #nullable disable
@@ -12,8 +12,8 @@ using Siri.Persistence;
 namespace Siri.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260901063440_AddCourseReviewCreatedAtIndex")]
-    partial class AddCourseReviewCreatedAtIndex
+    [Migration("20260905161924_InitialCreatePostgres")]
+    partial class InitialCreatePostgres
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -21,9 +21,10 @@ namespace Siri.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "10.0.11")
-                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Siri.Modules.Analytics.Domain.DAILY_COURSE_STAT", b =>
                 {
@@ -32,25 +33,25 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("DATE");
 
                     b.Property<Guid>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<decimal>("COMPLETION_RATE")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)")
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("COMPLETION_RATE");
 
                     b.Property<int>("ENROLLMENTS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("ENROLLMENTS");
 
                     b.Property<decimal>("REVENUE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("REVENUE");
 
                     b.Property<int>("VIEWS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("VIEWS");
 
                     b.HasKey("DATE", "COURSE_ID")
@@ -69,20 +70,20 @@ namespace Siri.Persistence.Migrations
                         .HasColumnName("DATE");
 
                     b.Property<Guid>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EPISODE_ID");
 
                     b.Property<decimal>("AVG_WATCH_PERCENT")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)")
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("AVG_WATCH_PERCENT");
 
                     b.Property<int>("COMPLETE_COUNT")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("COMPLETE_COUNT");
 
                     b.Property<int>("START_COUNT")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("START_COUNT");
 
                     b.HasKey("DATE", "EPISODE_ID")
@@ -98,60 +99,60 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<string>("IconKey")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("ICON_KEY");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_ACTIVE");
 
                     b.Property<string>("NameEn")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("NAME_EN");
 
                     b.Property<string>("NameTh")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("NAME_TH");
 
                     b.Property<Guid?>("ParentId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PARENT_ID");
 
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("SLUG");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
@@ -171,29 +172,29 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<int?>("AccessDurationDays")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("ACCESS_DURATION_DAYS");
 
                     b.Property<Guid>("CategoryId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CATEGORY_ID");
 
                     b.Property<decimal?>("ComparePrice")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("COMPARE_PRICE");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<string>("Currency")
@@ -203,130 +204,135 @@ namespace Siri.Persistence.Migrations
 
                     b.Property<DateTime?>("DeletedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("DELETED_AT_UTC");
 
                     b.Property<string>("Description")
                         .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnType("character varying(4000)")
                         .HasColumnName("DESCRIPTION");
 
                     b.Property<int>("EnrollmentCount")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("ENROLLMENT_COUNT");
 
                     b.Property<int>("EpisodeCount")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("EPISODE_COUNT");
 
                     b.Property<Guid>("InstructorId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_ID");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_DELETED");
 
                     b.Property<string>("Language")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("LANGUAGE");
 
                     b.Property<string>("Level")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("LEVEL");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("PRICE");
 
                     b.Property<DateTime?>("PublishedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("PUBLISHED_AT_UTC");
 
                     b.Property<decimal>("RatingAverage")
                         .HasPrecision(3, 2)
-                        .HasColumnType("decimal(3,2)")
+                        .HasColumnType("numeric(3,2)")
                         .HasColumnName("RATING_AVERAGE");
 
                     b.Property<int>("RatingCount")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("RATING_COUNT");
 
                     b.Property<string>("RejectionReason")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("REJECTION_REASON");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion")
+                        .HasColumnType("bytea")
                         .HasColumnName("ROW_VERSION");
 
                     b.Property<string>("SeoDescription")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("SEO_DESCRIPTION");
 
                     b.Property<string>("SeoTitle")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("SEO_TITLE");
 
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("SLUG");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("Subtitle")
                         .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)")
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("SUBTITLE");
 
                     b.Property<string>("ThumbnailUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("THUMBNAIL_URL");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.Property<int>("TotalDurationSeconds")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("TOTAL_DURATION_SECONDS");
 
                     b.Property<Guid?>("TrailerMediaAssetId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("TRAILER_MEDIA_ASSET_ID");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
                         .HasName("PK_COURSES");
+
+                    b.HasIndex("Description")
+                        .HasDatabaseName("IX_COURSES_DESCRIPTION");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Description"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Description"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("InstructorId")
                         .HasDatabaseName("IX_COURSES_INSTRUCTOR_ID");
@@ -334,12 +340,24 @@ namespace Siri.Persistence.Migrations
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasDatabaseName("IX_COURSES_SLUG")
-                        .HasFilter("[IS_DELETED] = 0");
+                        .HasFilter("\"IS_DELETED\" = false");
+
+                    b.HasIndex("Subtitle")
+                        .HasDatabaseName("IX_COURSES_SUBTITLE");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Subtitle"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Subtitle"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Title")
+                        .HasDatabaseName("IX_COURSES_TITLE");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Title"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Title"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("Status", "CategoryId", "PublishedAtUtc")
                         .HasDatabaseName("IX_COURSES_STATUS_CATEGORY_ID_PUBLISHED_AT_UTC");
 
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Status", "CategoryId", "PublishedAtUtc"), new[] { "Title", "Slug", "Price", "RatingAverage", "ThumbnailUrl" });
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("Status", "CategoryId", "PublishedAtUtc"), new[] { "Title", "Slug", "Price", "RatingAverage", "ThumbnailUrl" });
 
                     b.ToTable("COURSES", "CATALOG");
                 });
@@ -348,66 +366,66 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("DESCRIPTION");
 
                     b.Property<int?>("DurationSeconds")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("DURATION_SECONDS");
 
                     b.Property<bool>("IsFreePreview")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_FREE_PREVIEW");
 
                     b.Property<Guid?>("MediaAssetId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("MEDIA_ASSET_ID");
 
                     b.Property<Guid>("SectionId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("SECTION_ID");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
@@ -427,39 +445,39 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("TEXT");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
@@ -475,39 +493,39 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("TEXT");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
@@ -523,46 +541,46 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<string>("Comment")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("COMMENT");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<bool>("IsPublished")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(true)
                         .HasColumnName("IS_PUBLISHED");
 
                     b.Property<int>("Rating")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("RATING");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("Id")
@@ -582,39 +600,39 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
@@ -629,31 +647,31 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.EPISODE_ATTACHMENT", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("CONTENT_TYPE");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("EpisodeId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EPISODE_ID");
 
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
+                        .HasColumnType("character varying(255)")
                         .HasColumnName("FILE_NAME");
 
                     b.Property<long>("SizeBytes")
@@ -663,15 +681,15 @@ namespace Siri.Persistence.Migrations
                     b.Property<string>("StorageKey")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("STORAGE_KEY");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
@@ -687,67 +705,67 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<DateTime?>("ApprovedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("APPROVED_AT_UTC");
 
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("AVATAR_URL");
 
                     b.Property<string>("Bio")
                         .IsRequired()
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("BIO");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("DISPLAY_NAME");
 
                     b.Property<string>("Headline")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("HEADLINE");
 
                     b.Property<decimal>("RevenueSharePercent")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)")
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("REVENUE_SHARE_PERCENT");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("Id")
@@ -766,48 +784,48 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.LEARNING_PATH", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<string>("Description")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("DESCRIPTION");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_ACTIVE");
 
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("SLUG");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
@@ -826,31 +844,31 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.LEARNING_PATH_ITEM", b =>
                 {
                     b.Property<Guid>("PathId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PATH_ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<int>("SortOrder")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("PathId", "CourseId")
@@ -868,15 +886,15 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.WISHLIST_ITEM", b =>
                 {
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.HasKey("UserId", "CourseId")
@@ -892,71 +910,71 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("BANNER_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("BANNER_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<DateTime?>("ENDS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("ENDS_AT_UTC");
 
                     b.Property<string>("IMAGE_URL")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("IMAGE_URL");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_ACTIVE");
 
                     b.Property<string>("LINK_URL")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("LINK_URL");
 
                     b.Property<string>("MOBILE_IMAGE_URL")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("MOBILE_IMAGE_URL");
 
                     b.Property<string>("PLACEMENT")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("PLACEMENT");
 
                     b.Property<int>("SORT_ORDER")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<DateTime?>("STARTS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("STARTS_AT_UTC");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("BANNER_ID")
@@ -972,44 +990,44 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("FEATURE_FLAG_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("FEATURE_FLAG_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<string>("DESCRIPTION")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("DESCRIPTION");
 
                     b.Property<bool>("IS_ENABLED")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_ENABLED");
 
                     b.Property<string>("KEY")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("KEY");
 
                     b.Property<string>("NAME")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("NAME");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("FEATURE_FLAG_ID")
@@ -1026,49 +1044,49 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("MENU_ITEM_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("MENU_ITEM_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_ACTIVE");
 
                     b.Property<string>("LABEL")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("LABEL");
 
                     b.Property<Guid?>("PARENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PARENT_ID");
 
                     b.Property<int>("SORT_ORDER")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("URL")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("URL");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("MENU_ITEM_ID")
@@ -1084,87 +1102,87 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("POST_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("POST_ID");
 
                     b.Property<Guid>("AUTHOR_USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("AUTHOR_USER_ID");
 
                     b.Property<string>("CONTENT_HTML")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("text")
                         .HasColumnName("CONTENT_HTML");
 
                     b.Property<string>("COVER_IMAGE_URL")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("COVER_IMAGE_URL");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<DateTime?>("DeletedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("DELETED_AT_UTC");
 
                     b.Property<string>("EXCERPT")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("EXCERPT");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_DELETED");
 
                     b.Property<DateTime?>("PUBLISHED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("PUBLISHED_AT_UTC");
 
                     b.Property<string>("SEO_DESCRIPTION")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("SEO_DESCRIPTION");
 
                     b.Property<string>("SEO_TITLE")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("SEO_TITLE");
 
                     b.Property<string>("SLUG")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("SLUG");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("POST_ID")
@@ -1173,7 +1191,7 @@ namespace Siri.Persistence.Migrations
                     b.HasIndex("SLUG")
                         .IsUnique()
                         .HasDatabaseName("IX_POSTS_SLUG")
-                        .HasFilter("[IS_DELETED] = 0");
+                        .HasFilter("\"IS_DELETED\" = false");
 
                     b.HasIndex("STATUS", "PUBLISHED_AT_UTC")
                         .HasDatabaseName("IX_POSTS_STATUS_PUBLISHED_AT_UTC");
@@ -1185,41 +1203,41 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("REDIRECT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("REDIRECT_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<string>("FROM_PATH")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("FROM_PATH");
 
                     b.Property<int>("STATUS_CODE")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("STATUS_CODE");
 
                     b.Property<string>("TO_PATH")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("TO_PATH");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("REDIRECT_ID")
@@ -1236,43 +1254,43 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("BUNDLE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("BUNDLE_ID");
 
                     b.Property<string>("DESCRIPTION")
                         .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnType("character varying(4000)")
                         .HasColumnName("DESCRIPTION");
 
                     b.Property<DateTime?>("ENDS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("ENDS_AT_UTC");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_ACTIVE");
 
                     b.Property<decimal>("PRICE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("PRICE");
 
                     b.Property<string>("SLUG")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("SLUG");
 
                     b.Property<DateTime?>("STARTS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("STARTS_AT_UTC");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.HasKey("BUNDLE_ID")
@@ -1288,11 +1306,11 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.BUNDLE_ITEM", b =>
                 {
                     b.Property<Guid>("BUNDLE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("BUNDLE_ID");
 
                     b.Property<Guid>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.HasKey("BUNDLE_ID", "COURSE_ID")
@@ -1305,16 +1323,16 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("CART_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CART_ID");
 
                     b.Property<DateTime>("UPDATED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("CART_ID")
@@ -1331,26 +1349,26 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("CART_ITEM_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CART_ITEM_ID");
 
                     b.Property<DateTime>("ADDED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("ADDED_AT_UTC");
 
                     b.Property<Guid>("CART_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CART_ID");
 
                     b.Property<string>("ITEM_TYPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("ITEM_TYPE");
 
                     b.Property<Guid>("REF_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("REF_ID");
 
                     b.HasKey("CART_ITEM_ID")
@@ -1366,27 +1384,27 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("FLASH_SALE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("FLASH_SALE_ID");
 
                     b.Property<DateTime>("ENDS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("ENDS_AT_UTC");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_ACTIVE");
 
                     b.Property<DateTime>("STARTS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("STARTS_AT_UTC");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.HasKey("FLASH_SALE_ID")
@@ -1399,20 +1417,20 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("FLASH_SALE_ITEM_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("FLASH_SALE_ITEM_ID");
 
                     b.Property<Guid>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<Guid>("FLASH_SALE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("FLASH_SALE_ID");
 
                     b.Property<decimal>("SALE_PRICE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("SALE_PRICE");
 
                     b.HasKey("FLASH_SALE_ITEM_ID")
@@ -1429,7 +1447,7 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("ORDER_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ORDER_ID");
 
                     b.Property<string>("CURRENCY")
@@ -1439,72 +1457,71 @@ namespace Siri.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<decimal>("DISCOUNT_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("DISCOUNT_AMOUNT");
 
                     b.Property<string>("ORDER_NO")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("ORDER_NO");
 
                     b.Property<DateTime?>("PAID_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("PAID_AT_UTC");
 
                     b.Property<Guid?>("PROMO_CODE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PROMO_CODE_ID");
 
                     b.Property<byte[]>("ROW_VERSION")
                         .IsConcurrencyToken()
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion")
+                        .HasColumnType("bytea")
                         .HasColumnName("ROW_VERSION");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<decimal>("SUBTOTAL_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("SUBTOTAL_AMOUNT");
 
                     b.Property<decimal>("TAX_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("TAX_AMOUNT");
 
                     b.Property<decimal>("TOTAL_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("TOTAL_AMOUNT");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("ORDER_ID")
@@ -1524,31 +1541,31 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("ORDER_ITEM_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ORDER_ITEM_ID");
 
                     b.Property<Guid?>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<decimal>("LINE_TOTAL")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("LINE_TOTAL");
 
                     b.Property<Guid>("ORDER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ORDER_ID");
 
                     b.Property<string>("TITLE_SNAPSHOT")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE_SNAPSHOT");
 
                     b.Property<decimal>("UNIT_PRICE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("UNIT_PRICE");
 
                     b.HasKey("ORDER_ITEM_ID")
@@ -1564,55 +1581,55 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PAYMENT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PAYMENT_ID");
 
                     b.Property<decimal>("AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("AMOUNT");
 
                     b.Property<DateTime>("CREATED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<string>("FAILURE_REASON")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("FAILURE_REASON");
 
                     b.Property<string>("METHOD")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("METHOD");
 
                     b.Property<Guid>("ORDER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ORDER_ID");
 
                     b.Property<string>("PROVIDER")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("PROVIDER");
 
                     b.Property<string>("PROVIDER_PAYMENT_INTENT_ID")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
+                        .HasColumnType("character varying(255)")
                         .HasColumnName("PROVIDER_PAYMENT_INTENT_ID");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<DateTime?>("SUCCEEDED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("SUCCEEDED_AT_UTC");
 
                     b.HasKey("PAYMENT_ID")
@@ -1632,41 +1649,41 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PAYMENT_OPS_QUEUE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PAYMENT_OPS_QUEUE_ID");
 
                     b.Property<Guid?>("ASSIGNED_TO_USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ASSIGNED_TO_USER_ID");
 
                     b.Property<string>("NOTE")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("NOTE");
 
                     b.Property<Guid>("PAYMENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PAYMENT_ID");
 
                     b.Property<string>("REASON")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("REASON");
 
                     b.Property<DateTime?>("RESOLVED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("RESOLVED_AT_UTC");
 
                     b.Property<Guid?>("RESOLVED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("RESOLVED_BY_USER_ID");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.HasKey("PAYMENT_OPS_QUEUE_ID")
@@ -1682,72 +1699,71 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PROMO_CODE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PROMO_CODE_ID");
 
                     b.Property<string>("CODE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("CODE");
 
                     b.Property<string>("DISCOUNT_TYPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("DISCOUNT_TYPE");
 
                     b.Property<decimal>("DISCOUNT_VALUE")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("DISCOUNT_VALUE");
 
                     b.Property<DateTime>("ENDS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("ENDS_AT_UTC");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_ACTIVE");
 
                     b.Property<int>("MAX_PER_USER")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("MAX_PER_USER");
 
                     b.Property<int>("MAX_REDEMPTIONS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("MAX_REDEMPTIONS");
 
                     b.Property<decimal>("MIN_ORDER_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("MIN_ORDER_AMOUNT");
 
                     b.Property<int>("REDEEMED_COUNT")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("REDEEMED_COUNT");
 
                     b.Property<byte[]>("ROW_VERSION")
                         .IsConcurrencyToken()
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion")
+                        .HasColumnType("bytea")
                         .HasColumnName("ROW_VERSION");
 
                     b.Property<string>("SCOPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("SCOPE");
 
                     b.Property<Guid?>("SCOPE_REF_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("SCOPE_REF_ID");
 
                     b.Property<DateTime>("STARTS_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("STARTS_AT_UTC");
 
                     b.HasKey("PROMO_CODE_ID")
@@ -1764,24 +1780,24 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PROMO_REDEMPTION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PROMO_REDEMPTION_ID");
 
                     b.Property<Guid>("ORDER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ORDER_ID");
 
                     b.Property<Guid>("PROMO_CODE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PROMO_CODE_ID");
 
                     b.Property<DateTime>("REDEEMED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("REDEEMED_AT_UTC");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("PROMO_REDEMPTION_ID")
@@ -1804,61 +1820,61 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("REFUND_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("REFUND_ID");
 
                     b.Property<decimal>("AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("AMOUNT");
 
                     b.Property<DateTime?>("COMPLETED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("COMPLETED_AT_UTC");
 
                     b.Property<DateTime?>("DECIDED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("DECIDED_AT_UTC");
 
                     b.Property<Guid?>("DECIDED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("DECIDED_BY_USER_ID");
 
                     b.Property<string>("DECISION_NOTE")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("DECISION_NOTE");
 
                     b.Property<Guid>("PAYMENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PAYMENT_ID");
 
                     b.Property<string>("REASON")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("REASON");
 
                     b.Property<DateTime>("REQUESTED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("REQUESTED_AT_UTC");
 
                     b.Property<Guid>("REQUESTED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("REQUESTED_BY_USER_ID");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("STRIPE_REFUND_ID")
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
+                        .HasColumnType("character varying(255)")
                         .HasColumnName("STRIPE_REFUND_ID");
 
                     b.HasKey("REFUND_ID")
@@ -1870,7 +1886,7 @@ namespace Siri.Persistence.Migrations
                     b.HasIndex("STRIPE_REFUND_ID")
                         .IsUnique()
                         .HasDatabaseName("IX_REFUNDS_STRIPE_REFUND_ID")
-                        .HasFilter("[STRIPE_REFUND_ID] IS NOT NULL");
+                        .HasFilter("\"STRIPE_REFUND_ID\" IS NOT NULL");
 
                     b.HasIndex("REQUESTED_BY_USER_ID", "REQUESTED_AT_UTC")
                         .HasDatabaseName("IX_REFUNDS_REQUESTED_BY_USER");
@@ -1882,39 +1898,39 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("STRIPE_WEBHOOK_EVENT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("STRIPE_WEBHOOK_EVENT_ID");
 
                     b.Property<string>("EVENT_TYPE")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("EVENT_TYPE");
 
                     b.Property<string>("PAYLOAD_JSON")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("text")
                         .HasColumnName("PAYLOAD_JSON");
 
                     b.Property<DateTime?>("PROCESSED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("PROCESSED_AT_UTC");
 
                     b.Property<string>("PROCESS_RESULT")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("PROCESS_RESULT");
 
                     b.Property<DateTime>("RECEIVED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("RECEIVED_AT_UTC");
 
                     b.Property<string>("STRIPE_EVENT_ID")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
+                        .HasColumnType("character varying(255)")
                         .HasColumnName("STRIPE_EVENT_ID");
 
                     b.HasKey("STRIPE_WEBHOOK_EVENT_ID")
@@ -1931,45 +1947,45 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("TAX_INVOICE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("TAX_INVOICE_ID");
 
                     b.Property<string>("BUYER_NAME")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("BUYER_NAME");
 
                     b.Property<string>("INVOICE_NO")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("INVOICE_NO");
 
                     b.Property<DateTime>("ISSUED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("ISSUED_AT_UTC");
 
                     b.Property<Guid>("ORDER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ORDER_ID");
 
                     b.Property<string>("PDF_STORAGE_KEY")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("PDF_STORAGE_KEY");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("TAX_ID_ENCRYPTED")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("TAX_ID_ENCRYPTED");
 
                     b.HasKey("TAX_INVOICE_ID")
@@ -1990,70 +2006,70 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("DISCUSSION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("DISCUSSION_ID");
 
                     b.Property<string>("BODY")
                         .IsRequired()
                         .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnType("character varying(4000)")
                         .HasColumnName("BODY");
 
                     b.Property<Guid>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<DateTime?>("DeletedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("DELETED_AT_UTC");
 
                     b.Property<Guid?>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EPISODE_ID");
 
                     b.Property<bool>("IS_INSTRUCTOR_ANSWER")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_INSTRUCTOR_ANSWER");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_DELETED");
 
                     b.Property<Guid?>("PARENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PARENT_ID");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<int>("UPVOTE_COUNT")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("UPVOTE_COUNT");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("DISCUSSION_ID")
@@ -2072,50 +2088,50 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("REPORT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("REPORT_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("DISCUSSION_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("DISCUSSION_ID");
 
                     b.Property<string>("REASON")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("REASON");
 
                     b.Property<Guid>("REPORTED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("REPORTED_BY_USER_ID");
 
                     b.Property<DateTime?>("RESOLVED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("RESOLVED_AT_UTC");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("REPORT_ID")
@@ -2134,35 +2150,35 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<DateTime>("ExpiresAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("EXPIRES_AT_UTC");
 
                     b.Property<Guid?>("ReplacedByTokenId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("REPLACED_BY_TOKEN_ID");
 
                     b.Property<DateTime?>("RevokedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("REVOKED_AT_UTC");
 
                     b.Property<Guid>("SessionId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("SESSION_ID");
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("TOKEN_HASH");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("Id")
@@ -2188,13 +2204,13 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("NAME");
 
                     b.HasKey("Id")
@@ -2233,31 +2249,31 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<string>("Detail")
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("text")
                         .HasColumnName("DETAIL");
 
                     b.Property<string>("EventType")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("EVENT_TYPE");
 
                     b.Property<string>("IpAddress")
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("IP_ADDRESS");
 
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("OCCURRED_AT_UTC");
 
                     b.Property<Guid?>("UserId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("Id")
@@ -2273,83 +2289,83 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("AVATAR_URL");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("DISPLAY_NAME");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("EMAIL");
 
                     b.Property<DateTime?>("EmailConfirmedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("EMAIL_CONFIRMED_AT_UTC");
 
                     b.Property<DateTime?>("LastLoginAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("LAST_LOGIN_AT_UTC");
 
                     b.Property<int?>("MaxConcurrentSessionsOverride")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("MAX_CONCURRENT_SESSIONS_OVERRIDE");
 
                     b.Property<string>("NormalizedEmail")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("NORMALIZED_EMAIL");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)")
+                        .HasColumnType("character varying(512)")
                         .HasColumnName("PASSWORD_HASH");
 
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("PHONE_NUMBER");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<bool>("TwoFactorEnabled")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("TWO_FACTOR_ENABLED");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
@@ -2366,33 +2382,33 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<DateTime?>("ConsumedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CONSUMED_AT_UTC");
 
                     b.Property<DateTime>("ExpiresAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("EXPIRES_AT_UTC");
 
                     b.Property<string>("Purpose")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("PURPOSE");
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("TOKEN_HASH");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("Id")
@@ -2404,7 +2420,7 @@ namespace Siri.Persistence.Migrations
 
                     b.HasIndex("UserId", "Purpose")
                         .HasDatabaseName("IX_USER_SECURITY_TOKENS_ACTIVE")
-                        .HasFilter("[CONSUMED_AT_UTC] IS NULL");
+                        .HasFilter("\"CONSUMED_AT_UTC\" IS NULL");
 
                     b.ToTable("USER_SECURITY_TOKENS", "IDENTITY");
                 });
@@ -2413,52 +2429,52 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<string>("DeviceId")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("DEVICE_ID");
 
                     b.Property<string>("DeviceName")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("DEVICE_NAME");
 
                     b.Property<string>("IpAddress")
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("IP_ADDRESS");
 
                     b.Property<DateTime>("LastSeenAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("LAST_SEEN_AT_UTC");
 
                     b.Property<string>("RevokeReason")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("REVOKE_REASON");
 
                     b.Property<DateTime?>("RevokedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("REVOKED_AT_UTC");
 
                     b.Property<string>("UserAgent")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("USER_AGENT");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("Id")
@@ -2466,7 +2482,7 @@ namespace Siri.Persistence.Migrations
 
                     b.HasIndex("UserId")
                         .HasDatabaseName("IX_USER_SESSIONS_ACTIVE")
-                        .HasFilter("[REVOKED_AT_UTC] IS NULL");
+                        .HasFilter("\"REVOKED_AT_UTC\" IS NULL");
 
                     b.HasIndex("UserId", "RevokedAtUtc")
                         .HasDatabaseName("IX_USER_SESSIONS_USER_ID_REVOKED_AT_UTC");
@@ -2478,55 +2494,55 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("ASSIGNMENT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ASSIGNMENT_ID");
 
                     b.Property<string>("ALLOWED_EXTENSIONS")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("ALLOWED_EXTENSIONS");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<int?>("DUE_DAYS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("DUE_DAYS");
 
                     b.Property<Guid>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EPISODE_ID");
 
                     b.Property<string>("INSTRUCTIONS")
                         .IsRequired()
                         .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnType("character varying(4000)")
                         .HasColumnName("INSTRUCTIONS");
 
                     b.Property<int>("MAX_FILE_SIZE_MB")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("MAX_FILE_SIZE_MB");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("ASSIGNMENT_ID")
@@ -2542,74 +2558,74 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("ASSIGNMENT_SUBMISSION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ASSIGNMENT_SUBMISSION_ID");
 
                     b.Property<Guid>("ASSIGNMENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ASSIGNMENT_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("ENROLLMENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ENROLLMENT_ID");
 
                     b.Property<string>("FEEDBACK")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("FEEDBACK");
 
                     b.Property<DateTime?>("GRADED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("GRADED_AT_UTC");
 
                     b.Property<Guid?>("GRADED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("GRADED_BY_USER_ID");
 
                     b.Property<string>("NOTE")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("NOTE");
 
                     b.Property<decimal?>("SCORE")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)")
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("SCORE");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("STORAGE_KEY")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("STORAGE_KEY");
 
                     b.Property<DateTime>("SUBMITTED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("SUBMITTED_AT_UTC");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("ASSIGNMENT_SUBMISSION_ID")
@@ -2628,56 +2644,56 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("CERTIFICATE_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CERTIFICATE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("ENROLLMENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ENROLLMENT_ID");
 
                     b.Property<DateTime>("ISSUED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("ISSUED_AT_UTC");
 
                     b.Property<string>("PDF_STORAGE_KEY")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("PDF_STORAGE_KEY");
 
                     b.Property<DateTime?>("REVOKED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("REVOKED_AT_UTC");
 
                     b.Property<string>("SERIAL_NO")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("SERIAL_NO");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.Property<string>("VERIFY_CODE")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("VERIFY_CODE");
 
                     b.HasKey("CERTIFICATE_ID")
@@ -2702,81 +2718,80 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("ENROLLMENT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ENROLLMENT_ID");
 
                     b.Property<DateTime?>("COMPLETED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("COMPLETED_AT_UTC");
 
                     b.Property<Guid>("COURSE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<DateTime>("ENROLLED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("ENROLLED_AT_UTC");
 
                     b.Property<DateTime?>("EXPIRES_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("EXPIRES_AT_UTC");
 
                     b.Property<DateTime?>("LAST_ACCESSED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("LAST_ACCESSED_AT_UTC");
 
                     b.Property<Guid?>("ORDER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ORDER_ID");
 
                     b.Property<decimal>("PROGRESS_PERCENT")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)")
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("PROGRESS_PERCENT");
 
                     b.Property<byte[]>("ROW_VERSION")
                         .IsConcurrencyToken()
                         .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion")
+                        .HasColumnType("bytea")
                         .HasColumnName("ROW_VERSION");
 
                     b.Property<string>("SOURCE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("SOURCE");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("ENROLLMENT_ID")
@@ -2792,7 +2807,7 @@ namespace Siri.Persistence.Migrations
                     b.HasIndex("USER_ID", "STATUS")
                         .HasDatabaseName("IX_ENROLLMENTS_MY_COURSES");
 
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("USER_ID", "STATUS"), new[] { "COURSE_ID", "PROGRESS_PERCENT", "LAST_ACCESSED_AT_UTC" });
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("USER_ID", "STATUS"), new[] { "COURSE_ID", "PROGRESS_PERCENT", "LAST_ACCESSED_AT_UTC" });
 
                     b.ToTable("ENROLLMENTS", "LEARNING");
                 });
@@ -2801,37 +2816,37 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("EPISODE_PROGRESS_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EPISODE_PROGRESS_ID");
 
                     b.Property<DateTime?>("COMPLETED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("COMPLETED_AT_UTC");
 
                     b.Property<Guid>("ENROLLMENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ENROLLMENT_ID");
 
                     b.Property<Guid>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EPISODE_ID");
 
                     b.Property<bool>("IS_COMPLETED")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_COMPLETED");
 
                     b.Property<int>("LAST_POSITION_SECONDS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("LAST_POSITION_SECONDS");
 
                     b.Property<DateTime>("UPDATED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<int>("WATCHED_SECONDS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("WATCHED_SECONDS");
 
                     b.HasKey("EPISODE_PROGRESS_ID")
@@ -2841,7 +2856,7 @@ namespace Siri.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_EPISODE_PROGRESS_RESUME");
 
-                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ENROLLMENT_ID", "EPISODE_ID"), new[] { "LAST_POSITION_SECONDS", "IS_COMPLETED" });
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("ENROLLMENT_ID", "EPISODE_ID"), new[] { "LAST_POSITION_SECONDS", "IS_COMPLETED" });
 
                     b.ToTable("EPISODE_PROGRESS", "LEARNING");
                 });
@@ -2850,47 +2865,47 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("QUIZ_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EPISODE_ID");
 
                     b.Property<bool>("IS_ACTIVE")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_ACTIVE");
 
                     b.Property<int>("MAX_ATTEMPTS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("MAX_ATTEMPTS");
 
                     b.Property<int>("PASSING_SCORE_PERCENT")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("PASSING_SCORE_PERCENT");
 
                     b.Property<string>("TITLE")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TITLE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("QUIZ_ID")
@@ -2906,56 +2921,56 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_ATTEMPT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("QUIZ_ATTEMPT_ID");
 
                     b.Property<int>("ATTEMPT_NO")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("ATTEMPT_NO");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("ENROLLMENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ENROLLMENT_ID");
 
                     b.Property<bool>("IS_PASSED")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_PASSED");
 
                     b.Property<Guid>("QUIZ_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("QUIZ_ID");
 
                     b.Property<decimal?>("SCORE_PERCENT")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)")
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("SCORE_PERCENT");
 
                     b.Property<DateTime>("STARTED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("STARTED_AT_UTC");
 
                     b.Property<DateTime?>("SUBMITTED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("SUBMITTED_AT_UTC");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("QUIZ_ATTEMPT_ID")
@@ -2972,24 +2987,24 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_ATTEMPT_ANSWER_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("QUIZ_ATTEMPT_ANSWER_ID");
 
                     b.Property<Guid>("ATTEMPT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ATTEMPT_ID");
 
                     b.Property<bool>("IS_CORRECT")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_CORRECT");
 
                     b.Property<Guid>("QUESTION_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("QUESTION_ID");
 
                     b.Property<string>("SELECTED_OPTION_IDS")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("text")
                         .HasColumnName("SELECTED_OPTION_IDS");
 
                     b.HasKey("QUIZ_ATTEMPT_ANSWER_ID")
@@ -3006,25 +3021,25 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_OPTION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("QUIZ_OPTION_ID");
 
                     b.Property<bool>("IS_CORRECT")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("IS_CORRECT");
 
                     b.Property<Guid>("QUESTION_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("QUESTION_ID");
 
                     b.Property<int>("SORT_ORDER")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("TEXT")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("TEXT");
 
                     b.HasKey("QUIZ_OPTION_ID")
@@ -3040,36 +3055,36 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("QUIZ_QUESTION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("QUIZ_QUESTION_ID");
 
                     b.Property<string>("EXPLANATION")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("EXPLANATION");
 
                     b.Property<int>("POINTS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("POINTS");
 
                     b.Property<Guid>("QUIZ_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("QUIZ_ID");
 
                     b.Property<int>("SORT_ORDER")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("SORT_ORDER");
 
                     b.Property<string>("TEXT")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("TEXT");
 
                     b.Property<string>("TYPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("TYPE");
 
                     b.HasKey("QUIZ_QUESTION_ID")
@@ -3088,33 +3103,36 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("WATCH_EVENT_ID");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("WATCH_EVENT_ID"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("WATCH_EVENT_ID"));
 
                     b.Property<Guid>("ENROLLMENT_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ENROLLMENT_ID");
 
                     b.Property<Guid>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EPISODE_ID");
 
                     b.Property<string>("EVENT_TYPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("EVENT_TYPE");
 
                     b.Property<DateTime>("OCCURRED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("OCCURRED_AT_UTC");
 
                     b.Property<int>("POSITION_SECONDS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("POSITION_SECONDS");
 
                     b.HasKey("WATCH_EVENT_ID")
                         .HasName("PK_WATCH_EVENTS");
+
+                    b.HasIndex("OCCURRED_AT_UTC")
+                        .HasDatabaseName("IX_WATCH_EVENTS_OCCURRED_AT_UTC");
 
                     b.HasIndex("ENROLLMENT_ID", "OCCURRED_AT_UTC")
                         .HasDatabaseName("IX_WATCH_EVENTS_ENROLLMENT_ID_OCCURRED_AT_UTC");
@@ -3126,75 +3144,75 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("MEDIA_ASSET_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("MEDIA_ASSET_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<bool>("DRM_ENABLED")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("DRM_ENABLED");
 
                     b.Property<int?>("DURATION_SECONDS")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("DURATION_SECONDS");
 
                     b.Property<string>("ERROR_MESSAGE")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("ERROR_MESSAGE");
 
                     b.Property<string>("PLAYBACK_ID")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("PLAYBACK_ID");
 
                     b.Property<string>("PROVIDER")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("PROVIDER");
 
                     b.Property<string>("PROVIDER_ASSET_ID")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("PROVIDER_ASSET_ID");
 
                     b.Property<DateTime?>("READY_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("READY_AT_UTC");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("THUMBNAIL_URL")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("THUMBNAIL_URL");
 
                     b.Property<Guid>("UPLOADED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPLOADED_BY_USER_ID");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("MEDIA_ASSET_ID")
@@ -3211,46 +3229,46 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("MEDIA_UPLOAD_SESSION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("MEDIA_UPLOAD_SESSION_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<DateTime>("EXPIRES_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("EXPIRES_AT_UTC");
 
                     b.Property<Guid>("MEDIA_ASSET_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("MEDIA_ASSET_ID");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("UPLOAD_URL")
                         .IsRequired()
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("UPLOAD_URL");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("MEDIA_UPLOAD_SESSION_ID")
@@ -3266,43 +3284,46 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PLAYBACK_SESSION_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PLAYBACK_SESSION_ID");
 
                     b.Property<string>("DEVICE_ID")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("DEVICE_ID");
 
                     b.Property<Guid>("EPISODE_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EPISODE_ID");
 
                     b.Property<DateTime>("EXPIRES_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("EXPIRES_AT_UTC");
 
                     b.Property<string>("IP_ADDRESS")
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("IP_ADDRESS");
 
                     b.Property<DateTime>("ISSUED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("ISSUED_AT_UTC");
 
                     b.Property<Guid>("SESSION_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("SESSION_ID");
 
                     b.Property<Guid>("USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("PLAYBACK_SESSION_ID")
                         .HasName("PK_PLAYBACK_SESSIONS");
+
+                    b.HasIndex("ISSUED_AT_UTC")
+                        .HasDatabaseName("IX_PLAYBACK_SESSIONS_ISSUED_AT_UTC");
 
                     b.HasIndex("USER_ID", "ISSUED_AT_UTC")
                         .HasDatabaseName("IX_PLAYBACK_SESSIONS_USER_ID_ISSUED_AT_UTC");
@@ -3314,49 +3335,49 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<string>("Body")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("text")
                         .HasColumnName("BODY");
 
                     b.Property<Guid>("CourseId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("COURSE_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid>("InstructorId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_ID");
 
                     b.Property<int>("RecipientCount")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("RECIPIENT_COUNT");
 
                     b.Property<DateTime?>("ScheduledAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("SCHEDULED_AT_UTC");
 
                     b.Property<bool>("SendEmail")
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasColumnName("SEND_EMAIL");
 
                     b.Property<DateTime?>("SentAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("SENT_AT_UTC");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)")
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("TITLE");
 
                     b.HasKey("Id")
@@ -3375,76 +3396,76 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<string>("AdminNotes")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("ADMIN_NOTES");
 
                     b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<DateTime?>("DeletedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("DELETED_AT_UTC");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)")
+                        .HasColumnType("character varying(255)")
                         .HasColumnName("EMAIL");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
+                        .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("IS_DELETED");
 
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)")
+                        .HasColumnType("character varying(4000)")
                         .HasColumnName("MESSAGE");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("NAME");
 
                     b.Property<DateTime?>("ResolvedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("RESOLVED_AT_UTC");
 
                     b.Property<Guid?>("ResolvedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("RESOLVED_BY");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)")
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("Subject")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("SUBJECT");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
-                        .HasColumnType("datetime2")
+                        .HasColumnType("timestamp with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("Id")
@@ -3466,54 +3487,54 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<int>("Attempts")
-                        .HasColumnType("int")
+                        .HasColumnType("integer")
                         .HasColumnName("ATTEMPTS");
 
                     b.Property<string>("BodyHtml")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("text")
                         .HasColumnName("BODY_HTML");
 
                     b.Property<string>("LastError")
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("LAST_ERROR");
 
                     b.Property<DateTime?>("NextRetryAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("NEXT_RETRY_AT_UTC");
 
                     b.Property<DateTime?>("SentAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("SENT_AT_UTC");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("Subject")
                         .IsRequired()
                         .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)")
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("SUBJECT");
 
                     b.Property<string>("TemplateKey")
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)")
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("TEMPLATE_KEY");
 
                     b.Property<string>("ToEmail")
                         .IsRequired()
                         .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)")
+                        .HasColumnType("character varying(256)")
                         .HasColumnName("TO_EMAIL");
 
                     b.HasKey("Id")
@@ -3529,44 +3550,44 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ID");
 
                     b.Property<string>("Body")
                         .IsRequired()
                         .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnType("character varying(2000)")
                         .HasColumnName("BODY");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<string>("LinkUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnType("character varying(1000)")
                         .HasColumnName("LINK_URL");
 
                     b.Property<DateTime?>("ReadAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("READ_AT_UTC");
 
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)")
+                        .HasColumnType("character varying(300)")
                         .HasColumnName("TITLE");
 
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)")
+                        .HasColumnType("character varying(64)")
                         .HasColumnName("TYPE");
 
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.HasKey("Id")
@@ -3585,63 +3606,63 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("INSTRUCTOR_PAYOUT_ACCOUNT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_PAYOUT_ACCOUNT_ID");
 
                     b.Property<string>("ACCOUNT_NAME")
                         .IsRequired()
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("ACCOUNT_NAME");
 
                     b.Property<string>("ACCOUNT_NO_ENCRYPTED")
                         .IsRequired()
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("ACCOUNT_NO_ENCRYPTED");
 
                     b.Property<string>("BANK_CODE")
                         .IsRequired()
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
+                        .HasColumnType("character varying(20)")
                         .HasColumnName("BANK_CODE");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("INSTRUCTOR_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_ID");
 
                     b.Property<string>("TAX_ID")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("TAX_ID");
 
                     b.Property<string>("TAX_PAYER_TYPE")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("TAX_PAYER_TYPE");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.Property<DateTime?>("VERIFIED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("VERIFIED_AT_UTC");
 
                     b.HasKey("INSTRUCTOR_PAYOUT_ACCOUNT_ID")
@@ -3658,25 +3679,25 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PAYOUT_BATCH_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PAYOUT_BATCH_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<DateTime?>("EXECUTED_AT_UTC")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("EXECUTED_AT_UTC");
 
                     b.Property<Guid?>("EXECUTED_BY_USER_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("EXECUTED_BY_USER_ID");
 
                     b.Property<string>("PERIOD_KEY")
@@ -3687,21 +3708,21 @@ namespace Siri.Persistence.Migrations
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<decimal>("TOTAL_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("TOTAL_AMOUNT");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("PAYOUT_BATCH_ID")
@@ -3717,64 +3738,64 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("PAYOUT_BATCH_ITEM_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PAYOUT_BATCH_ITEM_ID");
 
                     b.Property<decimal>("AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("AMOUNT");
 
                     b.Property<Guid>("BATCH_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("BATCH_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<Guid>("INSTRUCTOR_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_ID");
 
                     b.Property<decimal>("NET_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("NET_AMOUNT");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<string>("TRANSFER_REF")
                         .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasColumnType("character varying(200)")
                         .HasColumnName("TRANSFER_REF");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.Property<decimal>("WITHHOLDING_TAX_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("WITHHOLDING_TAX_AMOUNT");
 
                     b.Property<decimal>("WITHHOLDING_TAX_PERCENT")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)")
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("WITHHOLDING_TAX_PERCENT");
 
                     b.HasKey("PAYOUT_BATCH_ITEM_ID")
@@ -3793,43 +3814,43 @@ namespace Siri.Persistence.Migrations
                 {
                     b.Property<Guid>("REVENUE_SPLIT_ID")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("REVENUE_SPLIT_ID");
 
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
                     b.Property<Guid?>("CreatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("CREATED_BY");
 
                     b.Property<decimal>("GROSS_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("GROSS_AMOUNT");
 
                     b.Property<decimal>("INSTRUCTOR_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("INSTRUCTOR_AMOUNT");
 
                     b.Property<Guid>("INSTRUCTOR_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_ID");
 
                     b.Property<Guid>("ORDER_ITEM_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ORDER_ITEM_ID");
 
                     b.Property<decimal>("PAYMENT_FEE_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("PAYMENT_FEE_AMOUNT");
 
                     b.Property<Guid?>("PAYOUT_BATCH_ITEM_ID")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("PAYOUT_BATCH_ITEM_ID");
 
                     b.Property<string>("PERIOD_KEY")
@@ -3839,27 +3860,27 @@ namespace Siri.Persistence.Migrations
 
                     b.Property<decimal>("PLATFORM_FEE_AMOUNT")
                         .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)")
+                        .HasColumnType("numeric(18,2)")
                         .HasColumnName("PLATFORM_FEE_AMOUNT");
 
                     b.Property<decimal>("REVENUE_SHARE_PERCENT")
                         .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)")
+                        .HasColumnType("numeric(5,2)")
                         .HasColumnName("REVENUE_SHARE_PERCENT");
 
                     b.Property<string>("STATUS")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)")
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("STATUS");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasPrecision(3)
-                        .HasColumnType("datetime2(3)")
+                        .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("UPDATED_AT_UTC");
 
                     b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("UPDATED_BY");
 
                     b.HasKey("REVENUE_SPLIT_ID")
@@ -3880,11 +3901,11 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("UserRoles", b =>
                 {
                     b.Property<Guid>("UserId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("USER_ID");
 
                     b.Property<Guid>("RoleId")
-                        .HasColumnType("uniqueidentifier")
+                        .HasColumnType("uuid")
                         .HasColumnName("ROLE_ID");
 
                     b.HasKey("UserId", "RoleId")

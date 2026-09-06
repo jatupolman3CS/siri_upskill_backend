@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Provider-agnostic EF Core only (no .SqlServer here) — per ARCHITECTURE.md §2, a module's
+    <!-- Provider-agnostic EF Core only (no .Npgsql here) — per ARCHITECTURE.md §2, a module's
          Infrastructure/ owns its own IEntityTypeConfiguration<T> classes, but only Siri.Persistence
          decides the actual provider. AppDbContext picks these up by scanning loaded module
          assemblies (see AppDbContext.GetModuleAssemblies), never by referencing the module directly. -->

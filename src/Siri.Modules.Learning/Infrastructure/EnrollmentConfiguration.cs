@@ -52,7 +52,7 @@ public sealed class EnrollmentConfiguration : IEntityTypeConfiguration<ENROLLMEN
 
         // First concurrency token in this module — an enrollment's progress can be written from multiple
         // devices/tabs in quick succession, same reasoning Course.RowVersion's own doc comment gives.
-        builder.Property(x => x.ROW_VERSION).HasColumnName("ROW_VERSION").IsRowVersion();
+        builder.Property(x => x.ROW_VERSION).HasColumnName("ROW_VERSION").IsConcurrencyToken().HasColumnType("bytea").IsRequired();
 
         // A learner can never hold two rows for the same course — see this class's own doc comment.
         builder.HasIndex(x => new { x.USER_ID, x.COURSE_ID }).IsUnique().HasDatabaseName("IX_ENROLLMENTS_USER_ID_COURSE_ID");

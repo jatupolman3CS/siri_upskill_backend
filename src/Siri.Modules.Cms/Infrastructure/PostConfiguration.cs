@@ -24,7 +24,7 @@ public sealed class PostConfiguration : IEntityTypeConfiguration<POST>
         // would permanently squat the slug for every future post. Same reasoning
         // Siri.Modules.Catalog.Infrastructure.CourseConfiguration's own comment gives for Courses.Slug;
         // the filter references IS_DELETED (this table's actual column name), not IsDeleted.
-        builder.HasIndex(p => p.SLUG).IsUnique().HasFilter("[IS_DELETED] = 0");
+        builder.HasIndex(p => p.SLUG).IsUnique().HasFilter("\"IS_DELETED\" = false");
 
         builder.Property(p => p.TITLE).HasMaxLength(200).IsRequired();
         builder.Property(p => p.EXCERPT).HasMaxLength(500).IsRequired();

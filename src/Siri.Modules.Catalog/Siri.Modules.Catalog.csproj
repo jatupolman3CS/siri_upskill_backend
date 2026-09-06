@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Provider-agnostic EF Core only (no .SqlServer here) — same reasoning as
+    <!-- Provider-agnostic EF Core only (no .Npgsql here) — same reasoning as
          Siri.Modules.Identity.csproj: this module's Infrastructure/ owns its own
          IEntityTypeConfiguration<T> classes, but only Siri.Persistence decides the actual provider. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" />

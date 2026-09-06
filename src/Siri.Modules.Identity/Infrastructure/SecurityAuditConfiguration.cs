@@ -17,7 +17,7 @@ public sealed class SecurityAuditConfiguration : IEntityTypeConfiguration<SECURI
 
         // Genuinely unbounded structured JSON (DATABASE.md: "Detail(json)") — the one intentional
         // exception to "always HasMaxLength on nvarchar columns".
-        builder.Property(a => a.Detail).HasColumnType("nvarchar(max)");
+        builder.Property(a => a.Detail).HasColumnType("text");
 
         builder.Property(a => a.IpAddress).HasMaxLength(64);
 

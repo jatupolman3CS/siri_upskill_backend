@@ -67,6 +67,37 @@
 
 ## 4. คิวงาน — ฉบับ 2026-08-28 (แทนคิว Phase A–G ฉบับ 2026-08-27 ทั้งหมด)
 
+### ✅ `P0-41` ย้าย SQL Server → PostgreSQL 17 — **Claude Code ทำเสร็จเองแล้ว ห้ามทำซ้ำ** (2026-09-05)
+
+งานนี้เคยถูกวางไว้ให้ Antigravity ทำ แต่เจ้าของโปรเจ็คให้ Claude Code ลงมือเองแทน **ทำจบแล้วทั้งหมด**
+รายละเอียดทุกไฟล์และเหตุผลของแต่ละการตัดสินใจอยู่ที่ `docs/contracts/P0-41-postgresql-migration.md`
+
+สิ่งที่เปลี่ยนไปแล้วและกระทบงานทุกชิ้นต่อจากนี้ — **อ่านก่อนหยิบ task ถัดไป**:
+
+- **DB engine เป็น PostgreSQL 17 แล้ว** ไม่ใช่ SQL Server · database ชื่อ **`SIRIUPSKILL`** (ตัวใหญ่)
+  · schema ยัง UPPERCASE เหมือนเดิมทุกตัว
+- **raw SQL ต้อง quote identifier ทุกตัวรวม alias** (`"CATALOG"."COURSES"`, `AS "CourseId"`) —
+  PostgreSQL fold ชื่อที่ไม่ quote เป็นตัวพิมพ์เล็ก กฎนี้เพิ่มลง `.claude/rules/database.md` แล้ว
+- **ห้าม `IsRowVersion()`** — ใช้ `.IsConcurrencyToken().HasColumnType("bytea")` แล้วให้
+  `ConcurrencyTokenInterceptor` หมุนค่าให้ (`byte[]` คงเดิม API contract ของ `rowVersion` ไม่เปลี่ยน)
+- **`nvarchar(max)` → `text`** · **`HasFilter` เขียนแบบ `"COL" = false`**
+- **ชื่อ index/FK ห้ามเกิน 63 ไบต์** — มีเทสต์บังคับที่ `DatabaseIdentifierLengthTests` (ยาวสุดตอนนี้ 49)
+- **Testcontainers เป็น `postgres:17-alpine`** แล้ว ไม่ใช่ MSSQL
+- **ค้นหาภาษาไทยใช้ `pg_trgm` ห้ามใช้ `tsvector`** (ทดสอบจริงแล้ว `tsvector` ได้ 0 match เพราะภาษาไทยไม่มีช่องว่างระหว่างคำ)
+- **`X-7` และ `P0-40` (FTS blocker) ตกไปทั้งคู่** — ไม่ต้องทำแล้ว
+- migration เดิม 3 ตัวถูกลบและสร้างใหม่เป็น `InitialCreatePostgres` ตัวเดียว
+
+**เจอปัญหาใหม่ระหว่างทาง 2 ข้อ บันทึกไว้แล้ว ไม่ได้แก้ (นอกขอบเขต):** `X-25` (`dr-backup-drill.sh`
+เป็นสคริปต์ปลอม รายงานว่า backup สำเร็จโดยไม่เคยต่อ DB) · `X-26` (promo code กัน double-spend
+ต่อผู้ใช้ไม่เคยทำงานจริงเพราะไม่มี transaction ครอบ — เป็นมาตั้งแต่สมัย SQL Server แล้ว)
+
+**ยังเหลือให้เจ้าของโปรเจ็คทำ:** apply migration ใส่ `SIRIUPSKILL` จริง · ตั้ง `ConnectionStrings__Default`
+รูปแบบ Npgsql ในค่า deploy · เพิ่ม `--network siri-net` ให้ container `siri_upskill_backend`
+· แก้ `.env.example`/`.env.production` (Claude อ่านไม่ได้ ติด deny rule ของ `.env*`)
+
+---
+
+
 > **ทำไมต้องเขียนใหม่:** Claude Code ตรวจโค้ดจริงทีละไฟล์เมื่อ 2026-08-28 แล้วพบว่าคิวเดิมล้าสมัยเกือบทั้งหมด — Phase A/B ปิดไปแล้ว, Phase C (integration test 6 โมดูล) **ครบทั้ง 7 โมดูลแล้ว**, Phase D/E ส่วนใหญ่ทำไปแล้ว · และพบของใหม่ที่หนักกว่าทุกอย่างในคิวเดิมซึ่งไม่เคยมีใครบันทึก (ดู H1/H2)
 >
 > **ขอบเขตของแผนนี้ (เจ้าของโปรเจ็คสั่ง 2026-08-28):** ตัด **วิดีโอ/player/DRM** และ **login/auth** ออกทั้งหมด — ไม่ใช่ยกเลิก แค่ยังไม่ทำรอบนี้ · ตัดงานที่ต้องพึ่งของนอกระบบออกเหมือนเดิม (VPS, บัญชี vendor, คนจริง)

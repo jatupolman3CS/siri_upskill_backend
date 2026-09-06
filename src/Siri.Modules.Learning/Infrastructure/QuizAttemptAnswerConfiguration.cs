@@ -29,7 +29,7 @@ public sealed class QuizAttemptAnswerConfiguration : IEntityTypeConfiguration<QU
         // nvarchar(max), not a bounded length — JSON-serialized array, a deliberate simplification
         // already in the source schema sketch (docs/DATABASE.md), not a real relational structure. See
         // QUIZ_ATTEMPT_ANSWER.SELECTED_OPTION_IDS's own doc comment.
-        builder.Property(a => a.SELECTED_OPTION_IDS).HasColumnType("nvarchar(max)").IsRequired();
+        builder.Property(a => a.SELECTED_OPTION_IDS).HasColumnType("text").IsRequired();
 
         builder.Property(a => a.IS_CORRECT).IsRequired();
 

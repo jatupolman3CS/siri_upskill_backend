@@ -18,6 +18,13 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     {
         base.OnModelCreating(modelBuilder);
 
+        // Emitted as CREATE EXTENSION IF NOT EXISTS by the migration (P0-41). pg_trgm backs the Thai
+        // course search in Siri.Modules.Catalog (SearchCoursesHandler + CourseConfiguration's
+        // gin_trgm_ops indexes) — declared here rather than in the module because a PostgreSQL
+        // extension is database-wide state, which is this context's concern, not one module's.
+        // It is a trusted extension, so the app's own non-superuser role can create it.
+        modelBuilder.HasPostgresExtension("pg_trgm");
+
         foreach (var moduleAssembly in GetModuleAssemblies())
         {
             modelBuilder.ApplyConfigurationsFromAssembly(moduleAssembly);

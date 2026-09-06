@@ -14,8 +14,8 @@ namespace Siri.Modules.Learning.Infrastructure;
 /// (this codebase prefers explicit configuration over relying on convention discovery — same instinct
 /// database.md's "ต้องระบุ .HasForeignKey()/.WithMany(nav) ชัดเจนเสมอ ห้ามพึ่ง convention discovery" applies
 /// to relationships). This is the provider-agnostic core EF Core API (<c>Microsoft.EntityFrameworkCore</c>),
-/// NOT the SQL-Server-specific <c>UseIdentityColumn()</c> (<c>Microsoft.EntityFrameworkCore.SqlServer</c>) —
-/// this module's <c>.csproj</c> deliberately does not reference the SqlServer package (same
+/// NOT a provider-specific identity helper (SQL Server's <c>UseIdentityColumn()</c> before task P0-41, Npgsql's <c>UseIdentityAlwaysColumn()</c> now) —
+/// this module's <c>.csproj</c> deliberately does not reference the provider package (same
 /// provider-agnostic reasoning <c>Siri.Modules.Catalog.csproj</c>'s own comment gives), so only the
 /// provider-agnostic form is available here; the relational SQL Server provider (wired centrally in
 /// <c>Siri.Persistence</c>) is what actually turns this into a real <c>IDENTITY(1,1)</c> column at

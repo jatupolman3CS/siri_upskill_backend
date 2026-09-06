@@ -67,10 +67,13 @@ public sealed class MediaSeeder(AppDbContext dbContext, IClock clock, ILogger<Me
         try
         {
             var rowsUpdated = await dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $@"UPDATE CATALOG.COURSE_EPISODES 
-                   SET MEDIA_ASSET_ID = {assetId} 
-                   WHERE MEDIA_ASSET_ID IS NULL 
-                      OR MEDIA_ASSET_ID NOT IN (SELECT MEDIA_ASSET_ID FROM MEDIA.MEDIA_ASSETS)",
+                // Every identifier is double-quoted (P0-41): the whole schema is UPPERCASE and
+                // PostgreSQL folds unquoted identifiers to lower case, so bare CATALOG.COURSE_EPISODES
+                // would resolve to a non-existent catalog.course_episodes.
+                $@"UPDATE ""CATALOG"".""COURSE_EPISODES""
+                   SET ""MEDIA_ASSET_ID"" = {assetId}
+                   WHERE ""MEDIA_ASSET_ID"" IS NULL
+                      OR ""MEDIA_ASSET_ID"" NOT IN (SELECT ""MEDIA_ASSET_ID"" FROM ""MEDIA"".""MEDIA_ASSETS"")",
                 cancellationToken).ConfigureAwait(false);
 
             if (rowsUpdated > 0)
