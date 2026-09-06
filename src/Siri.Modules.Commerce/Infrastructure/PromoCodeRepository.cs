@@ -22,9 +22,22 @@ public sealed class PromoCodeRepository(AppDbContext dbContext) : IPromoCodeRepo
 
     public async Task<bool> TryRedeemAsync(Guid promoCodeId, Guid orderId, Guid userId, int maxPerUser, IClock clock, CancellationToken cancellationToken)
     {
-        // 1. Atomic check with key-range locking on (PROMO_CODE_ID, USER_ID) to prevent concurrent double-spend TOCTOU race
+        // Row lock on this user's existing redemptions for this code. Identifiers are double-quoted
+        // because the schema is UPPERCASE and PostgreSQL folds unquoted names to lower case (P0-41).
+        //
+        // NOTE — this is a faithful translation of the previous SQL Server statement, not a fix.
+        // That statement used WITH (UPDLOCK, HOLDLOCK), whose key-range lock would also have blocked
+        // concurrent INSERTs into the range; FOR UPDATE only locks rows that already exist. Neither
+        // version actually closes the TOCTOU window the original comment claimed, because there is no
+        // surrounding transaction — OrderService calls TryRedeemAsync and then SaveChangesAsync
+        // separately, so every statement here autocommits and any lock is released immediately.
+        // Two simultaneous first-time redemptions can therefore both pass the MAX_PER_USER check on
+        // either engine. Closing it needs a transaction plus either SERIALIZABLE isolation or a
+        // pg_advisory_xact_lock keyed on (promo, user) — a change to money-handling behaviour, which
+        // security.md puts outside a provider migration. Tracked as X-26 in docs/TASKS.md.
+        // The global quota in step 2 is unaffected: that one is a single atomic UPDATE.
         var userRedemptions = await dbContext.PromoRedemptions()
-            .FromSqlInterpolated($"SELECT * FROM COMMERCE.PROMO_REDEMPTIONS WITH (UPDLOCK, HOLDLOCK) WHERE PROMO_CODE_ID = {promoCodeId} AND USER_ID = {userId}")
+            .FromSqlInterpolated($@"SELECT * FROM ""COMMERCE"".""PROMO_REDEMPTIONS"" WHERE ""PROMO_CODE_ID"" = {promoCodeId} AND ""USER_ID"" = {userId} FOR UPDATE")
             .CountAsync(cancellationToken)
             .ConfigureAwait(false);
 

@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Provider-agnostic EF Core only (no .SqlServer here) — same reasoning as
+    <!-- Provider-agnostic EF Core only (no .Npgsql here) — same reasoning as
          Siri.Modules.Catalog.csproj: this module's Infrastructure/ owns its own
          IEntityTypeConfiguration<T> classes (DiscussionConfiguration/ReportConfiguration) and DbSet<T>
          accessors, but only Siri.Persistence decides the actual provider. Already centrally versioned

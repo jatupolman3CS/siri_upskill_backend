@@ -267,7 +267,7 @@ try
     // Instrumentation is always on (near-zero cost with no exporter attached — see
     // ObservabilityOptions' doc comment); the OTLP exporter itself is config-gated so dev/CI run
     // exporter-less while the VPS points Observability:OtlpEndpoint at its collector.
-    // DB-level spans (EF Core / SqlClient instrumentation) are deliberately absent: both contrib
+    // DB-level spans (EF Core / Npgsql instrumentation) are deliberately absent: both contrib
     // packages are still beta-only on NuGet (checked 2026-08-18, latest is 1.17.0-beta.1) and this
     // codebase doesn't take prerelease dependencies — revisit when either goes stable.
     builder.Services.AddOptions<ObservabilityOptions>()

@@ -44,7 +44,7 @@ public sealed class ORDERConfiguration : IEntityTypeConfiguration<ORDER>
 
         builder.Property(o => o.PAID_AT_UTC).HasPrecision(3);
 
-        builder.Property(o => o.ROW_VERSION).IsRowVersion();
+        builder.Property(o => o.ROW_VERSION).IsConcurrencyToken().HasColumnType("bytea").IsRequired();
 
         builder.Property(o => o.CreatedAtUtc).HasColumnName("CREATED_AT_UTC").HasPrecision(3).IsRequired();
         builder.Property(o => o.CreatedBy).HasColumnName("CREATED_BY");

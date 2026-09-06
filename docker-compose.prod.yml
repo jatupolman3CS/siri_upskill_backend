@@ -50,7 +50,7 @@ services:
     networks:
       - siri-net
     depends_on:
-      mssql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -67,22 +67,31 @@ services:
     networks:
       - siri-net
     depends_on:
-      mssql:
+      postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
-  mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+  postgres:
+    # Task P0-41 replaced SQL Server with PostgreSQL 17.
+    # POSTGRES_DB is UPPERCASE on purpose: the database really is named SIRIUPSKILL, and the value is
+    # passed to initdb as a parameter rather than as SQL, so it needs no quoting here. Anywhere it
+    # appears inside actual SQL it must be written "SIRIUPSKILL" — PostgreSQL folds unquoted
+    # identifiers to lower case.
+    # POSTGRES_PASSWORD comes from .env.production (never committed), same as every other secret here.
+    image: postgres:17-alpine
     restart: unless-stopped
     env_file:
       - .env.production
     environment:
-      - ACCEPT_EULA=Y
+      - POSTGRES_DB=SIRIUPSKILL
+      - POSTGRES_USER=siriupskill_app
+      - TZ=UTC
     volumes:
-      - mssql_data:/var/opt/mssql
+      - postgres_data:/var/lib/postgresql/data
+    shm_size: 256m
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U siriupskill_app -d SIRIUPSKILL || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -107,7 +116,7 @@ services:
 volumes:
   caddy_data:
   caddy_config:
-  mssql_data:
+  postgres_data:
   redis_data:
 
 networks:

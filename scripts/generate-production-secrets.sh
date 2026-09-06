@@ -23,9 +23,9 @@ cat <<EOF > "$OUTPUT_ENV_FILE"
 ASPNETCORE_ENVIRONMENT=Production
 ASPNETCORE_URLS=http://+:5000
 
-# Database (MSSQL)
-MSSQL_SA_PASSWORD=$DB_PASS
-ConnectionStrings__Default=Server=mssql,1433;Database=SIRIUPSKILL;User Id=sa;Password=$DB_PASS;TrustServerCertificate=True;MultipleActiveResultSets=True;Max Pool Size=200;
+# Database (PostgreSQL 17 — task P0-41)
+POSTGRES_PASSWORD=$DB_PASS
+ConnectionStrings__Default=Host=postgres;Port=5432;Database=SIRIUPSKILL;Username=siriupskill_app;Password=$DB_PASS;Maximum Pool Size=200
 
 # Redis
 REDIS_PASSWORD=$REDIS_PASS

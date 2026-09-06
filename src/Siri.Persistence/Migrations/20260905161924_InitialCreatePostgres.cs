@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -8,7 +9,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Siri.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitialCreatePostgres : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -43,21 +44,24 @@ namespace Siri.Persistence.Migrations
             migrationBuilder.EnsureSchema(
                 name: "IDENTITY");
 
+            migrationBuilder.AlterDatabase()
+                .Annotation("Npgsql:PostgresExtension:pg_trgm", ",,");
+
             migrationBuilder.CreateTable(
                 name: "ANNOUNCEMENTS",
                 schema: "NOTIFY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    INSTRUCTOR_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
-                    BODY = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    SEND_EMAIL = table.Column<bool>(type: "bit", nullable: false),
-                    SCHEDULED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    SENT_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    RECIPIENT_COUNT = table.Column<int>(type: "int", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    INSTRUCTOR_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    BODY = table.Column<string>(type: "text", nullable: false),
+                    SEND_EMAIL = table.Column<bool>(type: "boolean", nullable: false),
+                    SCHEDULED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    SENT_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    RECIPIENT_COUNT = table.Column<int>(type: "integer", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -69,17 +73,17 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    ASSIGNMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    EPISODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    INSTRUCTIONS = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
-                    DUE_DAYS = table.Column<int>(type: "int", nullable: true),
-                    MAX_FILE_SIZE_MB = table.Column<int>(type: "int", nullable: false),
-                    ALLOWED_EXTENSIONS = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ASSIGNMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    EPISODE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    INSTRUCTIONS = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
+                    DUE_DAYS = table.Column<int>(type: "integer", nullable: true),
+                    MAX_FILE_SIZE_MB = table.Column<int>(type: "integer", nullable: false),
+                    ALLOWED_EXTENSIONS = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -91,20 +95,20 @@ namespace Siri.Persistence.Migrations
                 schema: "CMS",
                 columns: table => new
                 {
-                    BANNER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PLACEMENT = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    IMAGE_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    MOBILE_IMAGE_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    LINK_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false),
-                    STARTS_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    ENDS_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    IS_ACTIVE = table.Column<bool>(type: "bit", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    BANNER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    PLACEMENT = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    IMAGE_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                    MOBILE_IMAGE_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    LINK_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false),
+                    STARTS_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    ENDS_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    IS_ACTIVE = table.Column<bool>(type: "boolean", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -116,14 +120,14 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    BUNDLE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SLUG = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    DESCRIPTION = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    PRICE = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    IS_ACTIVE = table.Column<bool>(type: "bit", nullable: false),
-                    STARTS_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    ENDS_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true)
+                    BUNDLE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SLUG = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    DESCRIPTION = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: true),
+                    PRICE = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    IS_ACTIVE = table.Column<bool>(type: "boolean", nullable: false),
+                    STARTS_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    ENDS_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -135,9 +139,9 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    CART_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false)
+                    CART_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -149,18 +153,18 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PARENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    SLUG = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    NAME_TH = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    NAME_EN = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    ICON_KEY = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false),
-                    IS_ACTIVE = table.Column<bool>(type: "bit", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    PARENT_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    SLUG = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    NAME_TH = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    NAME_EN = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    ICON_KEY = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false),
+                    IS_ACTIVE = table.Column<bool>(type: "boolean", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -179,21 +183,21 @@ namespace Siri.Persistence.Migrations
                 schema: "NOTIFY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    NAME = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    EMAIL = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
-                    SUBJECT = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    MESSAGE = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    RESOLVED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    RESOLVED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    ADMIN_NOTES = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    IS_DELETED = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
-                    DELETED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    NAME = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    EMAIL = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    SUBJECT = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    MESSAGE = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    RESOLVED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    RESOLVED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    ADMIN_NOTES = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    IS_DELETED = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    DELETED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -205,16 +209,16 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    RATING = table.Column<int>(type: "int", nullable: false),
-                    COMMENT = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
-                    IS_PUBLISHED = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    RATING = table.Column<int>(type: "integer", nullable: false),
+                    COMMENT = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    IS_PUBLISHED = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -227,11 +231,11 @@ namespace Siri.Persistence.Migrations
                 columns: table => new
                 {
                     DATE = table.Column<DateOnly>(type: "date", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    VIEWS = table.Column<int>(type: "int", nullable: false),
-                    ENROLLMENTS = table.Column<int>(type: "int", nullable: false),
-                    REVENUE = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    COMPLETION_RATE = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false)
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    VIEWS = table.Column<int>(type: "integer", nullable: false),
+                    ENROLLMENTS = table.Column<int>(type: "integer", nullable: false),
+                    REVENUE = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    COMPLETION_RATE = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -243,21 +247,21 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMUNITY",
                 columns: table => new
                 {
-                    DISCUSSION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    EPISODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PARENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    BODY = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: false),
-                    IS_INSTRUCTOR_ANSWER = table.Column<bool>(type: "bit", nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    UPVOTE_COUNT = table.Column<int>(type: "int", nullable: false),
-                    IS_DELETED = table.Column<bool>(type: "bit", nullable: false),
-                    DELETED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    DISCUSSION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    EPISODE_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    PARENT_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    BODY = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
+                    IS_INSTRUCTOR_ANSWER = table.Column<bool>(type: "boolean", nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    UPVOTE_COUNT = table.Column<int>(type: "integer", nullable: false),
+                    IS_DELETED = table.Column<bool>(type: "boolean", nullable: false),
+                    DELETED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -276,16 +280,16 @@ namespace Siri.Persistence.Migrations
                 schema: "NOTIFY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TO_EMAIL = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    SUBJECT = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
-                    BODY_HTML = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    TEMPLATE_KEY = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    ATTEMPTS = table.Column<int>(type: "int", nullable: false),
-                    NEXT_RETRY_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    SENT_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    LAST_ERROR = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TO_EMAIL = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    SUBJECT = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    BODY_HTML = table.Column<string>(type: "text", nullable: false),
+                    TEMPLATE_KEY = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    ATTEMPTS = table.Column<int>(type: "integer", nullable: false),
+                    NEXT_RETRY_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    SENT_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    LAST_ERROR = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -297,22 +301,22 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    ENROLLMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ORDER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    SOURCE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    ENROLLED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    PROGRESS_PERCENT = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
-                    COMPLETED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    LAST_ACCESSED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    ROW_VERSION = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ENROLLMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ORDER_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    SOURCE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    ENROLLED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PROGRESS_PERCENT = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: false),
+                    COMPLETED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    LAST_ACCESSED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    ROW_VERSION = table.Column<byte[]>(type: "bytea", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -325,10 +329,10 @@ namespace Siri.Persistence.Migrations
                 columns: table => new
                 {
                     DATE = table.Column<DateOnly>(type: "date", nullable: false),
-                    EPISODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    START_COUNT = table.Column<int>(type: "int", nullable: false),
-                    COMPLETE_COUNT = table.Column<int>(type: "int", nullable: false),
-                    AVG_WATCH_PERCENT = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false)
+                    EPISODE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    START_COUNT = table.Column<int>(type: "integer", nullable: false),
+                    COMPLETE_COUNT = table.Column<int>(type: "integer", nullable: false),
+                    AVG_WATCH_PERCENT = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -340,15 +344,15 @@ namespace Siri.Persistence.Migrations
                 schema: "CMS",
                 columns: table => new
                 {
-                    FEATURE_FLAG_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    KEY = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    NAME = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    DESCRIPTION = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    IS_ENABLED = table.Column<bool>(type: "bit", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    FEATURE_FLAG_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    KEY = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    NAME = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    DESCRIPTION = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    IS_ENABLED = table.Column<bool>(type: "boolean", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -360,11 +364,11 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    FLASH_SALE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    STARTS_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    ENDS_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    IS_ACTIVE = table.Column<bool>(type: "bit", nullable: false)
+                    FLASH_SALE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    STARTS_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    ENDS_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    IS_ACTIVE = table.Column<bool>(type: "boolean", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -376,18 +380,18 @@ namespace Siri.Persistence.Migrations
                 schema: "PAYOUT",
                 columns: table => new
                 {
-                    INSTRUCTOR_PAYOUT_ACCOUNT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    INSTRUCTOR_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    BANK_CODE = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    ACCOUNT_NO_ENCRYPTED = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    ACCOUNT_NAME = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    TAX_ID = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    TAX_PAYER_TYPE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    VERIFIED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    INSTRUCTOR_PAYOUT_ACCOUNT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    INSTRUCTOR_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    BANK_CODE = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    ACCOUNT_NO_ENCRYPTED = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    ACCOUNT_NAME = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    TAX_ID = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    TAX_PAYER_TYPE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    VERIFIED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -399,19 +403,19 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    DISPLAY_NAME = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    HEADLINE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    BIO = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
-                    AVATAR_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    REVENUE_SHARE_PERCENT = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    APPROVED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    DISPLAY_NAME = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    HEADLINE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    BIO = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    AVATAR_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    REVENUE_SHARE_PERCENT = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    APPROVED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -423,16 +427,16 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SLUG = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    DESCRIPTION = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
-                    IS_ACTIVE = table.Column<bool>(type: "bit", nullable: false),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SLUG = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    DESCRIPTION = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    IS_ACTIVE = table.Column<bool>(type: "boolean", nullable: false),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -444,21 +448,21 @@ namespace Siri.Persistence.Migrations
                 schema: "MEDIA",
                 columns: table => new
                 {
-                    MEDIA_ASSET_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PROVIDER = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    PROVIDER_ASSET_ID = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    PLAYBACK_ID = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    DURATION_SECONDS = table.Column<int>(type: "int", nullable: true),
-                    DRM_ENABLED = table.Column<bool>(type: "bit", nullable: false),
-                    THUMBNAIL_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    UPLOADED_BY_USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    READY_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    ERROR_MESSAGE = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    MEDIA_ASSET_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    PROVIDER = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    PROVIDER_ASSET_ID = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    PLAYBACK_ID = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    DURATION_SECONDS = table.Column<int>(type: "integer", nullable: true),
+                    DRM_ENABLED = table.Column<bool>(type: "boolean", nullable: false),
+                    THUMBNAIL_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    UPLOADED_BY_USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    READY_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    ERROR_MESSAGE = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -470,16 +474,16 @@ namespace Siri.Persistence.Migrations
                 schema: "CMS",
                 columns: table => new
                 {
-                    MENU_ITEM_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PARENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    LABEL = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false),
-                    IS_ACTIVE = table.Column<bool>(type: "bit", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    MENU_ITEM_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    PARENT_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    LABEL = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false),
+                    IS_ACTIVE = table.Column<bool>(type: "boolean", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -498,14 +502,14 @@ namespace Siri.Persistence.Migrations
                 schema: "NOTIFY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TYPE = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
-                    BODY = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
-                    LINK_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    READ_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TYPE = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: false),
+                    BODY = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    LINK_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    READ_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -517,22 +521,22 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    ORDER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ORDER_NO = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SUBTOTAL_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    DISCOUNT_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    TAX_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    TOTAL_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    ORDER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ORDER_NO = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SUBTOTAL_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    DISCOUNT_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    TAX_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    TOTAL_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
                     CURRENCY = table.Column<string>(type: "char(3)", nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    PROMO_CODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    PAID_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    ROW_VERSION = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PROMO_CODE_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    PAID_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    ROW_VERSION = table.Column<byte[]>(type: "bytea", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -544,16 +548,16 @@ namespace Siri.Persistence.Migrations
                 schema: "PAYOUT",
                 columns: table => new
                 {
-                    PAYOUT_BATCH_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PAYOUT_BATCH_ID = table.Column<Guid>(type: "uuid", nullable: false),
                     PERIOD_KEY = table.Column<string>(type: "char(7)", nullable: false),
-                    TOTAL_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    EXECUTED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    EXECUTED_BY_USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    TOTAL_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    EXECUTED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    EXECUTED_BY_USER_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -565,14 +569,14 @@ namespace Siri.Persistence.Migrations
                 schema: "MEDIA",
                 columns: table => new
                 {
-                    PLAYBACK_SESSION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    EPISODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SESSION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ISSUED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    IP_ADDRESS = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
-                    DEVICE_ID = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true)
+                    PLAYBACK_SESSION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    EPISODE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SESSION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ISSUED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    IP_ADDRESS = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    DEVICE_ID = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -584,23 +588,23 @@ namespace Siri.Persistence.Migrations
                 schema: "CMS",
                 columns: table => new
                 {
-                    POST_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SLUG = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    EXCERPT = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    CONTENT_HTML = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    COVER_IMAGE_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    AUTHOR_USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    PUBLISHED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    SEO_TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    SEO_DESCRIPTION = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    IS_DELETED = table.Column<bool>(type: "bit", nullable: false),
-                    DELETED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    POST_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SLUG = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    EXCERPT = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    CONTENT_HTML = table.Column<string>(type: "text", nullable: false),
+                    COVER_IMAGE_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    AUTHOR_USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PUBLISHED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    SEO_TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    SEO_DESCRIPTION = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    IS_DELETED = table.Column<bool>(type: "boolean", nullable: false),
+                    DELETED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -612,20 +616,20 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    PROMO_CODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CODE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    DISCOUNT_TYPE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    DISCOUNT_VALUE = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    MAX_REDEMPTIONS = table.Column<int>(type: "int", nullable: false),
-                    REDEEMED_COUNT = table.Column<int>(type: "int", nullable: false),
-                    MAX_PER_USER = table.Column<int>(type: "int", nullable: false),
-                    MIN_ORDER_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    STARTS_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    ENDS_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    SCOPE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    SCOPE_REF_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    IS_ACTIVE = table.Column<bool>(type: "bit", nullable: false),
-                    ROW_VERSION = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                    PROMO_CODE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    CODE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    DISCOUNT_TYPE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    DISCOUNT_VALUE = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    MAX_REDEMPTIONS = table.Column<int>(type: "integer", nullable: false),
+                    REDEEMED_COUNT = table.Column<int>(type: "integer", nullable: false),
+                    MAX_PER_USER = table.Column<int>(type: "integer", nullable: false),
+                    MIN_ORDER_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    STARTS_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    ENDS_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    SCOPE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    SCOPE_REF_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    IS_ACTIVE = table.Column<bool>(type: "boolean", nullable: false),
+                    ROW_VERSION = table.Column<byte[]>(type: "bytea", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -637,16 +641,16 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    QUIZ_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    EPISODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    PASSING_SCORE_PERCENT = table.Column<int>(type: "int", nullable: false),
-                    MAX_ATTEMPTS = table.Column<int>(type: "int", nullable: false),
-                    IS_ACTIVE = table.Column<bool>(type: "bit", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    QUIZ_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    EPISODE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    PASSING_SCORE_PERCENT = table.Column<int>(type: "integer", nullable: false),
+                    MAX_ATTEMPTS = table.Column<int>(type: "integer", nullable: false),
+                    IS_ACTIVE = table.Column<bool>(type: "boolean", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -658,14 +662,14 @@ namespace Siri.Persistence.Migrations
                 schema: "CMS",
                 columns: table => new
                 {
-                    REDIRECT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    FROM_PATH = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    TO_PATH = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    STATUS_CODE = table.Column<int>(type: "int", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    REDIRECT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    FROM_PATH = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    TO_PATH = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                    STATUS_CODE = table.Column<int>(type: "integer", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -677,21 +681,21 @@ namespace Siri.Persistence.Migrations
                 schema: "PAYOUT",
                 columns: table => new
                 {
-                    REVENUE_SPLIT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ORDER_ITEM_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    INSTRUCTOR_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    GROSS_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    PAYMENT_FEE_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    PLATFORM_FEE_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    INSTRUCTOR_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    REVENUE_SHARE_PERCENT = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
+                    REVENUE_SPLIT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ORDER_ITEM_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    INSTRUCTOR_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    GROSS_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    PAYMENT_FEE_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    PLATFORM_FEE_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    INSTRUCTOR_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    REVENUE_SHARE_PERCENT = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: false),
                     PERIOD_KEY = table.Column<string>(type: "char(7)", nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    PAYOUT_BATCH_ITEM_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PAYOUT_BATCH_ITEM_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -703,8 +707,8 @@ namespace Siri.Persistence.Migrations
                 schema: "IDENTITY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    NAME = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    NAME = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -716,13 +720,13 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    STRIPE_WEBHOOK_EVENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    STRIPE_EVENT_ID = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
-                    EVENT_TYPE = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    PAYLOAD_JSON = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    RECEIVED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    PROCESSED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    PROCESS_RESULT = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
+                    STRIPE_WEBHOOK_EVENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    STRIPE_EVENT_ID = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    EVENT_TYPE = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    PAYLOAD_JSON = table.Column<string>(type: "text", nullable: false),
+                    RECEIVED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    PROCESSED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    PROCESS_RESULT = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -734,22 +738,22 @@ namespace Siri.Persistence.Migrations
                 schema: "IDENTITY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    EMAIL = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    NORMALIZED_EMAIL = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    PASSWORD_HASH = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false),
-                    DISPLAY_NAME = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    AVATAR_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    PHONE_NUMBER = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: true),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    EMAIL_CONFIRMED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    TWO_FACTOR_ENABLED = table.Column<bool>(type: "bit", nullable: false),
-                    LAST_LOGIN_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    MAX_CONCURRENT_SESSIONS_OVERRIDE = table.Column<int>(type: "int", nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    EMAIL = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    NORMALIZED_EMAIL = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    PASSWORD_HASH = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
+                    DISPLAY_NAME = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    AVATAR_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    PHONE_NUMBER = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: true),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    EMAIL_CONFIRMED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    TWO_FACTOR_ENABLED = table.Column<bool>(type: "boolean", nullable: false),
+                    LAST_LOGIN_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    MAX_CONCURRENT_SESSIONS_OVERRIDE = table.Column<int>(type: "integer", nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -761,9 +765,9 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -775,21 +779,21 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    ASSIGNMENT_SUBMISSION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ASSIGNMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ENROLLMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    STORAGE_KEY = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    NOTE = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
-                    SUBMITTED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    SCORE = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: true),
-                    FEEDBACK = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
-                    GRADED_BY_USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    GRADED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ASSIGNMENT_SUBMISSION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ASSIGNMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ENROLLMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    STORAGE_KEY = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    NOTE = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    SUBMITTED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    SCORE = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: true),
+                    FEEDBACK = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    GRADED_BY_USER_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    GRADED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -807,8 +811,8 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    BUNDLE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
+                    BUNDLE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -827,11 +831,11 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    CART_ITEM_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CART_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ITEM_TYPE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    REF_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ADDED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false)
+                    CART_ITEM_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    CART_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ITEM_TYPE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    REF_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ADDED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -850,16 +854,16 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMUNITY",
                 columns: table => new
                 {
-                    REPORT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    DISCUSSION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    REPORTED_BY_USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    REASON = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    RESOLVED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    REPORT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    DISCUSSION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    REPORTED_BY_USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    REASON = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    RESOLVED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -877,17 +881,17 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    CERTIFICATE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ENROLLMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SERIAL_NO = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    VERIFY_CODE = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    ISSUED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    PDF_STORAGE_KEY = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    REVOKED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    CERTIFICATE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ENROLLMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SERIAL_NO = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    VERIFY_CODE = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    ISSUED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    PDF_STORAGE_KEY = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    REVOKED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -905,14 +909,14 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    EPISODE_PROGRESS_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ENROLLMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    EPISODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    LAST_POSITION_SECONDS = table.Column<int>(type: "int", nullable: false),
-                    WATCHED_SECONDS = table.Column<int>(type: "int", nullable: false),
-                    IS_COMPLETED = table.Column<bool>(type: "bit", nullable: false),
-                    COMPLETED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false)
+                    EPISODE_PROGRESS_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ENROLLMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    EPISODE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    LAST_POSITION_SECONDS = table.Column<int>(type: "integer", nullable: false),
+                    WATCHED_SECONDS = table.Column<int>(type: "integer", nullable: false),
+                    IS_COMPLETED = table.Column<bool>(type: "boolean", nullable: false),
+                    COMPLETED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -932,12 +936,12 @@ namespace Siri.Persistence.Migrations
                 columns: table => new
                 {
                     WATCH_EVENT_ID = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ENROLLMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    EPISODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    EVENT_TYPE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    POSITION_SECONDS = table.Column<int>(type: "int", nullable: false),
-                    OCCURRED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ENROLLMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    EPISODE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    EVENT_TYPE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    POSITION_SECONDS = table.Column<int>(type: "integer", nullable: false),
+                    OCCURRED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -955,10 +959,10 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    FLASH_SALE_ITEM_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    FLASH_SALE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SALE_PRICE = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false)
+                    FLASH_SALE_ITEM_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    FLASH_SALE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SALE_PRICE = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -977,38 +981,38 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SLUG = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    SUBTITLE = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
-                    DESCRIPTION = table.Column<string>(type: "nvarchar(4000)", maxLength: 4000, nullable: true),
-                    INSTRUCTOR_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CATEGORY_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    LEVEL = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    LANGUAGE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    THUMBNAIL_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    TRAILER_MEDIA_ASSET_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    PRICE = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    COMPARE_PRICE = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: true),
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SLUG = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    SUBTITLE = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
+                    DESCRIPTION = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: true),
+                    INSTRUCTOR_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    CATEGORY_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    LEVEL = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    LANGUAGE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    THUMBNAIL_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    TRAILER_MEDIA_ASSET_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    PRICE = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    COMPARE_PRICE = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
                     CURRENCY = table.Column<string>(type: "char(3)", nullable: false),
-                    ACCESS_DURATION_DAYS = table.Column<int>(type: "int", nullable: true),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    PUBLISHED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    REJECTION_REASON = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    TOTAL_DURATION_SECONDS = table.Column<int>(type: "int", nullable: false),
-                    EPISODE_COUNT = table.Column<int>(type: "int", nullable: false),
-                    RATING_AVERAGE = table.Column<decimal>(type: "decimal(3,2)", precision: 3, scale: 2, nullable: false),
-                    RATING_COUNT = table.Column<int>(type: "int", nullable: false),
-                    ENROLLMENT_COUNT = table.Column<int>(type: "int", nullable: false),
-                    SEO_TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    SEO_DESCRIPTION = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ROW_VERSION = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false),
-                    IS_DELETED = table.Column<bool>(type: "bit", nullable: false),
-                    DELETED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ACCESS_DURATION_DAYS = table.Column<int>(type: "integer", nullable: true),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PUBLISHED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    REJECTION_REASON = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    TOTAL_DURATION_SECONDS = table.Column<int>(type: "integer", nullable: false),
+                    EPISODE_COUNT = table.Column<int>(type: "integer", nullable: false),
+                    RATING_AVERAGE = table.Column<decimal>(type: "numeric(3,2)", precision: 3, scale: 2, nullable: false),
+                    RATING_COUNT = table.Column<int>(type: "integer", nullable: false),
+                    ENROLLMENT_COUNT = table.Column<int>(type: "integer", nullable: false),
+                    SEO_TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    SEO_DESCRIPTION = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    ROW_VERSION = table.Column<byte[]>(type: "bytea", nullable: false),
+                    IS_DELETED = table.Column<bool>(type: "boolean", nullable: false),
+                    DELETED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1026,15 +1030,15 @@ namespace Siri.Persistence.Migrations
                 schema: "MEDIA",
                 columns: table => new
                 {
-                    MEDIA_UPLOAD_SESSION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    MEDIA_ASSET_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    UPLOAD_URL = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    MEDIA_UPLOAD_SESSION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    MEDIA_ASSET_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    UPLOAD_URL = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1053,12 +1057,12 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    ORDER_ITEM_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ORDER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    TITLE_SNAPSHOT = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    UNIT_PRICE = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    LINE_TOTAL = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false)
+                    ORDER_ITEM_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ORDER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    TITLE_SNAPSHOT = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    UNIT_PRICE = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    LINE_TOTAL = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1077,16 +1081,16 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    PAYMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ORDER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    METHOD = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    PROVIDER = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    PROVIDER_PAYMENT_INTENT_ID = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
-                    AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    SUCCEEDED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    FAILURE_REASON = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false)
+                    PAYMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ORDER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    METHOD = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PROVIDER = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PROVIDER_PAYMENT_INTENT_ID = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    SUCCEEDED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    FAILURE_REASON = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1104,14 +1108,14 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    TAX_INVOICE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ORDER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TAX_ID_ENCRYPTED = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    BUYER_NAME = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    INVOICE_NO = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    ISSUED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    PDF_STORAGE_KEY = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false)
+                    TAX_INVOICE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ORDER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TAX_ID_ENCRYPTED = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    BUYER_NAME = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    INVOICE_NO = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    ISSUED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    PDF_STORAGE_KEY = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1129,19 +1133,19 @@ namespace Siri.Persistence.Migrations
                 schema: "PAYOUT",
                 columns: table => new
                 {
-                    PAYOUT_BATCH_ITEM_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    BATCH_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    INSTRUCTOR_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    WITHHOLDING_TAX_PERCENT = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: false),
-                    WITHHOLDING_TAX_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    NET_AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    TRANSFER_REF = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    PAYOUT_BATCH_ITEM_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    BATCH_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    INSTRUCTOR_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    WITHHOLDING_TAX_PERCENT = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: false),
+                    WITHHOLDING_TAX_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    NET_AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    TRANSFER_REF = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1160,11 +1164,11 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    PROMO_REDEMPTION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PROMO_CODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ORDER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    REDEEMED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false)
+                    PROMO_REDEMPTION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    PROMO_CODE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ORDER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    REDEEMED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1189,18 +1193,18 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    QUIZ_ATTEMPT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    QUIZ_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ENROLLMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ATTEMPT_NO = table.Column<int>(type: "int", nullable: false),
-                    SCORE_PERCENT = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: true),
-                    IS_PASSED = table.Column<bool>(type: "bit", nullable: false),
-                    STARTED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    SUBMITTED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    QUIZ_ATTEMPT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    QUIZ_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ENROLLMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ATTEMPT_NO = table.Column<int>(type: "integer", nullable: false),
+                    SCORE_PERCENT = table.Column<decimal>(type: "numeric(5,2)", precision: 5, scale: 2, nullable: true),
+                    IS_PASSED = table.Column<bool>(type: "boolean", nullable: false),
+                    STARTED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    SUBMITTED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1218,13 +1222,13 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    QUIZ_QUESTION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    QUIZ_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TYPE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    TEXT = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    EXPLANATION = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
-                    POINTS = table.Column<int>(type: "int", nullable: false),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false)
+                    QUIZ_QUESTION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    QUIZ_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TYPE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    TEXT = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                    EXPLANATION = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    POINTS = table.Column<int>(type: "integer", nullable: false),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1243,12 +1247,12 @@ namespace Siri.Persistence.Migrations
                 schema: "IDENTITY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    EVENT_TYPE = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    DETAIL = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    IP_ADDRESS = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
-                    OCCURRED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    EVENT_TYPE = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    DETAIL = table.Column<string>(type: "text", nullable: true),
+                    IP_ADDRESS = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    OCCURRED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1267,8 +1271,8 @@ namespace Siri.Persistence.Migrations
                 schema: "IDENTITY",
                 columns: table => new
                 {
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ROLE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false)
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ROLE_ID = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1294,12 +1298,12 @@ namespace Siri.Persistence.Migrations
                 schema: "IDENTITY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TOKEN_HASH = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    PURPOSE = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CONSUMED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TOKEN_HASH = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    PURPOSE = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CONSUMED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1318,16 +1322,16 @@ namespace Siri.Persistence.Migrations
                 schema: "IDENTITY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    DEVICE_ID = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    DEVICE_NAME = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
-                    USER_AGENT = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    IP_ADDRESS = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    LAST_SEEN_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    REVOKED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    REVOKE_REASON = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    DEVICE_ID = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    DEVICE_NAME = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    USER_AGENT = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    IP_ADDRESS = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    LAST_SEEN_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    REVOKED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    REVOKE_REASON = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1346,14 +1350,14 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TEXT = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TEXT = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1372,14 +1376,14 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TEXT = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TEXT = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1398,14 +1402,14 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1424,13 +1428,13 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    PATH_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    PATH_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1456,14 +1460,14 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    PAYMENT_OPS_QUEUE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PAYMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    REASON = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    ASSIGNED_TO_USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    RESOLVED_BY_USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    RESOLVED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    NOTE = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true)
+                    PAYMENT_OPS_QUEUE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    PAYMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    REASON = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    ASSIGNED_TO_USER_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    RESOLVED_BY_USER_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    RESOLVED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    NOTE = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1481,18 +1485,18 @@ namespace Siri.Persistence.Migrations
                 schema: "COMMERCE",
                 columns: table => new
                 {
-                    REFUND_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PAYMENT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    AMOUNT = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
-                    REASON = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    REQUESTED_BY_USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    REQUESTED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    DECIDED_BY_USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    DECIDED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    DECISION_NOTE = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    STRIPE_REFUND_ID = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: true),
-                    COMPLETED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true)
+                    REFUND_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    PAYMENT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    AMOUNT = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: false),
+                    REASON = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    REQUESTED_BY_USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    REQUESTED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    DECIDED_BY_USER_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    DECIDED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    DECISION_NOTE = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    STRIPE_REFUND_ID = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
+                    COMPLETED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1510,11 +1514,11 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    QUIZ_ATTEMPT_ANSWER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    ATTEMPT_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    QUESTION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SELECTED_OPTION_IDS = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    IS_CORRECT = table.Column<bool>(type: "bit", nullable: false)
+                    QUIZ_ATTEMPT_ANSWER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    ATTEMPT_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    QUESTION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SELECTED_OPTION_IDS = table.Column<string>(type: "text", nullable: false),
+                    IS_CORRECT = table.Column<bool>(type: "boolean", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1533,11 +1537,11 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 columns: table => new
                 {
-                    QUIZ_OPTION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    QUESTION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TEXT = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    IS_CORRECT = table.Column<bool>(type: "bit", nullable: false),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false)
+                    QUIZ_OPTION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    QUESTION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TEXT = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    IS_CORRECT = table.Column<bool>(type: "boolean", nullable: false),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -1556,13 +1560,13 @@ namespace Siri.Persistence.Migrations
                 schema: "IDENTITY",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    USER_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SESSION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TOKEN_HASH = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
-                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    REVOKED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    REPLACED_BY_TOKEN_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    USER_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SESSION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TOKEN_HASH = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: false),
+                    EXPIRES_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    REVOKED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    REPLACED_BY_TOKEN_ID = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1595,20 +1599,20 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    COURSE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    SECTION_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    TITLE = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    DESCRIPTION = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
-                    SORT_ORDER = table.Column<int>(type: "int", nullable: false),
-                    MEDIA_ASSET_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    DURATION_SECONDS = table.Column<int>(type: "int", nullable: true),
-                    IS_FREE_PREVIEW = table.Column<bool>(type: "bit", nullable: false),
-                    STATUS = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2(3)", precision: 3, nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    COURSE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    SECTION_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    TITLE = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    DESCRIPTION = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    SORT_ORDER = table.Column<int>(type: "integer", nullable: false),
+                    MEDIA_ASSET_ID = table.Column<Guid>(type: "uuid", nullable: true),
+                    DURATION_SECONDS = table.Column<int>(type: "integer", nullable: true),
+                    IS_FREE_PREVIEW = table.Column<bool>(type: "boolean", nullable: false),
+                    STATUS = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp(3) with time zone", precision: 3, nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1633,16 +1637,16 @@ namespace Siri.Persistence.Migrations
                 schema: "CATALOG",
                 columns: table => new
                 {
-                    ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    EPISODE_ID = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    FILE_NAME = table.Column<string>(type: "nvarchar(255)", maxLength: 255, nullable: false),
-                    STORAGE_KEY = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    CONTENT_TYPE = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    EPISODE_ID = table.Column<Guid>(type: "uuid", nullable: false),
+                    FILE_NAME = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    STORAGE_KEY = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    CONTENT_TYPE = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     SIZE_BYTES = table.Column<long>(type: "bigint", nullable: false),
-                    CREATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    CREATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    UPDATED_AT_UTC = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    UPDATED_BY = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    CREATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CREATED_BY = table.Column<Guid>(type: "uuid", nullable: true),
+                    UPDATED_AT_UTC = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    UPDATED_BY = table.Column<Guid>(type: "uuid", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1802,10 +1806,10 @@ namespace Siri.Persistence.Migrations
                 columns: new[] { "COURSE_ID", "SORT_ORDER" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_COURSE_REVIEWS_COURSE_ID",
+                name: "IX_COURSE_REVIEWS_COURSE_ID_CREATED_AT_UTC",
                 schema: "CATALOG",
                 table: "COURSE_REVIEWS",
-                column: "COURSE_ID");
+                columns: new[] { "COURSE_ID", "CREATED_AT_UTC" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_COURSE_REVIEWS_COURSE_ID_USER_ID",
@@ -1821,6 +1825,14 @@ namespace Siri.Persistence.Migrations
                 columns: new[] { "COURSE_ID", "SORT_ORDER" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_COURSES_DESCRIPTION",
+                schema: "CATALOG",
+                table: "COURSES",
+                column: "DESCRIPTION")
+                .Annotation("Npgsql:IndexMethod", "gin")
+                .Annotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_COURSES_INSTRUCTOR_ID",
                 schema: "CATALOG",
                 table: "COURSES",
@@ -1832,14 +1844,30 @@ namespace Siri.Persistence.Migrations
                 table: "COURSES",
                 column: "SLUG",
                 unique: true,
-                filter: "[IS_DELETED] = 0");
+                filter: "\"IS_DELETED\" = false");
 
             migrationBuilder.CreateIndex(
                 name: "IX_COURSES_STATUS_CATEGORY_ID_PUBLISHED_AT_UTC",
                 schema: "CATALOG",
                 table: "COURSES",
                 columns: new[] { "STATUS", "CATEGORY_ID", "PUBLISHED_AT_UTC" })
-                .Annotation("SqlServer:Include", new[] { "TITLE", "SLUG", "PRICE", "RATING_AVERAGE", "THUMBNAIL_URL" });
+                .Annotation("Npgsql:IndexInclude", new[] { "TITLE", "SLUG", "PRICE", "RATING_AVERAGE", "THUMBNAIL_URL" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_COURSES_SUBTITLE",
+                schema: "CATALOG",
+                table: "COURSES",
+                column: "SUBTITLE")
+                .Annotation("Npgsql:IndexMethod", "gin")
+                .Annotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_COURSES_TITLE",
+                schema: "CATALOG",
+                table: "COURSES",
+                column: "TITLE")
+                .Annotation("Npgsql:IndexMethod", "gin")
+                .Annotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_DAILY_COURSE_STATS_COURSE_ID_DATE",
@@ -1876,7 +1904,7 @@ namespace Siri.Persistence.Migrations
                 schema: "LEARNING",
                 table: "ENROLLMENTS",
                 columns: new[] { "USER_ID", "STATUS" })
-                .Annotation("SqlServer:Include", new[] { "COURSE_ID", "PROGRESS_PERCENT", "LAST_ACCESSED_AT_UTC" });
+                .Annotation("Npgsql:IndexInclude", new[] { "COURSE_ID", "PROGRESS_PERCENT", "LAST_ACCESSED_AT_UTC" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_ENROLLMENTS_USER_ID_COURSE_ID",
@@ -1886,10 +1914,10 @@ namespace Siri.Persistence.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_EPISODE_ATTACHMENTS_EPISODE_ID",
+                name: "IX_EPISODE_ATTACHMENTS_EPISODE_ID_CREATED_AT_UTC",
                 schema: "CATALOG",
                 table: "EPISODE_ATTACHMENTS",
-                column: "EPISODE_ID");
+                columns: new[] { "EPISODE_ID", "CREATED_AT_UTC" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_EPISODE_DROP_OFF_EPISODE_ID_DATE",
@@ -1903,7 +1931,7 @@ namespace Siri.Persistence.Migrations
                 table: "EPISODE_PROGRESS",
                 columns: new[] { "ENROLLMENT_ID", "EPISODE_ID" },
                 unique: true)
-                .Annotation("SqlServer:Include", new[] { "LAST_POSITION_SECONDS", "IS_COMPLETED" });
+                .Annotation("Npgsql:IndexInclude", new[] { "LAST_POSITION_SECONDS", "IS_COMPLETED" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_FEATURE_FLAGS_KEY",
@@ -1925,6 +1953,12 @@ namespace Siri.Persistence.Migrations
                 table: "INSTRUCTOR_PAYOUT_ACCOUNTS",
                 column: "INSTRUCTOR_ID",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_INSTRUCTOR_PROFILES_STATUS_CREATED_AT_UTC",
+                schema: "CATALOG",
+                table: "INSTRUCTOR_PROFILES",
+                columns: new[] { "STATUS", "CREATED_AT_UTC" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_INSTRUCTOR_PROFILES_USER_ID",
@@ -2046,6 +2080,12 @@ namespace Siri.Persistence.Migrations
                 column: "PERIOD_KEY");
 
             migrationBuilder.CreateIndex(
+                name: "IX_PLAYBACK_SESSIONS_ISSUED_AT_UTC",
+                schema: "MEDIA",
+                table: "PLAYBACK_SESSIONS",
+                column: "ISSUED_AT_UTC");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_PLAYBACK_SESSIONS_USER_ID_ISSUED_AT_UTC",
                 schema: "MEDIA",
                 table: "PLAYBACK_SESSIONS",
@@ -2057,7 +2097,7 @@ namespace Siri.Persistence.Migrations
                 table: "POSTS",
                 column: "SLUG",
                 unique: true,
-                filter: "[IS_DELETED] = 0");
+                filter: "\"IS_DELETED\" = false");
 
             migrationBuilder.CreateIndex(
                 name: "IX_POSTS_STATUS_PUBLISHED_AT_UTC",
@@ -2173,7 +2213,7 @@ namespace Siri.Persistence.Migrations
                 table: "REFUNDS",
                 column: "STRIPE_REFUND_ID",
                 unique: true,
-                filter: "[STRIPE_REFUND_ID] IS NOT NULL");
+                filter: "\"STRIPE_REFUND_ID\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_REPORTS_DISCUSSION_ID",
@@ -2250,7 +2290,7 @@ namespace Siri.Persistence.Migrations
                 schema: "IDENTITY",
                 table: "USER_SECURITY_TOKENS",
                 columns: new[] { "USER_ID", "PURPOSE" },
-                filter: "[CONSUMED_AT_UTC] IS NULL");
+                filter: "\"CONSUMED_AT_UTC\" IS NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_USER_SECURITY_TOKENS_TOKEN_HASH",
@@ -2264,7 +2304,7 @@ namespace Siri.Persistence.Migrations
                 schema: "IDENTITY",
                 table: "USER_SESSIONS",
                 column: "USER_ID",
-                filter: "[REVOKED_AT_UTC] IS NULL");
+                filter: "\"REVOKED_AT_UTC\" IS NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_USER_SESSIONS_USER_ID_REVOKED_AT_UTC",
@@ -2286,52 +2326,21 @@ namespace Siri.Persistence.Migrations
                 columns: new[] { "ENROLLMENT_ID", "OCCURRED_AT_UTC" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_WATCH_EVENTS_OCCURRED_AT_UTC",
+                schema: "LEARNING",
+                table: "WATCH_EVENTS",
+                column: "OCCURRED_AT_UTC");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_WISHLISTS_USER_ID",
                 schema: "CATALOG",
                 table: "WISHLISTS",
                 column: "USER_ID");
-
-            migrationBuilder.Sql(
-                """
-                IF SERVERPROPERTY('IsFullTextInstalled') = 1
-                BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM sys.fulltext_catalogs WHERE name = 'COURSE_FULL_TEXT_CATALOG')
-                    BEGIN
-                        CREATE FULLTEXT CATALOG COURSE_FULL_TEXT_CATALOG AS DEFAULT;
-                    END
-
-                    IF NOT EXISTS (SELECT 1 FROM sys.fulltext_indexes WHERE object_id = OBJECT_ID('CATALOG.COURSES'))
-                    BEGIN
-                        CREATE FULLTEXT INDEX ON CATALOG.COURSES(TITLE, SUBTITLE, DESCRIPTION)
-                        KEY INDEX PK_COURSES
-                        ON COURSE_FULL_TEXT_CATALOG
-                        WITH CHANGE_TRACKING AUTO;
-                    END
-                END
-                """,
-                suppressTransaction: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.Sql(
-                """
-                IF SERVERPROPERTY('IsFullTextInstalled') = 1
-                BEGIN
-                    IF EXISTS (SELECT 1 FROM sys.fulltext_indexes WHERE object_id = OBJECT_ID('CATALOG.COURSES'))
-                    BEGIN
-                        DROP FULLTEXT INDEX ON CATALOG.COURSES;
-                    END
-
-                    IF EXISTS (SELECT 1 FROM sys.fulltext_catalogs WHERE name = 'COURSE_FULL_TEXT_CATALOG')
-                    BEGIN
-                        DROP FULLTEXT CATALOG COURSE_FULL_TEXT_CATALOG;
-                    END
-                END
-                """,
-                suppressTransaction: true);
-
             migrationBuilder.DropTable(
                 name: "ANNOUNCEMENTS",
                 schema: "NOTIFY");

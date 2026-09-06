@@ -20,7 +20,7 @@ public sealed class EmailOutboxMessageConfiguration : IEntityTypeConfiguration<E
         // Genuinely unbounded rendered HTML content (task P0-19: "BodyHtml can be nvarchar(max)
         // since it is genuinely unbounded content") — the one intentional exception to "always
         // HasMaxLength", same as SecurityAudit.Detail's json column.
-        builder.Property(m => m.BodyHtml).HasColumnType("nvarchar(max)").IsRequired();
+        builder.Property(m => m.BodyHtml).HasColumnType("text").IsRequired();
 
         builder.Property(m => m.TemplateKey).HasMaxLength(100);
 

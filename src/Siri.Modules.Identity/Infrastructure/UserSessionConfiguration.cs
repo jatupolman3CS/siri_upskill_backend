@@ -36,7 +36,7 @@ public sealed class UserSessionConfiguration : IEntityTypeConfiguration<USER_SES
         // "IX_UserSessions_Active (UserId) WHERE RevokedAtUtc IS NULL -- filtered index".
         builder.HasIndex(s => s.UserId)
             .HasDatabaseName("IX_USER_SESSIONS_ACTIVE")
-            .HasFilter("[REVOKED_AT_UTC] IS NULL");
+            .HasFilter("\"REVOKED_AT_UTC\" IS NULL");
 
         // No navigation property back on USER — sessions are looked up by UserId, not loaded as
         // part of the USER aggregate. Restrict (not the EF default Cascade) because auth/session

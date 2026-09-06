@@ -430,7 +430,7 @@ public sealed class LearningIntegrationTests : IAsyncLifetime
 
         async Task BackdateAsync(long watchEventId, DateTime occurredAtUtc) =>
             await db.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE LEARNING.WATCH_EVENTS SET OCCURRED_AT_UTC = {occurredAtUtc} WHERE WATCH_EVENT_ID = {watchEventId}");
+                $@"UPDATE ""LEARNING"".""WATCH_EVENTS"" SET ""OCCURRED_AT_UTC"" = {occurredAtUtc} WHERE ""WATCH_EVENT_ID"" = {watchEventId}");
 
         await BackdateAsync(wellOutsideCutoff.WATCH_EVENT_ID, cutoffUtc.AddDays(-5)); // should be purged
         await BackdateAsync(justInsideCutoff.WATCH_EVENT_ID, cutoffUtc.AddSeconds(-1)); // should be purged

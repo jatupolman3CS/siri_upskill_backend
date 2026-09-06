@@ -23,7 +23,7 @@ public sealed class STRIPE_WEBHOOK_EVENTConfiguration : IEntityTypeConfiguration
         // nvarchar(max) — the one deliberate exception to "always HasMaxLength" in this whole scaffold
         // pass. See STRIPE_WEBHOOK_EVENT.PAYLOAD_JSON's own doc comment for why: raw Stripe payloads are
         // provider-sized, not ours to cap, and this is the one copy a payment dispute might need verbatim.
-        builder.Property(e => e.PAYLOAD_JSON).HasColumnType("nvarchar(max)").IsRequired();
+        builder.Property(e => e.PAYLOAD_JSON).HasColumnType("text").IsRequired();
 
         builder.Property(e => e.RECEIVED_AT_UTC).HasPrecision(3).IsRequired();
         builder.Property(e => e.PROCESSED_AT_UTC).HasPrecision(3);

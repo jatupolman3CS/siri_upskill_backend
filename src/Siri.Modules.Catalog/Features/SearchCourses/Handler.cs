@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -13,8 +12,7 @@ namespace Siri.Modules.Catalog.Features.SearchCourses;
 /// </summary>
 public sealed class SearchCoursesHandler(
     AppDbContext dbContext,
-    IUserContext userContext,
-    ILogger<SearchCoursesHandler> logger)
+    IUserContext userContext)
 {
     public const int DefaultPageSize = 20;
     public const int MaxPageSize = 100;
@@ -39,45 +37,38 @@ public sealed class SearchCoursesHandler(
         if (hasSearchText)
         {
             var queryText = query.Q!.Trim();
-            try
-            {
-                var matches = await dbContext.Database
-                    .SqlQuery<CourseSearchMatch>(
-                        $"SELECT [KEY] AS CourseId, [RANK] AS Rank FROM FREETEXTTABLE(CATALOG.COURSES, (Title, Subtitle, Description), {queryText})")
-                    .ToListAsync(cancellationToken)
-                    .ConfigureAwait(false);
+            var pattern = $"%{queryText}%";
 
-                rankByCourseId = matches.ToDictionary(m => m.CourseId, m => m.Rank);
-                var matchedIds = rankByCourseId.Keys.ToList();
-                baseCourses = baseCourses.Where(c => matchedIds.Contains(c.Id));
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "FTS query execution failed; falling back to LIKE predicate search for query: {QueryText}", queryText);
+            // Trigram search (pg_trgm), not PostgreSQL's own tsvector full-text search: the FTS parser
+            // splits on whitespace, and Thai writes without spaces between words, so to_tsvector would
+            // reduce a whole Thai phrase to one token and match nothing. pg_trgm works on 3-character
+            // sequences instead, which handles Thai and gives a closeness score for free.
+            // The extension and the backing GIN indexes are created by this app's own migration
+            // (AppDbContext.HasPostgresExtension + CourseConfiguration's gin_trgm_ops indexes), so
+            // unlike the SQL Server Full-Text Search component this replaces, it is guaranteed present —
+            // no capability probing and no silent LIKE fallback (which is what X-7/P0-40 were about).
+            // Every identifier is double-quoted, including the aliases: the whole schema is UPPERCASE
+            // and PostgreSQL folds unquoted identifiers to lower case, which would break both the table
+            // lookup and SqlQuery<T>'s column-to-property mapping.
+            var matches = await dbContext.Database
+                .SqlQuery<CourseSearchMatch>($"""
+                    SELECT "ID" AS "CourseId",
+                           (similarity("TITLE", {queryText}) * 100
+                            + similarity(COALESCE("SUBTITLE", ''), {queryText}) * 50
+                            + similarity(COALESCE("DESCRIPTION", ''), {queryText}) * 10)::int AS "Rank"
+                    FROM "CATALOG"."COURSES"
+                    WHERE "IS_DELETED" = false
+                      AND "STATUS" = 'Published'
+                      AND ("TITLE" ILIKE {pattern}
+                           OR "SUBTITLE" ILIKE {pattern}
+                           OR "DESCRIPTION" ILIKE {pattern})
+                    """)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-                // Fallback for environments where SQL Server Full-Text Search is not installed or enabled (P0-09)
-                var pattern = $"%{queryText}%";
-                baseCourses = baseCourses.Where(c =>
-                    EF.Functions.Like(c.Title, pattern) ||
-                    (c.Subtitle != null && EF.Functions.Like(c.Subtitle, pattern)) ||
-                    (c.Description != null && EF.Functions.Like(c.Description, pattern)));
-
-                var matchedCourses = await baseCourses
-                    .Select(c => new { c.Id, c.Title, c.Subtitle, c.Description })
-                    .ToListAsync(cancellationToken)
-                    .ConfigureAwait(false);
-
-                rankByCourseId = matchedCourses.ToDictionary(
-                    c => c.Id,
-                    c =>
-                    {
-                        var rank = 0;
-                        if (c.Title.Contains(queryText, StringComparison.OrdinalIgnoreCase)) rank += 100;
-                        if (c.Subtitle is not null && c.Subtitle.Contains(queryText, StringComparison.OrdinalIgnoreCase)) rank += 50;
-                        if (c.Description is not null && c.Description.Contains(queryText, StringComparison.OrdinalIgnoreCase)) rank += 10;
-                        return rank;
-                    });
-            }
+            rankByCourseId = matches.ToDictionary(m => m.CourseId, m => m.Rank);
+            var matchedIds = rankByCourseId.Keys.ToList();
+            baseCourses = baseCourses.Where(c => matchedIds.Contains(c.Id));
         }
 
         // Facets read from baseCourses (search-matched + Published) — before category/level/price/

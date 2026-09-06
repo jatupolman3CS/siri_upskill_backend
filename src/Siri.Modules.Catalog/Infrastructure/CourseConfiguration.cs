@@ -44,7 +44,7 @@ public sealed class CourseConfiguration : IEntityTypeConfiguration<COURSE>
         builder.Property(c => c.Slug).HasMaxLength(200).IsRequired();
         // Filtered so a soft-deleted course's slug can be reused — without this, a hidden (IsDeleted)
         // row would permanently squat the slug for every future course.
-        builder.HasIndex(c => c.Slug).IsUnique().HasFilter("[IS_DELETED] = 0");
+        builder.HasIndex(c => c.Slug).IsUnique().HasFilter("\"IS_DELETED\" = false");
 
         builder.Property(c => c.Title).HasMaxLength(200).IsRequired();
         builder.Property(c => c.Subtitle).HasMaxLength(300);
@@ -95,7 +95,7 @@ public sealed class CourseConfiguration : IEntityTypeConfiguration<COURSE>
         // First use of a concurrency token in this codebase — database.md calls for rowversion on
         // tables that get concurrently edited; Courses is explicitly one (multiple instructor/admin
         // edits, autosave from the future course builder, ...).
-        builder.Property(c => c.RowVersion).IsRowVersion();
+        builder.Property(c => c.RowVersion).IsConcurrencyToken().HasColumnType("bytea").IsRequired();
 
         builder.Property(c => c.IsDeleted).IsRequired();
         builder.Property(c => c.DeletedAtUtc).HasPrecision(3);
@@ -106,6 +106,16 @@ public sealed class CourseConfiguration : IEntityTypeConfiguration<COURSE>
         // redundant simpler pair is skipped.
         builder.HasIndex(c => new { c.Status, c.CategoryId, c.PublishedAtUtc })
             .IncludeProperties(c => new { c.Title, c.Slug, c.Price, c.RatingAverage, c.ThumbnailUrl });
+
+        // Trigram indexes backing the public course search (SearchCoursesHandler, task P0-41).
+        // These replace the SQL Server FULLTEXT CATALOG/INDEX that the migration to PostgreSQL
+        // retired. GIN + gin_trgm_ops is what makes both similarity() ranking and the ILIKE
+        // '%...%' predicates index-usable; without them each search degrades to a sequential scan.
+        // Thai is the reason it is trigram rather than tsvector — see SearchCoursesHandler's own
+        // comment. Requires the pg_trgm extension, declared in AppDbContext.OnModelCreating.
+        builder.HasIndex(c => c.Title).HasMethod("gin").HasOperators("gin_trgm_ops");
+        builder.HasIndex(c => c.Subtitle).HasMethod("gin").HasOperators("gin_trgm_ops");
+        builder.HasIndex(c => c.Description).HasMethod("gin").HasOperators("gin_trgm_ops");
 
         builder.Property(c => c.CreatedAtUtc).HasPrecision(3).IsRequired();
         builder.Property(c => c.UpdatedAtUtc).HasPrecision(3);

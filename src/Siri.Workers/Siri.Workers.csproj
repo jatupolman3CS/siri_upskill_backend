@@ -22,7 +22,7 @@
   <ItemGroup>
     <PackageReference Include="DotNetEnv" />
     <PackageReference Include="Hangfire.AspNetCore" />
-    <PackageReference Include="Hangfire.SqlServer" />
+    <PackageReference Include="Hangfire.PostgreSql" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />

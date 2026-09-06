@@ -10,7 +10,7 @@ namespace Siri.Persistence.DependencyInjection;
 public static class PersistenceServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="AppDbContext"/> against SQL Server plus the cross-cutting interceptor
+    /// Registers <see cref="AppDbContext"/> against PostgreSQL (Npgsql) plus the cross-cutting interceptor
     /// stack. Reads <c>ConnectionStrings:Default</c> — appsettings only carries a non-secret
     /// placeholder value; real connection strings come from user-secrets/env per the security rules.
     /// </summary>
@@ -30,6 +30,7 @@ public static class PersistenceServiceCollectionExtensions
         services.TryAddSingleton<ISensitiveDataProtector, SensitiveDataProtector>();
 
         services.AddScoped<AuditableEntityInterceptor>();
+        services.AddScoped<ConcurrencyTokenInterceptor>();
 
         services.AddDbContext<AppDbContext>((serviceProvider, optionsBuilder) =>
         {
@@ -46,8 +47,13 @@ public static class PersistenceServiceCollectionExtensions
             }
 
             optionsBuilder
-                .UseSqlServer(connectionString, sql => sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
-                .AddInterceptors(serviceProvider.GetRequiredService<AuditableEntityInterceptor>());
+                .UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))
+                // Order matters: AuditableEntityInterceptor rewrites a delete of an ISoftDelete
+                // entity into a Modified entry, so ConcurrencyTokenInterceptor must run after it to
+                // rotate that row's token too (see that interceptor's own doc comment).
+                .AddInterceptors(
+                    serviceProvider.GetRequiredService<AuditableEntityInterceptor>(),
+                    serviceProvider.GetRequiredService<ConcurrencyTokenInterceptor>());
         });
 
         return services;

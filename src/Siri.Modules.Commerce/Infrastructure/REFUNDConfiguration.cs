@@ -43,7 +43,7 @@ public sealed class REFUNDConfiguration : IEntityTypeConfiguration<REFUND>
         // index treats multiple NULLs as distinct anyway, but the filter makes the intent explicit
         // (matches CourseConfiguration's own filtered-unique-index precedent for a similar "not every row
         // has one yet" column).
-        builder.HasIndex(r => r.STRIPE_REFUND_ID).IsUnique().HasFilter("[STRIPE_REFUND_ID] IS NOT NULL");
+        builder.HasIndex(r => r.STRIPE_REFUND_ID).IsUnique().HasFilter("\"STRIPE_REFUND_ID\" IS NOT NULL");
 
         builder.Property(r => r.COMPLETED_AT_UTC).HasPrecision(3);
     }

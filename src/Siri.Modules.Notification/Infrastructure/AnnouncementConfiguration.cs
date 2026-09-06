@@ -15,7 +15,7 @@ public sealed class AnnouncementConfiguration : IEntityTypeConfiguration<ANNOUNC
         builder.Property(a => a.CourseId).IsRequired();
         builder.Property(a => a.InstructorId).IsRequired();
         builder.Property(a => a.Title).HasMaxLength(300).IsRequired();
-        builder.Property(a => a.Body).HasColumnType("nvarchar(max)").IsRequired();
+        builder.Property(a => a.Body).HasColumnType("text").IsRequired();
         builder.Property(a => a.SendEmail).IsRequired();
         builder.Property(a => a.ScheduledAtUtc).HasPrecision(3);
         builder.Property(a => a.SentAtUtc).HasPrecision(3);

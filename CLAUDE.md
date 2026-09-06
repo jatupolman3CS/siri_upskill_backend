@@ -16,13 +16,32 @@ E-Learning marketplace (แนว SkillLane / FutureSkill): ผู้เรี�
 
 ## Stack (ห้ามเปลี่ยนโดยไม่ถาม)
 
+> ### ✅ ย้ายจาก SQL Server ไป PostgreSQL 17 แล้ว (`P0-41`, 2026-09-05)
+> รายละเอียดครบทุกไฟล์อยู่ที่ `docs/contracts/P0-41-postgresql-migration.md`
+> - **infra**: container `siri_postgres` บน Contabo · network `siri-net` · DB **`SIRIUPSKILL`** (ICU `th-TH`)
+>   · role `siriupskill_app` เป็น owner ไม่ใช่ superuser · bind `127.0.0.1:5432` **ไม่เปิดออกเน็ต**
+>   (ต่อจากเครื่อง dev ผ่าน SSH tunnel `-L 15432:127.0.0.1:5432`) · รหัสผ่านอยู่ที่ `/root/.siri-postgres.env` บน VPS
+> - **โค้ด**: `UseNpgsql` · Hangfire `UsePostgreSqlStorage` (schema `hangfire` ตัวเล็ก) · `HasFilter` เป็น
+>   identifier แบบ quote · `nvarchar(max)`→`text` · `IsRowVersion`→`ConcurrencyTokenInterceptor` (คง `byte[]`
+>   ไว้ API contract ไม่เปลี่ยน) · raw SQL quote ครบทุกจุด · migration สร้างใหม่ `InitialCreatePostgres`
+> - **ยืนยันแล้วจริง**: build 0 warning/0 error · unit **774/774** · architecture **5/5** · migration
+>   apply ผ่านบน PostgreSQL 17 จริง (database ชั่วคราวบน VPS แล้วลบทิ้ง) ได้ครบ 65 ตาราง 10 schema
+>   · **ค้นหาภาษาไทยทำงานจริงแล้วเป็นครั้งแรก** (`pg_trgm` — `tsvector` ทดสอบแล้วได้ 0 match ตามคาด)
+>   → **`X-7` / `P0-40` (FTS blocker) ตกไปทั้งคู่**
+> - **ยังเหลือ (เจ้าของโปรเจ็ค)**: apply migration ใส่ `SIRIUPSKILL` จริง · ตั้ง `ConnectionStrings__Default`
+>   รูปแบบ Npgsql ในค่า deploy · เพิ่ม `--network siri-net` ให้ container `siri_upskill_backend`
+>   · แก้ `.env.example`/`.env.production` (Claude อ่านไม่ได้ ติด deny rule ของ `.env*`)
+> - MSSQL เดิม **ยังรันอยู่ ไม่ได้แตะ** — ปิดได้เมื่อยืนยันว่า PostgreSQL ใช้งานได้ครบ
+
+
+
 | Layer | Technology | Version |
 |-------|-----------|---------|
 | Backend | ASP.NET Core Web API (MVC Controllers — attribute routing, ตัดสินใจแล้ว 2026-09-01 ดู `docs/DECISIONS.md` D-19; ชั้น business logic ยังแยก vertical slice + repository/service เหมือนเดิม ไม่เปลี่ยน) | **.NET 10 LTS** |
-| ORM | EF Core (SQL Server provider) | **10.x** |
-| Database | SQL Server | **2022+** |
+| ORM | EF Core (**Npgsql** provider) | **10.x** |
+| Database | **PostgreSQL** (collation ICU `th-TH`) | **17** |
 | Cache/Session | Redis | 7+ |
-| Jobs | Hangfire (SQL Server storage) | latest |
+| Jobs | Hangfire (**PostgreSQL** storage, schema `hangfire`) | latest |
 | **Video/DRM** | **Bunny Stream** (หลัง `IVideoProvider`) | — |
 | **Payment** | **Stripe** (PromptPay QR ผ่าน PaymentIntent + webhook — v1 ยังไม่เปิดบัตร, ไม่มีผ่อน) | — |
 | **Hosting** | **Contabo VPS + Docker Compose + Caddy** | — |

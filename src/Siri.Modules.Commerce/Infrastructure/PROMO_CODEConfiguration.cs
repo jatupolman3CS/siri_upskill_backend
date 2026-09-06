@@ -37,6 +37,6 @@ public sealed class PROMO_CODEConfiguration : IEntityTypeConfiguration<PROMO_COD
 
         // Concurrency token — admins editing terms while redemptions may be happening concurrently, same
         // reasoning as CourseConfiguration.RowVersion.
-        builder.Property(p => p.ROW_VERSION).IsRowVersion();
+        builder.Property(p => p.ROW_VERSION).IsConcurrencyToken().HasColumnType("bytea").IsRequired();
     }
 }

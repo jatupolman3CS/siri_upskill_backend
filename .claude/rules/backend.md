@@ -76,6 +76,6 @@ throw new NotFoundException("course not found");
 ## Testing
 
 - Unit test: domain logic, pricing, การตัดสินสิทธิ์, revenue split — บังคับ
-- Integration test: endpoint สำคัญ ใช้ Testcontainers (MSSQL + Redis จริง) ห้ามใช้ InMemory provider (พฤติกรรมต่างจาก SQL Server จนหลอกให้ผ่าน)
+- Integration test: endpoint สำคัญ ใช้ Testcontainers (**PostgreSQL 17 + Redis จริง**) ห้ามใช้ InMemory provider (พฤติกรรมต่างจาก PostgreSQL จนหลอกให้ผ่าน)
 - ตั้งชื่อเทสต์: `MethodName_Scenario_ExpectedResult`
 - ทุก bug ที่แก้ ต้องมีเทสต์ที่ fail ก่อนแก้แล้วผ่านหลังแก้
