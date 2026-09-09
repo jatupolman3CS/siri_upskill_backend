@@ -42,6 +42,8 @@ public sealed class MediaAssetServiceTests
         public bool CreateSuccess = true;
         public string CreatedVideoId = "bunny-vid-999";
         public bool DeleteCalled;
+        public VideoProcessingStatus Status { get; set; } = VideoProcessingStatus.Ready;
+        public int StatusCalls { get; private set; }
 
         public Task<Result<VideoAsset>> CreateVideoAsync(string title, CancellationToken cancellationToken)
         {
@@ -58,8 +60,9 @@ public sealed class MediaAssetServiceTests
 
         public Task<Result<VideoStatus>> GetStatusAsync(string providerVideoId, CancellationToken cancellationToken)
         {
+            StatusCalls++;
             return Task.FromResult(Result.Success(
-                new VideoStatus(providerVideoId, VideoProcessingStatus.Ready, TimeSpan.FromMinutes(2))));
+                new VideoStatus(providerVideoId, Status, TimeSpan.FromMinutes(2))));
         }
 
         public Task<Result> DeleteVideoAsync(string providerVideoId, CancellationToken cancellationToken)
@@ -113,6 +116,47 @@ public sealed class MediaAssetServiceTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("forbidden", result.Error.Code);
+        Assert.Equal(0, provider.StatusCalls);
+    }
+
+    [Theory]
+    [InlineData(VideoProcessingStatus.Uploading, MediaAssetStatus.Uploading)]
+    [InlineData(VideoProcessingStatus.Processing, MediaAssetStatus.Processing)]
+    [InlineData(VideoProcessingStatus.Ready, MediaAssetStatus.Ready)]
+    [InlineData(VideoProcessingStatus.Failed, MediaAssetStatus.Failed)]
+    public async Task GetByIdAsync_OwnerPolling_ReflectsProviderStatus(VideoProcessingStatus providerStatus, MediaAssetStatus expected)
+    {
+        var repo = new FakeMediaAssetRepository();
+        var provider = new FakeVideoProvider { Status = providerStatus };
+        var clock = new FakeClock(DateTime.UtcNow);
+        var service = new MediaAssetService(repo, provider, clock);
+        var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
+        repo.Add(asset);
+
+        var result = await service.GetByIdAsync(asset.UPLOADED_BY_USER_ID, asset.MEDIA_ASSET_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expected, result.Value.Status);
+        Assert.Equal(expected, asset.STATUS);
+        Assert.Equal(1, provider.StatusCalls);
+        if (expected == MediaAssetStatus.Ready) Assert.Equal(120, result.Value.DurationSeconds);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_AlreadyReady_DoesNotRegressOrQueryProvider()
+    {
+        var repo = new FakeMediaAssetRepository();
+        var provider = new FakeVideoProvider { Status = VideoProcessingStatus.Uploading };
+        var clock = new FakeClock(DateTime.UtcNow);
+        var service = new MediaAssetService(repo, provider, clock);
+        var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
+        asset.MarkReady("vid-1", 120, null, clock);
+        repo.Add(asset);
+
+        var result = await service.GetByIdAsync(asset.UPLOADED_BY_USER_ID, asset.MEDIA_ASSET_ID, CancellationToken.None);
+
+        Assert.Equal(MediaAssetStatus.Ready, result.Value.Status);
+        Assert.Equal(0, provider.StatusCalls);
     }
 
     [Fact]

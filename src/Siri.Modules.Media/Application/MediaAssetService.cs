@@ -53,6 +53,20 @@ public sealed class MediaAssetService(
             return Result.Failure<MediaAssetResponse>(DomainError.Forbidden("You do not own this media asset."));
         }
 
+        if (asset.STATUS is MediaAssetStatus.Uploading or MediaAssetStatus.Processing)
+        {
+            var statusResult = await videoProvider.GetStatusAsync(asset.PROVIDER_ASSET_ID, cancellationToken).ConfigureAwait(false);
+            if (statusResult.IsFailure)
+            {
+                return Result.Failure<MediaAssetResponse>(statusResult.Error);
+            }
+
+            if (MediaAssetStatusUpdater.Apply(asset, statusResult.Value, clock))
+            {
+                await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         return Result.Success(asset.ToResponse());
     }
 

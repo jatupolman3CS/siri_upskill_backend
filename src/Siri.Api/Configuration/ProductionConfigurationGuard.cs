@@ -13,6 +13,7 @@ namespace Siri.Api.Configuration;
 public static class ProductionConfigurationGuard
 {
     private const string DevKeyPlaceholder = "CHANGE_ME_IN_PRODUCTION_BASE64_32_BYTES_KEY==";
+    private const string ShippedDevelopmentKeyBase64 = "wb8jlEpV/0t7ptEyiSdtRQOh5MXY4lde5L5WYxNfyIM=";
 
     public static void ValidateProductionConfiguration(IConfiguration configuration, IHostEnvironment environment)
     {
@@ -37,6 +38,10 @@ public static class ProductionConfigurationGuard
                 if (bytes.Length != 32)
                 {
                     errors.Add($"DataProtection:EncryptionKeyBase64 must decode to exactly 32 bytes (256-bit key). Got {bytes.Length} bytes.");
+                }
+                else if (bytes.AsSpan().SequenceEqual(Convert.FromBase64String(ShippedDevelopmentKeyBase64)))
+                {
+                    errors.Add("DataProtection:EncryptionKeyBase64 must be replaced with a secure production key; the shipped development key is not allowed.");
                 }
             }
             catch (FormatException)

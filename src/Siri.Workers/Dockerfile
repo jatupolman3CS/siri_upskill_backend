@@ -3,39 +3,39 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
 WORKDIR /src
 
 # Copy directory configuration files
-COPY backend/Directory.Build.props backend/
-COPY backend/Directory.Packages.props backend/
-COPY backend/SiriUpSkill.sln backend/
+COPY Directory.Build.props ./
+COPY Directory.Packages.props ./
+COPY SiriUpSkill.sln ./
 
 # Copy all project files for layer caching during restore
-COPY backend/src/Siri.SharedKernel/Siri.SharedKernel.csproj backend/src/Siri.SharedKernel/
-COPY backend/src/Siri.Persistence/Siri.Persistence.csproj backend/src/Siri.Persistence/
-COPY backend/src/Siri.Integrations.Email/Siri.Integrations.Email.csproj backend/src/Siri.Integrations.Email/
-COPY backend/src/Siri.Integrations.Payment/Siri.Integrations.Payment.csproj backend/src/Siri.Integrations.Payment/
-COPY backend/src/Siri.Integrations.Storage/Siri.Integrations.Storage.csproj backend/src/Siri.Integrations.Storage/
-COPY backend/src/Siri.Integrations.Video/Siri.Integrations.Video.csproj backend/src/Siri.Integrations.Video/
-COPY backend/src/Siri.Modules.Identity/Siri.Modules.Identity.csproj backend/src/Siri.Modules.Identity/
-COPY backend/src/Siri.Modules.Catalog/Siri.Modules.Catalog.csproj backend/src/Siri.Modules.Catalog/
-COPY backend/src/Siri.Modules.Media/Siri.Modules.Media.csproj backend/src/Siri.Modules.Media/
-COPY backend/src/Siri.Modules.Learning/Siri.Modules.Learning.csproj backend/src/Siri.Modules.Learning/
-COPY backend/src/Siri.Modules.Commerce/Siri.Modules.Commerce.csproj backend/src/Siri.Modules.Commerce/
-COPY backend/src/Siri.Modules.Payout/Siri.Modules.Payout.csproj backend/src/Siri.Modules.Payout/
-COPY backend/src/Siri.Modules.Cms/Siri.Modules.Cms.csproj backend/src/Siri.Modules.Cms/
-COPY backend/src/Siri.Modules.Community/Siri.Modules.Community.csproj backend/src/Siri.Modules.Community/
-COPY backend/src/Siri.Modules.Notification/Siri.Modules.Notification.csproj backend/src/Siri.Modules.Notification/
-COPY backend/src/Siri.Modules.Analytics/Siri.Modules.Analytics.csproj backend/src/Siri.Modules.Analytics/
-COPY backend/src/Siri.Workers/Siri.Workers.csproj backend/src/Siri.Workers/
-COPY backend/src/Siri.Api/Siri.Api.csproj backend/src/Siri.Api/
+COPY src/Siri.SharedKernel/Siri.SharedKernel.csproj src/Siri.SharedKernel/
+COPY src/Siri.Persistence/Siri.Persistence.csproj src/Siri.Persistence/
+COPY src/Siri.Integrations.Email/Siri.Integrations.Email.csproj src/Siri.Integrations.Email/
+COPY src/Siri.Integrations.Payment/Siri.Integrations.Payment.csproj src/Siri.Integrations.Payment/
+COPY src/Siri.Integrations.Storage/Siri.Integrations.Storage.csproj src/Siri.Integrations.Storage/
+COPY src/Siri.Integrations.Video/Siri.Integrations.Video.csproj src/Siri.Integrations.Video/
+COPY src/Siri.Modules.Identity/Siri.Modules.Identity.csproj src/Siri.Modules.Identity/
+COPY src/Siri.Modules.Catalog/Siri.Modules.Catalog.csproj src/Siri.Modules.Catalog/
+COPY src/Siri.Modules.Media/Siri.Modules.Media.csproj src/Siri.Modules.Media/
+COPY src/Siri.Modules.Learning/Siri.Modules.Learning.csproj src/Siri.Modules.Learning/
+COPY src/Siri.Modules.Commerce/Siri.Modules.Commerce.csproj src/Siri.Modules.Commerce/
+COPY src/Siri.Modules.Payout/Siri.Modules.Payout.csproj src/Siri.Modules.Payout/
+COPY src/Siri.Modules.Cms/Siri.Modules.Cms.csproj src/Siri.Modules.Cms/
+COPY src/Siri.Modules.Community/Siri.Modules.Community.csproj src/Siri.Modules.Community/
+COPY src/Siri.Modules.Notification/Siri.Modules.Notification.csproj src/Siri.Modules.Notification/
+COPY src/Siri.Modules.Analytics/Siri.Modules.Analytics.csproj src/Siri.Modules.Analytics/
+COPY src/Siri.Workers/Siri.Workers.csproj src/Siri.Workers/
+COPY src/Siri.Api/Siri.Api.csproj src/Siri.Api/
 
 # Restore dependencies
-RUN dotnet restore backend/src/Siri.Workers/Siri.Workers.csproj
+RUN dotnet restore src/Siri.Workers/Siri.Workers.csproj
 
 # Copy source code and publish
-COPY backend/src/ backend/src/
-RUN dotnet publish backend/src/Siri.Workers/Siri.Workers.csproj -c Release -o /app/publish /p:UseAppHost=false
+COPY src/ src/
+RUN dotnet publish src/Siri.Workers/Siri.Workers.csproj -c Release -o /app/publish /p:UseAppHost=false
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/runtime:10.0-noble AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 

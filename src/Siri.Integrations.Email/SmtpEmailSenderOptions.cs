@@ -41,4 +41,7 @@ public sealed class SmtpEmailSenderOptions
     /// <c>SecureSocketOptions</c>.
     /// </summary>
     public bool UseStartTls { get; set; } = true;
+
+    /// <summary>Allows plaintext SMTP for a local capture server. Rejected outside Development.</summary>
+    public bool AllowInsecure { get; set; }
 }

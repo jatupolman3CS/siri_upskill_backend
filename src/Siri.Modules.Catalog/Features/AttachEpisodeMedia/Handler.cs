@@ -72,9 +72,7 @@ public sealed class AttachEpisodeMediaHandler(AppDbContext dbContext, IMediaAsse
             return Result.Failure<EpisodeMediaResponse>(DomainError.Forbidden("คุณไม่มีสิทธิ์ใช้งานไฟล์วิดีโอนี้"));
         }
 
-        var duration = command.DurationSeconds is > 0
-            ? command.DurationSeconds.Value
-            : (assetSummary.DurationSeconds.GetValueOrDefault() > 0 ? assetSummary.DurationSeconds.GetValueOrDefault() : 1);
+        var duration = assetSummary.DurationSeconds is > 0 ? assetSummary.DurationSeconds.Value : 1;
 
         course.AttachEpisodeMedia(episodeId, command.MediaAssetId, duration);
 

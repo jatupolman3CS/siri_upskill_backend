@@ -1,5 +1,7 @@
 # Deployment — Contabo VPS (self-hosted)
 
+> Current integration setup (2026-09-08): use the PostgreSQL 17 Compose files and commands in [README.md](../README.md). The SQL Server deployment notes below are historical and do not describe the current database provider. The local stack uses `docker-compose.dev.yml`; production uses `docker-compose.prod.yml` with an explicit migration service.
+
 > **ตัดสินใจแล้ว (Q3):** deploy บน **Contabo VPS** ที่มีอยู่แล้ว ไม่ใช้ cloud managed service
 > วิดีโอและ bandwidth หนักอยู่ที่ Bunny Stream อยู่แล้ว VPS จึงรับแค่ API + SSR + DB
 

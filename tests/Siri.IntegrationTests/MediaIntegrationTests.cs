@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -85,12 +86,12 @@ public sealed class MediaIntegrationTests : IAsyncLifetime
             ["Identity:Jwt:SigningKey"] = TestSigningKey,
             ["Identity:Jwt:AccessTokenLifetimeMinutes"] = "15",
             ["Email:Provider"] = "Log",
-            ["VideoProvider:LibraryId"] = "test-lib-12345",
-            ["VideoProvider:ApiKey"] = "test-api-key-secret",
+            ["VideoProvider:LibraryId"] = "12345",
+            ["VideoProvider:ApiKey"] = "CHANGE_ME_integration_test",
             ["VideoProvider:ReadOnlyApiKey"] = "test-read-only-key",
             ["VideoProvider:PullZone"] = "test-pull-zone",
             ["VideoProvider:CdnHostname"] = "video.siriupskill.test",
-            ["VideoProvider:TokenAuthKey"] = "test-token-auth-security-key",
+            ["VideoProvider:TokenAuthenticationKey"] = "test-token-auth-security-key",
             ["VideoProvider:TokenExpiryMinutes"] = "5",
         });
 
@@ -331,10 +332,9 @@ public sealed class MediaIntegrationTests : IAsyncLifetime
 
         // 3. Webhook handler processes Bunny transcode ready callback
         var webhookHandler = scope.ServiceProvider.GetRequiredService<BunnyWebhookHandler>();
-        var webhookResult = await webhookHandler.HandleWebhookAsync(
-            new BunnyWebhookPayload(null, assetResult.Value.ProviderAssetId, BunnyWebhookHandler.StatusFinished, "thumb.jpg", 120),
-            null,
-            CancellationToken.None);
+        var body = JsonSerializer.SerializeToUtf8Bytes(new BunnyWebhookPayload(12345, assetResult.Value.ProviderAssetId, 3));
+        var signature = Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes("test-read-only-key"), body));
+        var webhookResult = await webhookHandler.HandleSignedWebhookAsync(body, "v1", "hmac-sha256", signature, CancellationToken.None);
 
         Assert.True(webhookResult.IsSuccess);
 

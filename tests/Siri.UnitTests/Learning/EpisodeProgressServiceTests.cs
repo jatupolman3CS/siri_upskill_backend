@@ -1,3 +1,4 @@
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Learning.Application;
 using Siri.Modules.Learning.Domain;
 using Siri.SharedKernel;
@@ -7,6 +8,58 @@ namespace Siri.UnitTests.Learning;
 
 public sealed class EpisodeProgressServiceTests
 {
+    private sealed class FakeCatalog(Guid? courseId) : ICatalogPriceContract
+    {
+        public Task<Guid?> GetCourseIdForEpisodeAsync(Guid episodeId, CancellationToken ct) => Task.FromResult(courseId);
+        public Task<IReadOnlyDictionary<Guid, CoursePriceInfo>> GetPublishedCoursePricesAsync(IEnumerable<Guid> ids, CancellationToken ct) => throw new NotSupportedException();
+        public Task<bool> IsEpisodeFreePreviewAsync(Guid id, CancellationToken ct) => throw new NotSupportedException();
+        public Task<bool> IsInstructorOwnerOfEpisodeAsync(Guid id, Guid userId, CancellationToken ct) => throw new NotSupportedException();
+        public Task<bool> IsInstructorOwnerOfCourseAsync(Guid id, Guid userId, CancellationToken ct) => throw new NotSupportedException();
+        public Task<int> GetPendingReviewsCountAsync(CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> ids, CancellationToken ct) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> ids, CancellationToken ct) => throw new NotSupportedException();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpsertProgress_WhenEpisodeIsMissingOrFromAnotherCourse_DoesNotWrite(bool missing)
+    {
+        var clock = new FakeClock(DateTime.UtcNow);
+        var enrollments = new FakeEnrollmentRepository();
+        var progress = new FakeEpisodeProgressRepository();
+        var enrollment = ENROLLMENT.Create(Guid.NewGuid(), Guid.NewGuid(), null, EnrollmentSource.Purchase, null, clock);
+        enrollments.Add(enrollment);
+        var service = new EpisodeProgressService(progress, enrollments, clock, new FakeCatalog(missing ? null : Guid.NewGuid()));
+
+        var result = await service.UpsertProgressAsync(enrollment.USER_ID, enrollment.ENROLLMENT_ID,
+            Guid.NewGuid(), new(100, 100, true), CancellationToken.None);
+
+        Assert.Equal("not_found", result.Error.Code);
+        Assert.Empty(progress.ProgressList);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpsertProgress_WhenRevokedOrExpired_DoesNotWrite(bool revoked)
+    {
+        var clock = new FakeClock(DateTime.UtcNow);
+        var enrollments = new FakeEnrollmentRepository();
+        var progress = new FakeEpisodeProgressRepository();
+        var enrollment = ENROLLMENT.Create(Guid.NewGuid(), Guid.NewGuid(), null, EnrollmentSource.Purchase,
+            revoked ? null : clock.UtcNow, clock);
+        if (revoked) enrollment.Revoke();
+        enrollments.Add(enrollment);
+        var service = new EpisodeProgressService(progress, enrollments, clock, new FakeCatalog(enrollment.COURSE_ID));
+
+        var result = await service.UpsertProgressAsync(enrollment.USER_ID, enrollment.ENROLLMENT_ID,
+            Guid.NewGuid(), new(100, 100, true), CancellationToken.None);
+
+        Assert.Equal("forbidden", result.Error.Code);
+        Assert.Empty(progress.ProgressList);
+    }
+
     private sealed class FakeClock(DateTime now) : IClock
     {
         public DateTime UtcNow => now;
@@ -59,7 +112,7 @@ public sealed class EpisodeProgressServiceTests
         var enrollment = ENROLLMENT.Create(userId, courseId, null, EnrollmentSource.Purchase, null, clock);
         enrollmentRepo.Add(enrollment);
 
-        var service = new EpisodeProgressService(progressRepo, enrollmentRepo, clock);
+        var service = new EpisodeProgressService(progressRepo, enrollmentRepo, clock, new FakeCatalog(courseId));
         var command = new UpsertEpisodeProgressCommand(120, 120, false);
 
         var result = await service.UpsertProgressAsync(userId, enrollment.ENROLLMENT_ID, episodeId, command, CancellationToken.None);
@@ -87,7 +140,7 @@ public sealed class EpisodeProgressServiceTests
         var enrollment = ENROLLMENT.Create(userId, courseId, null, EnrollmentSource.Purchase, null, clock);
         enrollmentRepo.Add(enrollment);
 
-        var service = new EpisodeProgressService(progressRepo, enrollmentRepo, clock);
+        var service = new EpisodeProgressService(progressRepo, enrollmentRepo, clock, new FakeCatalog(courseId));
 
         // First heartbeat
         await service.UpsertProgressAsync(userId, enrollment.ENROLLMENT_ID, episodeId, new UpsertEpisodeProgressCommand(300, 300, false), CancellationToken.None);
@@ -112,7 +165,7 @@ public sealed class EpisodeProgressServiceTests
         var enrollment = ENROLLMENT.Create(ownerId, Guid.NewGuid(), null, EnrollmentSource.Purchase, null, clock);
         enrollmentRepo.Add(enrollment);
 
-        var service = new EpisodeProgressService(progressRepo, enrollmentRepo, clock);
+        var service = new EpisodeProgressService(progressRepo, enrollmentRepo, clock, new FakeCatalog(enrollment.COURSE_ID));
         var command = new UpsertEpisodeProgressCommand(100, 100, false);
 
         var result = await service.UpsertProgressAsync(otherUserId, enrollment.ENROLLMENT_ID, Guid.NewGuid(), command, CancellationToken.None);

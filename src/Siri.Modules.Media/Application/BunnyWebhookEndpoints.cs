@@ -23,16 +23,10 @@ public static class BunnyWebhookEndpoints
     }
 
     private static async Task<IResult> HandleBunnyWebhookAsync(
-        [FromBody] BunnyWebhookPayload payload,
         BunnyWebhookHandler handler,
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        var authHeader = httpContext.Request.Headers["Authorization"].FirstOrDefault();
-        var result = await handler.HandleWebhookAsync(payload, authHeader, cancellationToken).ConfigureAwait(false);
-
-        return result.IsSuccess
-            ? Results.Ok(new { received = true })
-            : result.Error.ToProblemHttpResult(httpContext);
+        return await BunnyWebhookRequest.HandleAsync(httpContext, handler, cancellationToken).ConfigureAwait(false);
     }
 }

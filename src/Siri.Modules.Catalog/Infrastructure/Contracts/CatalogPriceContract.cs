@@ -6,8 +6,33 @@ using Siri.Persistence;
 
 namespace Siri.Modules.Catalog.Infrastructure.Contracts;
 
-public sealed class CatalogPriceContract(AppDbContext dbContext) : ICatalogPriceContract, ICourseOwnershipVerifier
+public sealed class CatalogPriceContract(AppDbContext dbContext) : ICatalogPriceContract, ICourseOwnershipVerifier, ICourseSummaryReader
 {
+    public async Task<IReadOnlyDictionary<Guid, CourseSummaryInfo>> GetCourseSummariesAsync(
+        IEnumerable<Guid> courseIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = courseIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, CourseSummaryInfo>();
+        }
+
+        var summaries = await (
+            from course in dbContext.Courses().AsNoTracking()
+            where ids.Contains(course.Id)
+            join instructor in dbContext.InstructorProfiles().AsNoTracking()
+                on course.InstructorId equals instructor.Id into instructors
+            from instructor in instructors.DefaultIfEmpty()
+            select new CourseSummaryInfo(
+                course.Id, course.Slug, course.Title, course.ThumbnailUrl,
+                instructor == null ? null : instructor.DisplayName))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return summaries.ToDictionary(course => course.CourseId);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, CoursePriceInfo>> GetPublishedCoursePricesAsync(
         IEnumerable<Guid> courseIds,
         CancellationToken cancellationToken)
@@ -90,7 +115,8 @@ public sealed class CatalogPriceContract(AppDbContext dbContext) : ICatalogPrice
     {
         return await dbContext.CourseEpisodes()
             .AsNoTracking()
-            .AnyAsync(e => e.Id == episodeId && e.IsFreePreview, cancellationToken)
+            .AnyAsync(e => e.Id == episodeId && e.IsFreePreview &&
+                dbContext.Courses().Any(c => c.Id == e.CourseId && c.Status == CourseStatus.Published), cancellationToken)
             .ConfigureAwait(false);
     }
 

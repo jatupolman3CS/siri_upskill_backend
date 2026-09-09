@@ -9,6 +9,14 @@ namespace Siri.Persistence.DependencyInjection;
 
 public static class PersistenceServiceCollectionExtensions
 {
+    /// <summary>Applies checked-in migrations for the explicit operator command, without starting the host.</summary>
+    public static async Task ApplyDatabaseMigrationsAsync(this IServiceProvider services, CancellationToken cancellationToken)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await database.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     /// <summary>
     /// Registers <see cref="AppDbContext"/> against PostgreSQL (Npgsql) plus the cross-cutting interceptor
     /// stack. Reads <c>ConnectionStrings:Default</c> — appsettings only carries a non-secret

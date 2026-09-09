@@ -94,38 +94,42 @@ public sealed class StripeWebhookHandler
             return Result.Failure<string>(DomainError.Validation("Invalid Stripe-Signature."));
         }
 
-        // Idempotency check at DB level
-        var existingEvent = await _webhookEventRepository.GetByStripeEventIdAsync(stripeEvent.Id, cancellationToken).ConfigureAwait(false);
-        if (existingEvent != null)
+        // All repositories and module contracts share one DbContext. Commit fulfillment and the
+        // webhook receipt together so a downstream failure remains safe for Stripe to retry.
+        return await _orderRepository.ExecuteInTransactionAsync(async () =>
         {
-            _logger.LogInformation("Stripe webhook event {EventId} already processed (idempotent no-op).", stripeEvent.Id);
-            return Result.Success("Event already processed");
-        }
+            var existingEvent = await _webhookEventRepository.GetByStripeEventIdAsync(stripeEvent.Id, cancellationToken).ConfigureAwait(false);
+            if (existingEvent != null)
+            {
+                _logger.LogInformation("Stripe webhook event {EventId} already processed (idempotent no-op).", stripeEvent.Id);
+                return Result.Success("Event already processed");
+            }
 
-        var webhookEvent = STRIPE_WEBHOOK_EVENT.Create(stripeEvent.Id, stripeEvent.Type, json, _clock);
+            var webhookEvent = STRIPE_WEBHOOK_EVENT.Create(stripeEvent.Id, stripeEvent.Type, json, _clock);
 
-        switch (stripeEvent.Type)
-        {
-            case "payment_intent.succeeded":
-                await HandlePaymentIntentSucceededAsync(stripeEvent, webhookEvent, cancellationToken).ConfigureAwait(false);
-                break;
+            switch (stripeEvent.Type)
+            {
+                case "payment_intent.succeeded":
+                    await HandlePaymentIntentSucceededAsync(stripeEvent, webhookEvent, cancellationToken).ConfigureAwait(false);
+                    break;
 
-            case "payment_intent.payment_failed":
-                await HandlePaymentIntentFailedAsync(stripeEvent, webhookEvent, cancellationToken).ConfigureAwait(false);
-                break;
+                case "payment_intent.payment_failed":
+                    await HandlePaymentIntentFailedAsync(stripeEvent, webhookEvent, cancellationToken).ConfigureAwait(false);
+                    break;
 
-            case "payment_intent.canceled":
-                await HandlePaymentIntentCanceledAsync(stripeEvent, webhookEvent, cancellationToken).ConfigureAwait(false);
-                break;
+                case "payment_intent.canceled":
+                    await HandlePaymentIntentCanceledAsync(stripeEvent, webhookEvent, cancellationToken).ConfigureAwait(false);
+                    break;
 
-            default:
-                webhookEvent.MarkProcessed($"unhandled_event:{stripeEvent.Type}", _clock);
-                break;
-        }
+                default:
+                    webhookEvent.MarkProcessed($"unhandled_event:{stripeEvent.Type}", _clock);
+                    break;
+            }
 
-        await _webhookEventRepository.AddAsync(webhookEvent, cancellationToken).ConfigureAwait(false);
+            await _webhookEventRepository.AddAsync(webhookEvent, cancellationToken).ConfigureAwait(false);
 
-        return Result.Success("Event processed");
+            return Result.Success("Event processed");
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task HandlePaymentIntentSucceededAsync(
@@ -205,8 +209,12 @@ public sealed class StripeWebhookHandler
                 })
                 .ToList();
 
-            await _learningAccessContract.EnrollUserInCoursesAsync(
+            var enrollmentResult = await _learningAccessContract.EnrollUserInCoursesAsync(
                 order.USER_ID, "Purchase", enrollmentGrants, cancellationToken).ConfigureAwait(false);
+            if (enrollmentResult.IsFailure)
+            {
+                throw new InvalidOperationException($"Payment fulfillment failed: {enrollmentResult.Error.Code}");
+            }
 
             // 2. Record Revenue Splits for instructors
             var splitItems = new List<OrderItemSplitInfo>();

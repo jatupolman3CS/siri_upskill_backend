@@ -220,15 +220,18 @@ public sealed class BunnyVideoProvider : IVideoProvider
     }
 
     /// <summary>
-    /// Generates a playback URL for Bunny Stream (either direct or token-authenticated HS256).
+    /// Signs the video directory so relative HLS playlist and segment requests retain authorization.
     /// </summary>
     internal string GenerateSignedPlaybackUrl(string providerVideoId, long expirationTimestamp)
     {
-        var playlistPath = $"/{_options.LibraryId}/{providerVideoId}/playlist.m3u8";
-        var tokenPath = $"/{_options.LibraryId}/{providerVideoId}/";
+        // A Stream CDN hostname already identifies its library; the asset path starts at the video ID.
+        var playlistPath = $"/{providerVideoId}/playlist.m3u8";
+        var tokenPath = $"/{providerVideoId}/";
 
-        // HMAC-SHA256: key = TokenAuthenticationKey, message = key + tokenPath + expires
-        var message = $"{_options.TokenAuthenticationKey}{tokenPath}{expirationTimestamp}";
+        // Bunny Advanced Token Authentication: key is only the HMAC key. The message contains
+        // signature path + expiry + sorted, unescaped signing parameters (excluding token/expires).
+        // https://bunny.net/docs/cdn/security/token-authentication/advanced
+        var message = $"{tokenPath}{expirationTimestamp}token_path={tokenPath}";
         using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_options.TokenAuthenticationKey));
         var hashBytes = hmac.ComputeHash(Encoding.UTF8.GetBytes(message));
 
@@ -240,7 +243,8 @@ public sealed class BunnyVideoProvider : IVideoProvider
 
         var token = $"HS256-{base64}";
 
-        return $"https://{_options.CdnHostname}{playlistPath}?token={token}&expires={expirationTimestamp}&token_path={Uri.EscapeDataString(tokenPath)}";
+        // HLS resolves child playlists/segments relative to the manifest; a query token would be lost.
+        return $"https://{_options.CdnHostname}/bcdn_token={token}&expires={expirationTimestamp}&token_path={Uri.EscapeDataString(tokenPath)}{playlistPath}";
     }
 
     private HttpClient CreateClient()

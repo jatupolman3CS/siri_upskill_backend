@@ -1,6 +1,7 @@
 using Siri.Integrations.Payment;
 using Siri.Modules.Commerce.Application;
 using Siri.Modules.Commerce.Domain;
+using Siri.Modules.Identity.Contracts;
 using Siri.SharedKernel;
 
 namespace Siri.UnitTests.Commerce;
@@ -12,7 +13,7 @@ public class PaymentServiceTests
     private readonly FakePaymentMethod _paymentMethod = new();
     private readonly FakeClock _clock = new(new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc));
 
-    private PaymentService CreateService() => new(_paymentRepo, _orderRepo, _paymentMethod, _clock);
+    private PaymentService CreateService() => new(_paymentRepo, _orderRepo, _paymentMethod, _clock, new FakeUserContactReader());
 
     [Fact]
     public async Task GetByIdAsync_PaymentNotFound_ReturnsNotFound()
@@ -119,6 +120,7 @@ public class PaymentServiceTests
         Assert.Equal(1500m, result.Value.Amount);
         Assert.Equal("pi_stripe_abc_secret", result.Value.ClientSecret);
         Assert.Equal("https://stripe.com/qr/sample", result.Value.QrCodeUrl);
+        Assert.Equal("buyer@example.test", _paymentMethod.LastRequest!.CustomerEmail);
 
         var savedPayment = await _paymentRepo.GetByIdAsync(result.Value.Id, CancellationToken.None);
         Assert.NotNull(savedPayment);
@@ -188,11 +190,15 @@ public class PaymentServiceTests
 
     private sealed class FakePaymentMethod : IPaymentMethod
     {
+        public CreatePaymentIntentRequest? LastRequest { get; private set; }
         public Result<PaymentIntentResult> ResultToReturn { get; set; } =
             Result.Success(new PaymentIntentResult("pi_default", "secret_default", "requires_action", 100m, "thb", null, null));
 
-        public Task<Result<PaymentIntentResult>> CreatePaymentIntentAsync(CreatePaymentIntentRequest request, CancellationToken cancellationToken) =>
-            Task.FromResult(ResultToReturn);
+        public Task<Result<PaymentIntentResult>> CreatePaymentIntentAsync(CreatePaymentIntentRequest request, CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            return Task.FromResult(ResultToReturn);
+        }
 
         public Task<Result<PaymentIntentResult>> GetPaymentIntentAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
             Task.FromResult(ResultToReturn);
@@ -207,5 +213,14 @@ public class PaymentServiceTests
     private sealed class FakeClock(DateTime utcNow) : IClock
     {
         public DateTime UtcNow { get; } = utcNow;
+    }
+
+    private sealed class FakeUserContactReader : IUserContactReader
+    {
+        public Task<string?> GetEmailAsync(Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>("buyer@example.test");
+
+        public Task<(string? Email, string? DisplayName)> GetUserContactInfoAsync(Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult<(string?, string?)>(("buyer@example.test", "Buyer"));
     }
 }

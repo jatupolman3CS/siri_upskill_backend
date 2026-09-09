@@ -1,5 +1,6 @@
 using Siri.Integrations.Payment;
 using Siri.Modules.Commerce.Domain;
+using Siri.Modules.Identity.Contracts;
 using Siri.SharedKernel;
 
 namespace Siri.Modules.Commerce.Application;
@@ -14,17 +15,20 @@ public sealed class PaymentService
     private readonly IOrderRepository _orderRepository;
     private readonly IPaymentMethod _paymentMethod;
     private readonly IClock _clock;
+    private readonly IUserContactReader _userContactReader;
 
     public PaymentService(
         IPaymentRepository paymentRepository,
         IOrderRepository orderRepository,
         IPaymentMethod paymentMethod,
-        IClock clock)
+        IClock clock,
+        IUserContactReader userContactReader)
     {
         _paymentRepository = paymentRepository;
         _orderRepository = orderRepository;
         _paymentMethod = paymentMethod;
         _clock = clock;
+        _userContactReader = userContactReader;
     }
 
     public async Task<Result<PaymentResponse>> GetByIdAsync(Guid userId, Guid paymentId, CancellationToken cancellationToken)
@@ -62,13 +66,20 @@ public sealed class PaymentService
             return Result.Failure<PaymentResponse>(DomainError.Validation($"ไม่สามารถสร้างการชำระเงินสำหรับคำสั่งซื้อในสถานะ {order.STATUS} ได้"));
         }
 
-        // Create PaymentIntent with Stripe
+        var customerEmail = await _userContactReader.GetEmailAsync(userId, cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(customerEmail))
+        {
+            return Result.Failure<PaymentResponse>(DomainError.Validation("A customer email is required for PromptPay."));
+        }
+
+        // Create and confirm the PromptPay intent so the response contains a scannable QR image.
         var intentResult = await _paymentMethod.CreatePaymentIntentAsync(
             new CreatePaymentIntentRequest(
                 order.ORDER_ID,
                 order.ORDER_NO,
                 order.TOTAL_AMOUNT,
-                order.CURRENCY),
+                order.CURRENCY,
+                CustomerEmail: customerEmail),
             cancellationToken).ConfigureAwait(false);
 
         if (intentResult.IsFailure)

@@ -8,6 +8,25 @@ namespace Siri.UnitTests.Security;
 
 public sealed class ProductionConfigurationGuardTests
 {
+    [Theory]
+    [InlineData("wb8jlEpV/0t7ptEyiSdtRQOh5MXY4lde5L5WYxNfyIM=")]
+    [InlineData(" wb8jlEpV/0t7ptEyiSdtRQOh5MXY4lde5L5WYxNfyIM=\n")]
+    public void ValidateProductionConfiguration_WithShippedDevelopmentEncryptionKey_Throws(string encryptionKey)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DataProtection:EncryptionKeyBase64"] = encryptionKey,
+            })
+            .Build();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            ProductionConfigurationGuard.ValidateProductionConfiguration(configuration, new FakeHostEnvironment("Production")));
+
+        Assert.Contains("DataProtection:EncryptionKeyBase64", exception.Message);
+        Assert.Contains("shipped development key", exception.Message);
+    }
+
     [Fact]
     public void ValidateProductionConfiguration_WhenNotProduction_DoesNotThrow()
     {

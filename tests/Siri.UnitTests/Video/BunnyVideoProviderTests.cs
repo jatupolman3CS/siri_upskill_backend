@@ -43,14 +43,71 @@ public class BunnyVideoProviderTests
         var provider = CreateProvider();
         var url = provider.GenerateSignedPlaybackUrl("video-guid-123", 1700000000);
 
-        // URL must point to the playlist file
-        Assert.StartsWith("https://my-pull-zone.b-cdn.net/12345/video-guid-123/playlist.m3u8?token=HS256-", url);
-        // Token must use HMAC-SHA256 HS256 prefix (not plain hex)
-        Assert.Contains("HS256-", url);
+        // Stream CDN paths start with the video ID, not the management API's library ID.
+        Assert.StartsWith("https://my-pull-zone.b-cdn.net/bcdn_token=HS256-", url);
+        Assert.EndsWith("/video-guid-123/playlist.m3u8", url);
+        Assert.DoesNotContain("/12345/", url);
         Assert.Contains("&expires=1700000000", url);
-        // Directory-level token_path must be present so HLS segments are also authorized
-        Assert.Contains("token_path=", url);
-        Assert.Contains(Uri.EscapeDataString("/12345/video-guid-123/"), url);
+        Assert.Contains("&token_path=%2Fvideo-guid-123%2F", url);
+        // Query tokens disappear when an HLS player resolves relative playlist/segment paths.
+        Assert.Empty(new Uri(url).Query);
+    }
+
+    [Theory]
+    [InlineData("video-guid-123", "HS256-y9x-t2pGURWmysoI6cUZQO75QH98YVoaD6VrGGGmPZg")]
+    [InlineData("448944e4-c1bd-4f61-a8b1-3e10e469aa69", "HS256-o9PFi5REmVeCbTaZy0PjwBacc93vWGv47Rwx2hjevlU")]
+    public void GenerateSignedPlaybackUrl_MatchesKnownHmacSignature(string videoId, string expectedToken)
+    {
+        // Independent Node.js crypto vectors for the documented Bunny signing message:
+        // /{videoId}/1700000000token_path=/{videoId}/
+        // Key: test-token-auth-key-secret (HMAC key only; never part of the message).
+        // https://bunny.net/docs/cdn/security/token-authentication/advanced
+        var provider = CreateProvider();
+
+        var url = provider.GenerateSignedPlaybackUrl(videoId, 1700000000);
+
+        Assert.Equal(
+            $"https://my-pull-zone.b-cdn.net/bcdn_token={expectedToken}&expires=1700000000&token_path=%2F{videoId}%2F/{videoId}/playlist.m3u8",
+            url);
+    }
+
+    [Theory]
+    [InlineData("720p/video.m3u8", "video0.ts", "720p/video0.ts")]
+    [InlineData("1080p/video.m3u8", "../audio/segment-001.aac", "audio/segment-001.aac")]
+    public void GenerateSignedPlaybackUrl_RelativeHlsRequestsRetainAuthenticationAndScope(
+        string relativePlaylist,
+        string relativeSegment,
+        string expectedSegmentPath)
+    {
+        var masterPlaylist = new Uri(CreateProvider().GenerateSignedPlaybackUrl("video-guid-123", 1700000000));
+
+        var childPlaylist = new Uri(masterPlaylist, relativePlaylist);
+        var segment = new Uri(childPlaylist, relativeSegment);
+
+        foreach (var resource in new[] { childPlaylist, segment })
+        {
+            Assert.Equal(masterPlaylist.Segments[1], resource.Segments[1]);
+            Assert.StartsWith("bcdn_token=HS256-", resource.Segments[1]);
+            Assert.Contains("&expires=1700000000", resource.Segments[1]);
+            Assert.Contains("&token_path=%2Fvideo-guid-123%2F", resource.Segments[1]);
+            Assert.Equal("video-guid-123/", resource.Segments[2]);
+            Assert.Empty(resource.Query);
+        }
+
+        Assert.EndsWith($"/video-guid-123/{relativePlaylist}", childPlaylist.AbsoluteUri);
+        Assert.EndsWith($"/video-guid-123/{expectedSegmentPath}", segment.AbsoluteUri);
+    }
+
+    [Fact]
+    public void GenerateSignedPlaybackUrl_LibraryIdDoesNotAlterCdnPathOrToken()
+    {
+        var otherOptions = CreateValidOptions();
+        otherOptions.LibraryId = "67890";
+
+        var firstUrl = CreateProvider().GenerateSignedPlaybackUrl("video-guid-123", 1700000000);
+        var otherUrl = CreateProvider(otherOptions).GenerateSignedPlaybackUrl("video-guid-123", 1700000000);
+
+        Assert.Equal(firstUrl, otherUrl);
     }
 
     [Fact]
@@ -60,7 +117,7 @@ public class BunnyVideoProviderTests
         var url1 = provider.GenerateSignedPlaybackUrl("video-1", 1700000000);
         var url2 = provider.GenerateSignedPlaybackUrl("video-2", 1700000000);
 
-        Assert.NotEqual(url1, url2);
+        Assert.NotEqual(new Uri(url1).Segments[1].Split('&')[0], new Uri(url2).Segments[1].Split('&')[0]);
     }
 
     [Fact]
@@ -70,7 +127,7 @@ public class BunnyVideoProviderTests
         var url1 = provider.GenerateSignedPlaybackUrl("video-1", 1700000000);
         var url2 = provider.GenerateSignedPlaybackUrl("video-1", 1700000001);
 
-        Assert.NotEqual(url1, url2);
+        Assert.NotEqual(new Uri(url1).Segments[1].Split('&')[0], new Uri(url2).Segments[1].Split('&')[0]);
     }
 
     [Fact]

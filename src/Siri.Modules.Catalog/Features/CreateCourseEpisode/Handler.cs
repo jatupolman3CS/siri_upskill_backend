@@ -47,6 +47,8 @@ public sealed class CreateCourseEpisodeHandler(AppDbContext dbContext)
         }
 
         var episode = course.AddEpisode(sectionId, command.Title, command.Description, command.IsFreePreview);
+        // Explicitly insert domain-created children that already carry a UUID.
+        dbContext.Entry(episode).State = EntityState.Added;
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return Result.Success(new CourseEpisodeResponse(

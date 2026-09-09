@@ -107,6 +107,7 @@ public sealed class CourseManagementTests : IAsyncLifetime
         builder.Services.AddIdentityModule(builder.Configuration);
         builder.Services.AddNotificationModule(builder.Configuration);
         builder.Services.AddCatalogModule(builder.Configuration);
+        builder.Services.AddScoped<Siri.SharedKernel.Contracts.IMediaAssetContract, Siri.Modules.Media.Application.MediaAssetContractService>();
 
         _app = builder.Build();
 

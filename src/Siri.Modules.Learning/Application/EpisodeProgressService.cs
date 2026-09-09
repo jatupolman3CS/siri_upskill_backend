@@ -1,3 +1,4 @@
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Learning.Domain;
 using Siri.SharedKernel;
 
@@ -9,7 +10,8 @@ namespace Siri.Modules.Learning.Application;
 public sealed class EpisodeProgressService(
     IEpisodeProgressRepository episodeProgressRepository,
     IEnrollmentRepository enrollmentRepository,
-    IClock clock)
+    IClock clock,
+    ICatalogPriceContract catalog)
 {
     /// <summary>Creates or updates the caller's progress for one episode within one of their own enrollments.</summary>
     public async Task<Result<EpisodeProgressResponse>> UpsertProgressAsync(
@@ -25,6 +27,17 @@ public sealed class EpisodeProgressService(
         if (enrollment is null || enrollment.USER_ID != userId)
         {
             return Result.Failure<EpisodeProgressResponse>(DomainError.NotFound("ไม่พบข้อมูลการลงทะเบียนเรียน"));
+        }
+
+        if (enrollment.STATUS != EnrollmentStatus.Active || enrollment.EXPIRES_AT_UTC <= clock.UtcNow)
+        {
+            return Result.Failure<EpisodeProgressResponse>(DomainError.Forbidden("Enrollment is not active."));
+        }
+
+        var courseId = await catalog.GetCourseIdForEpisodeAsync(episodeId, cancellationToken).ConfigureAwait(false);
+        if (courseId != enrollment.COURSE_ID)
+        {
+            return Result.Failure<EpisodeProgressResponse>(DomainError.NotFound("Episode does not belong to this enrollment."));
         }
 
         var progress = await episodeProgressRepository.GetByEnrollmentAndEpisodeAsync(

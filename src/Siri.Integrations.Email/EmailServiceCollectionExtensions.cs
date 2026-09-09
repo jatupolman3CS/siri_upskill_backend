@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Siri.Integrations.Email;
 
@@ -26,6 +27,9 @@ public static class EmailServiceCollectionExtensions
                 .AddOptions<SmtpEmailSenderOptions>()
                 .Bind(configuration.GetSection(SmtpEmailSenderOptions.SectionName))
                 .ValidateDataAnnotations()
+                .Validate<IHostEnvironment>(
+                    (options, environment) => !options.AllowInsecure || environment.IsDevelopment(),
+                    "Unencrypted SMTP is allowed only in Development.")
                 .ValidateOnStart();
 
             services.AddSingleton<IEmailSender, SmtpEmailSender>();

@@ -1,3 +1,4 @@
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Learning.Application;
 using Siri.Modules.Learning.Domain;
 using Siri.SharedKernel;
@@ -7,6 +8,62 @@ namespace Siri.UnitTests.Learning;
 
 public sealed class EnrollmentServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UpdateProgress_WhenAccessEnded_DoesNotGrantCertificate(bool revoked)
+    {
+        var clock = new FakeClock(DateTime.UtcNow);
+        var repo = new FakeEnrollmentRepository();
+        var certificates = new FakeCertificateRepository();
+        var enrollment = ENROLLMENT.Create(Guid.NewGuid(), Guid.NewGuid(), null, EnrollmentSource.Purchase,
+            revoked ? null : clock.UtcNow, clock);
+        if (revoked) enrollment.Revoke();
+        repo.Add(enrollment);
+        var service = new EnrollmentService(repo, certificates, clock, new FakeCourseSummaryReader());
+
+        var result = await service.UpdateOwnProgressAsync(enrollment.USER_ID, enrollment.ENROLLMENT_ID,
+            new(100m), CancellationToken.None);
+
+        Assert.Equal("forbidden", result.Error.Code);
+        Assert.Equal(0m, enrollment.PROGRESS_PERCENT);
+        Assert.Empty(certificates.Certificates);
+    }
+
+    [Theory]
+    [InlineData(EnrollmentStatus.Active)]
+    [InlineData(EnrollmentStatus.Expired)]
+    [InlineData(EnrollmentStatus.Revoked)]
+    public async Task CreateAsync_WhenAccessHasEnded_ReactivatesExistingRowAndPreservesProgress(EnrollmentStatus status)
+    {
+        var now = new DateTime(2026, 9, 7, 10, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+        var repo = new FakeEnrollmentRepository();
+        var service = new EnrollmentService(repo, new FakeCertificateRepository(), clock, new FakeCourseSummaryReader());
+        var existing = ENROLLMENT.Create(Guid.NewGuid(), Guid.NewGuid(), null, EnrollmentSource.Purchase, now, clock);
+        existing.UpdateProgress(42m, clock);
+        if (status == EnrollmentStatus.Expired) existing.Expire();
+        if (status == EnrollmentStatus.Revoked) existing.Revoke();
+        repo.Add(existing);
+        var newOrderId = Guid.NewGuid();
+
+        var result = await service.CreateAsync(new(existing.USER_ID, existing.COURSE_ID, newOrderId, EnrollmentSource.Purchase, now.AddDays(30)), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(repo.Enrollments);
+        Assert.Equal(existing.ENROLLMENT_ID, result.Value.Id);
+        Assert.Equal(EnrollmentStatus.Active, result.Value.Status);
+        Assert.Equal(newOrderId, result.Value.OrderId);
+        Assert.Equal(42m, result.Value.ProgressPercent);
+    }
+
+    private sealed class FakeCourseSummaryReader : ICourseSummaryReader
+    {
+        public Task<IReadOnlyDictionary<Guid, CourseSummaryInfo>> GetCourseSummariesAsync(
+            IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, CourseSummaryInfo>>(new Dictionary<Guid, CourseSummaryInfo>());
+    }
+
     private sealed class FakeClock(DateTime now) : IClock
     {
         public DateTime UtcNow => now;
@@ -56,7 +113,7 @@ public sealed class EnrollmentServiceTests
         var certRepo = new FakeCertificateRepository();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var service = new EnrollmentService(repo, certRepo, clock);
+        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader());
 
         var userId = Guid.NewGuid();
         var courseId = Guid.NewGuid();
@@ -78,7 +135,7 @@ public sealed class EnrollmentServiceTests
         var repo = new FakeEnrollmentRepository();
         var certRepo = new FakeCertificateRepository();
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new EnrollmentService(repo, certRepo, clock);
+        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader());
 
         var userId = Guid.NewGuid();
         var courseId = Guid.NewGuid();
@@ -97,7 +154,7 @@ public sealed class EnrollmentServiceTests
         var repo = new FakeEnrollmentRepository();
         var certRepo = new FakeCertificateRepository();
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new EnrollmentService(repo, certRepo, clock);
+        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader());
 
         var ownerId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
@@ -117,7 +174,7 @@ public sealed class EnrollmentServiceTests
         var certRepo = new FakeCertificateRepository();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var service = new EnrollmentService(repo, certRepo, clock);
+        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader());
 
         var userId = Guid.NewGuid();
         var enrollment = ENROLLMENT.Create(userId, Guid.NewGuid(), null, EnrollmentSource.Purchase, null, clock);
@@ -136,4 +193,3 @@ public sealed class EnrollmentServiceTests
         Assert.StartsWith("CERT-2026-", cert.SERIAL_NO);
     }
 }
-

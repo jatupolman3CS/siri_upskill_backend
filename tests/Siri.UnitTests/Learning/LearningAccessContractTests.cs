@@ -21,6 +21,34 @@ namespace Siri.UnitTests.Learning;
 /// </summary>
 public sealed class LearningAccessContractTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Repurchase_WhenAccessExpiredButStatusStillActive_RenewsExistingEnrollment(bool batched)
+    {
+        var now = new DateTime(2026, 9, 7, 10, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+        var repo = new FakeEnrollmentRepository();
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock);
+        var existing = ENROLLMENT.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EnrollmentSource.Purchase, now, clock);
+        existing.UpdateProgress(42m, clock);
+        repo.Add(existing);
+        var newOrderId = Guid.NewGuid();
+        var newExpiry = now.AddDays(30);
+
+        Assert.False(await contract.HasActiveEnrollmentAsync(existing.USER_ID, existing.COURSE_ID, CancellationToken.None));
+        var result = batched
+            ? await contract.EnrollUserInCoursesAsync(existing.USER_ID, "Purchase", [new(existing.COURSE_ID, newOrderId, newExpiry)], CancellationToken.None)
+            : await contract.EnrollUserAsync(existing.USER_ID, existing.COURSE_ID, newOrderId, "Purchase", newExpiry, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(repo.Enrollments);
+        Assert.Equal(newOrderId, existing.ORDER_ID);
+        Assert.Equal(newExpiry, existing.EXPIRES_AT_UTC);
+        Assert.Equal(42m, existing.PROGRESS_PERCENT);
+        Assert.True(await contract.HasActiveEnrollmentAsync(existing.USER_ID, existing.COURSE_ID, CancellationToken.None));
+    }
+
     private sealed class FakeClock(DateTime now) : IClock
     {
         public DateTime UtcNow => now;

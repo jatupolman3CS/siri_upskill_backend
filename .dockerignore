@@ -1,0 +1,9 @@
+**/bin
+**/obj
+**/dist
+.git
+**/.env*
+**/TestResults
+**/*.log
+**/*.pfx
+**/*.key
