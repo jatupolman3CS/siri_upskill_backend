@@ -2,6 +2,7 @@ using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Siri.Integrations.Video;
+using Siri.Modules.Media.Application;
 using Siri.Modules.Media.Domain;
 using Siri.Persistence;
 using Siri.SharedKernel;
@@ -23,26 +24,35 @@ public sealed class BunnyTranscodePollJob(
     {
         var pendingCutoff = clock.UtcNow.AddMinutes(-2);
 
-        var pendingSessions = await dbContext.Set<MEDIA_UPLOAD_SESSION>()
-            .Where(s => s.STATUS == MediaUploadSessionStatus.Pending && s.CreatedAtUtc <= pendingCutoff)
+        // A completed transfer still needs transcoding. Poll the asset, including those whose
+        // upload session was already completed by the browser, until the provider reports a terminal state.
+        var assets = await dbContext.Set<MEDIA_ASSET>()
+            .Where(a => (a.STATUS == MediaAssetStatus.Processing ||
+                (a.STATUS == MediaAssetStatus.Uploading && dbContext.Set<MEDIA_UPLOAD_SESSION>()
+                    .Any(s => s.MEDIA_ASSET_ID == a.MEDIA_ASSET_ID && s.STATUS == MediaUploadSessionStatus.Pending))) &&
+                a.CreatedAtUtc <= pendingCutoff)
+            .OrderBy(a => a.UpdatedAtUtc ?? a.CreatedAtUtc)
             .Take(50)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        if (pendingSessions.Count == 0)
+        if (assets.Count == 0)
         {
             return;
         }
 
-        foreach (var session in pendingSessions)
+        var assetIds = assets.Select(a => a.MEDIA_ASSET_ID).ToArray();
+        var pendingSessions = await dbContext.Set<MEDIA_UPLOAD_SESSION>()
+            .Where(s => assetIds.Contains(s.MEDIA_ASSET_ID) && s.STATUS == MediaUploadSessionStatus.Pending)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var sessionsByAsset = pendingSessions.ToLookup(s => s.MEDIA_ASSET_ID);
+
+        foreach (var asset in assets)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var asset = await dbContext.Set<MEDIA_ASSET>()
-                .FirstOrDefaultAsync(a => a.MEDIA_ASSET_ID == session.MEDIA_ASSET_ID, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (asset is null || string.IsNullOrWhiteSpace(asset.PROVIDER_ASSET_ID))
+            if (string.IsNullOrWhiteSpace(asset.PROVIDER_ASSET_ID))
             {
                 continue;
             }
@@ -51,23 +61,28 @@ public sealed class BunnyTranscodePollJob(
                 .GetStatusAsync(asset.PROVIDER_ASSET_ID, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (statusResult.IsSuccess)
+            if (statusResult.IsFailure)
             {
-                var status = statusResult.Value;
-                if (status.Status == VideoProcessingStatus.Ready)
+                logger.LogWarning("Could not refresh media asset {AssetId}: {ErrorCode}",
+                    asset.MEDIA_ASSET_ID, statusResult.Error.Code);
+                continue;
+            }
+
+            var status = statusResult.Value;
+            MediaAssetStatusUpdater.Apply(asset, status, clock);
+            foreach (var session in sessionsByAsset[asset.MEDIA_ASSET_ID])
+            {
+                if (status.Status is VideoProcessingStatus.Ready or VideoProcessingStatus.Processing)
                 {
                     session.Complete();
-                    var durationSec = (int)(status.Duration?.TotalSeconds ?? 0);
-                    asset.MarkReady(asset.PROVIDER_ASSET_ID, durationSec, null, clock);
-                    logger.LogInformation("Marked media upload session {SessionId} as Ready", session.MEDIA_UPLOAD_SESSION_ID);
                 }
-                else if (status.Status == VideoProcessingStatus.Failed)
+                else if (status.Status == VideoProcessingStatus.Failed || session.EXPIRES_AT_UTC <= clock.UtcNow)
                 {
                     session.MarkExpired();
-                    asset.MarkFailed("Transcoding failed on video provider");
-                    logger.LogWarning("Marked media upload session {SessionId} as Failed", session.MEDIA_UPLOAD_SESSION_ID);
                 }
             }
+
+            logger.LogInformation("Refreshed media asset {AssetId}: {Status}", asset.MEDIA_ASSET_ID, asset.STATUS);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

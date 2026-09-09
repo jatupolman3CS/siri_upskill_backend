@@ -32,93 +32,8 @@ using Siri.Modules.Notification;
 using Siri.Modules.Payout;
 using Siri.Persistence.DependencyInjection;
 using Siri.SharedKernel;
+using Siri.SharedKernel.Configuration;
 using Siri.Workers;
-
-// Load `.env` / `.env_prd` into the process environment before the host boots. This keeps the
-// configuration flow in the standard ASP.NET Core pattern: appsettings + real environment variables
-// + command-line arguments remain the source of truth, and local developer secret files act as a
-// default fallback rather than a hard override.
-static Dictionary<string, string?> ApplyDotEnvValues(string[] args)
-{
-    var isProduction = string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Production", StringComparison.OrdinalIgnoreCase) ||
-                       string.Equals(Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"), "Production", StringComparison.OrdinalIgnoreCase) ||
-                       args.Any(a => a.Contains("Production", StringComparison.OrdinalIgnoreCase));
-
-    var candidates = isProduction
-        ? new[] { ".env.production", ".env_prd", ".env", ".env.local" }
-        : new[] { ".env", ".env.local", ".env.development", ".env_prd", ".env.production" };
-
-    var searchDirs = new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() };
-
-    foreach (var baseDir in searchDirs)
-    {
-        var dir = new DirectoryInfo(baseDir);
-        while (dir != null)
-        {
-            foreach (var fileName in candidates)
-            {
-                var candidate = Path.Combine(dir.FullName, fileName);
-                if (File.Exists(candidate))
-                {
-                    var entries = ParseDotEnvFile(candidate);
-                    foreach (var entry in entries)
-                    {
-                        Environment.SetEnvironmentVariable(entry.Key, entry.Value);
-
-                        if (entry.Key.Contains("__"))
-                        {
-                            Environment.SetEnvironmentVariable(entry.Key.Replace("__", ":"), entry.Value);
-                        }
-                        else if (entry.Key.Contains(':'))
-                        {
-                            Environment.SetEnvironmentVariable(entry.Key.Replace(":", "__"), entry.Value);
-                        }
-                    }
-
-                    return entries;
-                }
-            }
-
-            dir = dir.Parent;
-        }
-    }
-
-    return new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-}
-
-static Dictionary<string, string?> ParseDotEnvFile(string filePath)
-{
-    var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-
-    foreach (var rawLine in File.ReadAllLines(filePath))
-    {
-        var line = rawLine.Trim();
-        if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
-        {
-            continue;
-        }
-
-        var separatorIndex = line.IndexOf('=');
-        if (separatorIndex <= 0)
-        {
-            continue;
-        }
-
-        var key = line[..separatorIndex].Trim();
-        var value = line[(separatorIndex + 1)..].Trim();
-
-        if (value.Length >= 2 &&
-            ((value.StartsWith('"') && value.EndsWith('"')) ||
-             (value.StartsWith('\'') && value.EndsWith('\''))))
-        {
-            value = value[1..^1];
-        }
-
-        values[key] = value;
-    }
-
-    return values;
-}
 
 // Bootstrap logger: catches anything that goes wrong before the host's own Serilog pipeline
 // (built further down from configuration) is ready.
@@ -130,19 +45,8 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    var dotEnvValues = ApplyDotEnvValues(args);
-
     var builder = WebApplication.CreateBuilder(args);
-
-    if (dotEnvValues.Count > 0)
-    {
-        var inMemoryEnv = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (k, v) in dotEnvValues)
-        {
-            inMemoryEnv[k.Replace("__", ":")] = v;
-        }
-        builder.Configuration.AddInMemoryCollection(inMemoryEnv);
-    }
+    builder.Configuration.AddSiriDotEnvDefaults(builder.Environment);
 
     // P0-13 observability: read the section directly here (same reasoning as JwtOptions below —
     // Serilog's pipeline and AddOpenTelemetry's exporter registration both happen before the DI
@@ -239,7 +143,8 @@ try
         options.AddFixedWindowLimiter("auth", limiter =>
         {
             limiter.Window = TimeSpan.FromMinutes(1);
-            limiter.PermitLimit = 5;
+            // Local navigation and reloads share this limiter with login and token refresh.
+            limiter.PermitLimit = builder.Environment.IsDevelopment() ? 100 : 5;
             limiter.QueueLimit = 0;
         });
 
@@ -374,6 +279,14 @@ try
     ProductionConfigurationGuard.ValidateProductionConfiguration(builder.Configuration, builder.Environment);
 
     var app = builder.Build();
+
+    // Explicit operator command; normal API startup never applies schema changes.
+    if (args.Contains("--migrate", StringComparer.OrdinalIgnoreCase))
+    {
+        await app.Services.ApplyDatabaseMigrationsAsync(CancellationToken.None);
+        Log.Information("Database migrations completed successfully.");
+        return;
+    }
 
     // ---- One-off dev/test bootstrap (tasks P0-37, P1-30) -----------------------------------
     // `dotnet run --project backend/src/Siri.Api -- --seed` runs IdentitySeeder then CatalogSeeder

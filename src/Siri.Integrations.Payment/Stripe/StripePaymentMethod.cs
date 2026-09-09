@@ -43,6 +43,11 @@ public sealed class StripePaymentMethod : IPaymentMethod
             return Result.Failure<PaymentIntentResult>(DomainError.Validation("Payment amount must be greater than zero."));
         }
 
+        if (string.IsNullOrWhiteSpace(request.CustomerEmail))
+        {
+            return Result.Failure<PaymentIntentResult>(DomainError.Validation("A customer email is required for PromptPay."));
+        }
+
         // Amount in satang (smallest currency unit for THB: 1 THB = 100 satang)
         var amountInSatang = (long)Math.Round(request.Amount * 100m, MidpointRounding.AwayFromZero);
 
@@ -51,6 +56,15 @@ public sealed class StripePaymentMethod : IPaymentMethod
             Amount = amountInSatang,
             Currency = request.Currency.ToLowerInvariant(),
             PaymentMethodTypes = ["promptpay"],
+            Confirm = true,
+            PaymentMethodData = new PaymentIntentPaymentMethodDataOptions
+            {
+                Type = "promptpay",
+                BillingDetails = new PaymentIntentPaymentMethodDataBillingDetailsOptions
+                {
+                    Email = request.CustomerEmail,
+                },
+            },
             Description = request.Description ?? $"Order {request.OrderNo}",
             ReceiptEmail = request.CustomerEmail,
             Metadata = new Dictionary<string, string>
@@ -61,11 +75,14 @@ public sealed class StripePaymentMethod : IPaymentMethod
         };
 
         var service = new PaymentIntentService(_stripeClient);
+        // Reuse the same key across transport retries so an interrupted response cannot create
+        // multiple chargeable QR codes for this payment attempt.
+        var requestOptions = new RequestOptions { IdempotencyKey = Guid.NewGuid().ToString("N") };
 
         try
         {
             var intent = await ExecuteWithRetryAsync(
-                () => service.CreateAsync(options, cancellationToken: cancellationToken),
+                () => service.CreateAsync(options, requestOptions, cancellationToken),
                 "CreatePaymentIntent",
                 cancellationToken).ConfigureAwait(false);
 
@@ -200,7 +217,8 @@ public sealed class StripePaymentMethod : IPaymentMethod
 
         if (intent.NextAction?.PromptpayDisplayQrCode != null)
         {
-            qrCodeUrl = intent.NextAction.PromptpayDisplayQrCode.HostedInstructionsUrl;
+            qrCodeUrl = intent.NextAction.PromptpayDisplayQrCode.ImageUrlPng
+                ?? intent.NextAction.PromptpayDisplayQrCode.ImageUrlSvg;
             qrCodeData = intent.NextAction.PromptpayDisplayQrCode.Data;
         }
 

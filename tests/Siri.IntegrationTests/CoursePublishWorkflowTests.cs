@@ -108,6 +108,7 @@ public sealed class CoursePublishWorkflowTests : IAsyncLifetime
         builder.Services.AddIdentityModule(builder.Configuration);
         builder.Services.AddNotificationModule(builder.Configuration);
         builder.Services.AddCatalogModule(builder.Configuration);
+        builder.Services.AddScoped<Siri.SharedKernel.Contracts.IMediaAssetContract, Siri.Modules.Media.Application.MediaAssetContractService>();
 
         _app = builder.Build();
 
@@ -226,7 +227,14 @@ public sealed class CoursePublishWorkflowTests : IAsyncLifetime
             .SingleAsync(c => c.Id == courseId);
 
         var section = course.AddSection("Section 1");
-        section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
+        var owner = await dbContext.InstructorProfiles().SingleAsync(profile => profile.Id == course.InstructorId);
+        var media = Siri.Modules.Media.Domain.MEDIA_ASSET.Create("BunnyStream", Guid.NewGuid().ToString(), owner.UserId, true);
+        media.MarkReady(media.PROVIDER_ASSET_ID, 600, null, new SystemClock());
+        dbContext.Set<Siri.Modules.Media.Domain.MEDIA_ASSET>().Add(media);
+        var episode = section.AddEpisode("Episode 1", null, isFreePreview: false);
+        episode.AttachMedia(media.MEDIA_ASSET_ID, 600);
+        dbContext.Entry(section).State = EntityState.Added;
+        dbContext.Entry(episode).State = EntityState.Added;
 
         await dbContext.SaveChangesAsync();
     }

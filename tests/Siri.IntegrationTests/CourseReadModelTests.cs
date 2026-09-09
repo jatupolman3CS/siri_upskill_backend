@@ -108,6 +108,7 @@ public sealed class CourseReadModelTests : IAsyncLifetime
         builder.Services.AddIdentityModule(builder.Configuration);
         builder.Services.AddNotificationModule(builder.Configuration);
         builder.Services.AddCatalogModule(builder.Configuration);
+        builder.Services.AddScoped<Siri.SharedKernel.Contracts.IMediaAssetContract, Siri.Modules.Media.Application.MediaAssetContractService>();
 
         _app = builder.Build();
 
@@ -210,7 +211,11 @@ public sealed class CourseReadModelTests : IAsyncLifetime
     {
         var course = COURSE.Create($"course-{Guid.NewGuid():N}", title, instructorId, categoryId, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var section = course.AddSection("Section 1");
-        section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
+        var owner = await dbContext.InstructorProfiles().SingleAsync(profile => profile.Id == instructorId);
+        var media = Siri.Modules.Media.Domain.MEDIA_ASSET.Create("BunnyStream", Guid.NewGuid().ToString(), owner.UserId, true);
+        media.MarkReady(media.PROVIDER_ASSET_ID, 600, null, services.GetRequiredService<IClock>());
+        dbContext.Set<Siri.Modules.Media.Domain.MEDIA_ASSET>().Add(media);
+        section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(media.MEDIA_ASSET_ID, 600);
         course.SubmitForReview();
 
         dbContext.Courses().Add(course);

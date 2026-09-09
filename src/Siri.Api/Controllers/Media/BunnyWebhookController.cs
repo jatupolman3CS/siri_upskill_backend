@@ -22,15 +22,9 @@ public class BunnyWebhookController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IResult> HandleBunnyWebhook(
-        [FromBody] BunnyWebhookPayload payload,
         [FromServices] BunnyWebhookHandler handler,
         CancellationToken cancellationToken)
     {
-        var authHeader = HttpContext.Request.Headers["Authorization"].FirstOrDefault();
-        var result = await handler.HandleWebhookAsync(payload, authHeader, cancellationToken).ConfigureAwait(false);
-
-        return result.IsSuccess
-            ? Results.Ok(new { received = true })
-            : result.Error.ToProblemHttpResult(HttpContext);
+        return await BunnyWebhookRequest.HandleAsync(HttpContext, handler, cancellationToken).ConfigureAwait(false);
     }
 }

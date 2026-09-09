@@ -1,117 +1,135 @@
+# Run: docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+name: siriupskill
+
+x-app-environment: &app-environment
+  ASPNETCORE_ENVIRONMENT: Production
+  DOTNET_ENVIRONMENT: Production
+  ConnectionStrings__Default: 'Host=postgres;Port=5432;Database=SIRIUPSKILL;Username=siriupskill_app;Password="${SIRI_DATABASE_PASSWORD:?Set SIRI_DATABASE_PASSWORD}"'
+  Redis__ConnectionString: 'redis:6379,password=${REDIS_PASSWORD:?Set REDIS_PASSWORD},abortConnect=false'
+
 services:
   caddy:
-    image: caddy:2.8-alpine
+    image: caddy:2-alpine
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    ports: ["80:80", "443:443"]
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-siriupskill.siristudiophoto.com}
+      API_ADDRESS: ${API_ADDRESS:-api-siriupskill.siristudiophoto.com}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@siriupskill.com}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    networks:
-      - siri-net
+    networks: [siri-net]
     depends_on:
-      - angular-ssr
-      - api
+      angular-ssr:
+        condition: service_started
+      api:
+        condition: service_healthy
 
   angular-ssr:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: ../siri_upskill_ui
+      dockerfile: Dockerfile.ssr
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=4000
-      - NG_TRUST_PROXY_HEADERS=true
-      - API_INTERNAL_URL=http://api:5000
-    networks:
-      - siri-net
+      NODE_ENV: production
+      PORT: "4000"
+      NG_TRUST_PROXY_HEADERS: "true"
+      NG_ALLOWED_HOSTS: ${SITE_ADDRESS:-siriupskill.siristudiophoto.com}
+      API_INTERNAL_URL: http://api:5000
+    networks: [siri-net]
     depends_on:
       api:
         condition: service_healthy
 
-  api:
+  migrate:
+    image: siriupskill-api:local
     build:
       context: .
-      dockerfile: backend/src/Siri.Api/Dockerfile
-    restart: unless-stopped
-    env_file:
-      - .env.production
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:5000
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    networks:
-      - siri-net
+      dockerfile: src/Siri.Api/Dockerfile
+    command: ["--migrate"]
+    restart: "no"
+    env_file: [.env.production]
+    environment: *app-environment
+    networks: [siri-net]
     depends_on:
       postgres:
         condition: service_healthy
+
+  api:
+    image: siriupskill-api:local
+    build:
+      context: .
+      dockerfile: src/Siri.Api/Dockerfile
+    restart: unless-stopped
+    env_file: [.env.production]
+    environment:
+      <<: *app-environment
+      ASPNETCORE_URLS: http://+:5000
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks: [siri-net]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
   workers:
     build:
       context: .
-      dockerfile: backend/src/Siri.Workers/Dockerfile
+      dockerfile: src/Siri.Workers/Dockerfile
     restart: unless-stopped
-    env_file:
-      - .env.production
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-    networks:
-      - siri-net
+    env_file: [.env.production]
+    environment: *app-environment
+    networks: [siri-net]
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
   postgres:
-    # Task P0-41 replaced SQL Server with PostgreSQL 17.
-    # POSTGRES_DB is UPPERCASE on purpose: the database really is named SIRIUPSKILL, and the value is
-    # passed to initdb as a parameter rather than as SQL, so it needs no quoting here. Anywhere it
-    # appears inside actual SQL it must be written "SIRIUPSKILL" — PostgreSQL folds unquoted
-    # identifiers to lower case.
-    # POSTGRES_PASSWORD comes from .env.production (never committed), same as every other secret here.
-    image: postgres:17-alpine
+    image: postgres:17
     restart: unless-stopped
-    env_file:
-      - .env.production
     environment:
-      - POSTGRES_DB=SIRIUPSKILL
-      - POSTGRES_USER=siriupskill_app
-      - TZ=UTC
+      POSTGRES_DB: SIRIUPSKILL
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: --locale-provider=icu --icu-locale=th-TH --encoding=UTF8
+      SIRI_DATABASE_PASSWORD: ${SIRI_DATABASE_PASSWORD:?Set SIRI_DATABASE_PASSWORD}
+      TZ: UTC
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sh:/docker-entrypoint-initdb.d/10-siri.sh:ro
     shm_size: 256m
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U siriupskill_app -d SIRIUPSKILL || exit 1"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d SIRIUPSKILL"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
-    networks:
-      - siri-net
+    networks: [siri-net]
 
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--maxmemory", "512mb", "--maxmemory-policy", "volatile-lru", "--appendonly", "yes"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Set REDIS_PASSWORD}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD}", "--maxmemory", "512mb", "--maxmemory-policy", "volatile-lru", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - siri-net
+    networks: [siri-net]
 
 volumes:
   caddy_data:

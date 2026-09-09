@@ -209,6 +209,7 @@ public static class CatalogModule
 
         // Cross-module contracts
         services.AddScoped<Contracts.ICatalogPriceContract, Infrastructure.Contracts.CatalogPriceContract>();
+        services.AddScoped<Contracts.ICourseSummaryReader, Infrastructure.Contracts.CatalogPriceContract>();
         services.AddScoped<Notification.Contracts.ICourseOwnershipVerifier, Infrastructure.Contracts.CatalogPriceContract>();
 
         // Reviews (P1-08)

@@ -3,6 +3,7 @@ using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
 using Siri.SharedKernel;
+using Siri.SharedKernel.Contracts;
 
 namespace Siri.Modules.Catalog.Features.SubmitCourseForReview;
 
@@ -16,7 +17,7 @@ namespace Siri.Modules.Catalog.Features.SubmitCourseForReview;
 /// method re-checks as its own backstop" split <c>ApproveInstructorApplicationHandler</c> already
 /// establishes for <c>INSTRUCTOR_PROFILE.Approve</c>.
 /// </summary>
-public sealed class SubmitCourseForReviewHandler(AppDbContext dbContext)
+public sealed class SubmitCourseForReviewHandler(AppDbContext dbContext, IMediaAssetContract mediaAssets)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
     private static readonly DomainError NotOwnerError = DomainError.Forbidden("คุณไม่มีสิทธิ์ส่งคอร์สนี้เข้าตรวจสอบ");
@@ -59,6 +60,12 @@ public sealed class SubmitCourseForReviewHandler(AppDbContext dbContext)
         if (!course.Sections.SelectMany(s => s.Episodes).Any(e => e.MediaAssetId is not null))
         {
             return Result.Failure<SubmitCourseForReviewResponse>(NoMediaError);
+        }
+
+        var mediaReadiness = await CourseMediaReadiness.ValidateAsync(course, userId, mediaAssets, cancellationToken).ConfigureAwait(false);
+        if (mediaReadiness.IsFailure)
+        {
+            return Result.Failure<SubmitCourseForReviewResponse>(mediaReadiness.Error);
         }
 
         course.SubmitForReview();

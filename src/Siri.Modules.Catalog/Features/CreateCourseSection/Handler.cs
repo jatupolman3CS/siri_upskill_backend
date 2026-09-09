@@ -41,6 +41,8 @@ public sealed class CreateCourseSectionHandler(AppDbContext dbContext)
         }
 
         var section = course.AddSection(command.Title);
+        // The domain assigns its UUID before EF discovers the child on this tracked aggregate.
+        dbContext.Entry(section).State = EntityState.Added;
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return Result.Success(new CourseSectionResponse(section.Id, section.CourseId, section.Title, section.SortOrder));

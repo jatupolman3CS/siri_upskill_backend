@@ -100,8 +100,12 @@ public sealed class OrderService(
                     })
                     .ToList();
 
-                await learningAccessContract.EnrollUserInCoursesAsync(
+                var enrollmentResult = await learningAccessContract.EnrollUserInCoursesAsync(
                     userId, "PromoCode_100", enrollmentGrants, cancellationToken).ConfigureAwait(false);
+                if (enrollmentResult.IsFailure)
+                {
+                    return Result.Failure<OrderResponse>(enrollmentResult.Error);
+                }
             }
 
             return Result.Success(ToResponse(order));

@@ -3,10 +3,11 @@ using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
 using Siri.SharedKernel;
+using Siri.SharedKernel.Contracts;
 
 namespace Siri.Modules.Catalog.Features.AutosaveCourse;
 
-public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
+public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock, IMediaAssetContract mediaAssetContract)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
     private static readonly DomainError NotOwnerError = DomainError.Forbidden("คุณไม่มีสิทธิ์แก้ไขคอร์สนี้");
@@ -55,8 +56,36 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
             }
         }
 
+        // Validate the complete draft before changing any tracked entities, including a trailer
+        // and media on newly created episodes. Drafts may retain uploads still being processed.
+        var requestedMediaIds = (command.Sections ?? [])
+            .SelectMany(section => section.Episodes ?? [])
+            .Select(episode => episode.MediaAssetId)
+            .Append(command.TrailerMediaAssetId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct();
+        var mediaAssets = new Dictionary<Guid, MediaAssetSummary>();
+        foreach (var mediaId in requestedMediaIds)
+        {
+            var asset = await mediaAssetContract.GetAssetSummaryAsync(mediaId, cancellationToken).ConfigureAwait(false);
+            if (asset is null)
+            {
+                return Result.Failure<AutosaveCourseResponse>(DomainError.NotFound("The selected video was not found."));
+            }
+
+            if (asset.UploadedByUserId != userId)
+            {
+                return Result.Failure<AutosaveCourseResponse>(DomainError.Forbidden("You do not own the selected video."));
+            }
+
+            mediaAssets.Add(mediaId, asset);
+        }
+
         // Set EF Core concurrency token to detect mid-air collisions
         dbContext.Entry(course).Property(c => c.RowVersion).OriginalValue = command.RowVersion;
+        // Child-only edits must also rotate/check the draft's concurrency token.
+        dbContext.Entry(course).Property(c => c.RowVersion).IsModified = true;
 
         course.UpdateBasicInfo(command.Title, command.Subtitle, command.Description);
         course.SetCategory(command.CategoryId);
@@ -70,6 +99,11 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
         course.SetOutcomes(command.Outcomes ?? []);
         course.SetRequirements(command.Requirements ?? []);
         course.SetTrailer(command.TrailerMediaAssetId);
+
+        // Domain-created children already have UUIDs, so EF must be told to insert them.
+        foreach (var outcome in course.Outcomes) dbContext.Entry(outcome).State = EntityState.Added;
+        foreach (var requirement in course.Requirements) dbContext.Entry(requirement).State = EntityState.Added;
+        List<AutosaveSectionIds>? savedSections = command.Sections is null ? null : [];
 
         if (command.Sections != null)
         {
@@ -101,8 +135,10 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
                 else
                 {
                     section = course.AddSection(sectionItem.Title);
+                    dbContext.Entry(section).State = EntityState.Added;
                 }
 
+                var savedEpisodes = new List<AutosaveEpisodeIds>();
                 if (sectionItem.Episodes != null)
                 {
                     var submittedEpisodeIds = sectionItem.Episodes
@@ -139,21 +175,38 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
                         else
                         {
                             targetEp = course.AddEpisode(section.Id, epItem.Title, epItem.Description, epItem.IsFreePreview);
+                            dbContext.Entry(targetEp).State = EntityState.Added;
                         }
 
-                        if (epItem.MediaAssetId.HasValue && epItem.MediaAssetId.Value != Guid.Empty)
+                        savedEpisodes.Add(new AutosaveEpisodeIds(targetEp.Id));
+
+                        if (epItem.MediaAssetId is { } mediaId)
                         {
-                            var duration = epItem.DurationSeconds.GetValueOrDefault(targetEp.DurationSeconds.GetValueOrDefault(1));
-                            course.AttachEpisodeMedia(targetEp.Id, epItem.MediaAssetId.Value, duration > 0 ? duration : 1);
+                            // Until processing completes, use the domain's minimum duration.
+                            // Client estimates must not replace the provider's measured duration.
+                            var duration = mediaAssets[mediaId].DurationSeconds is > 0
+                                ? mediaAssets[mediaId].DurationSeconds!.Value
+                                : 1;
+                            course.AttachEpisodeMedia(targetEp.Id, mediaId, duration);
+                        }
+                        else if (targetEp.MediaAssetId is not null)
+                        {
+                            course.RemoveEpisodeMedia(targetEp.Id);
                         }
                     }
+
+                    section.ReorderEpisodes(savedEpisodes.Select(episode => episode.Id).ToArray());
                 }
+
+                savedSections!.Add(new AutosaveSectionIds(section.Id, savedEpisodes));
             }
+
+            course.ReorderSections(savedSections!.Select(section => section.Id).ToArray());
         }
 
         try
         {
-            await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await CourseGraphPersistence.SaveAsync(dbContext, course.Id, cancellationToken).ConfigureAwait(false);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -161,6 +214,6 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock)
                 DomainError.Conflict("ข้อมูลคอร์สนี้ถูกแก้ไขจากที่อื่นแล้ว กรุณารีเฟรชหน้าเว็บก่อนทำการบันทึกอีกครั้ง"));
         }
 
-        return Result.Success(new AutosaveCourseResponse(course.Id, course.RowVersion, course.UpdatedAtUtc ?? clock.UtcNow));
+        return Result.Success(new AutosaveCourseResponse(course.Id, course.RowVersion, course.UpdatedAtUtc ?? clock.UtcNow, savedSections));
     }
 }

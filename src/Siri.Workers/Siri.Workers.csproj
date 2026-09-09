@@ -20,7 +20,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="DotNetEnv" />
     <PackageReference Include="Hangfire.AspNetCore" />
     <PackageReference Include="Hangfire.PostgreSql" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
@@ -42,6 +41,15 @@
       <CopyToPublishDirectory>Never</CopyToPublishDirectory>
     </None>
   </ItemGroup>
+
+  <!-- Publish is invoked for the worker image, but not while collecting the API's referenced
+       project items. Copy here so standalone workers receive defaults without API collisions. -->
+  <Target Name="PublishWorkerAppSettings" AfterTargets="Publish">
+    <ItemGroup>
+      <WorkerAppSettings Include="$(MSBuildProjectDirectory)/appsettings*.json" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WorkerAppSettings)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>

@@ -28,8 +28,12 @@ appsettings.*.local.json
 .env
 .env.*
 .env_*
+!.env.example
 *.pfx
 *.key
 
 # Logs
 *.log
+
+# Native development tools, database, logs and process state
+.dev/

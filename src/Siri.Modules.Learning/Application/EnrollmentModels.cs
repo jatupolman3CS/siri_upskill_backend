@@ -31,7 +31,11 @@ public sealed record EnrollmentResponse(
     EnrollmentStatus Status,
     decimal ProgressPercent,
     DateTime? CompletedAtUtc,
-    DateTime? LastAccessedAtUtc);
+    DateTime? LastAccessedAtUtc,
+    string? CourseSlug = null,
+    string? CourseTitle = null,
+    string? CourseThumbnailUrl = null,
+    string? InstructorName = null);
 
 /// <summary>Format-only checks — no DB access (mirrors
 /// <c>Siri.Modules.Payout.Application.CreateRevenueSplitValidator</c>'s own doc comment: format here,

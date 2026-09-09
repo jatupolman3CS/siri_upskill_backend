@@ -115,7 +115,8 @@ public sealed class LearningAccessContract(
         var existing = await enrollmentRepository.GetByUserAndCourseAsync(userId, courseId, cancellationToken).ConfigureAwait(false);
         if (existing is not null)
         {
-            if (existing.STATUS == EnrollmentStatus.Active)
+            if (existing.STATUS == EnrollmentStatus.Active &&
+                (!existing.EXPIRES_AT_UTC.HasValue || existing.EXPIRES_AT_UTC.Value > clock.UtcNow))
             {
                 // Idempotent no-op — e.g. a retried webhook delivery for the same order.
                 return Result.Success();
@@ -173,7 +174,8 @@ public sealed class LearningAccessContract(
         {
             if (existingByCourseId.TryGetValue(grant.CourseId, out var existing))
             {
-                if (existing.STATUS == EnrollmentStatus.Active)
+                if (existing.STATUS == EnrollmentStatus.Active &&
+                    (!existing.EXPIRES_AT_UTC.HasValue || existing.EXPIRES_AT_UTC.Value > clock.UtcNow))
                 {
                     // Idempotent no-op for this course — e.g. a retried webhook delivery for the same order.
                     continue;

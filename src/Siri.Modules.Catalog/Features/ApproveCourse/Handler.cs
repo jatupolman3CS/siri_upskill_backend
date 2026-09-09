@@ -4,6 +4,7 @@ using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
 using Siri.SharedKernel;
+using Siri.SharedKernel.Contracts;
 
 namespace Siri.Modules.Catalog.Features.ApproveCourse;
 
@@ -26,7 +27,7 @@ namespace Siri.Modules.Catalog.Features.ApproveCourse;
 /// must also call this same eviction).
 /// </para>
 /// </summary>
-public sealed class ApproveCourseHandler(AppDbContext dbContext, IClock clock, IOutputCacheStore outputCacheStore)
+public sealed class ApproveCourseHandler(AppDbContext dbContext, IClock clock, IOutputCacheStore outputCacheStore, IMediaAssetContract mediaAssets)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
     private static readonly DomainError NotInReviewError = DomainError.Conflict("อนุมัติได้เฉพาะคอร์สที่อยู่ระหว่างตรวจสอบเท่านั้น");
@@ -48,6 +49,20 @@ public sealed class ApproveCourseHandler(AppDbContext dbContext, IClock clock, I
         if (course.Status != CourseStatus.InReview)
         {
             return Result.Failure<ApproveCourseResponse>(NotInReviewError);
+        }
+
+        var ownerUserId = await dbContext.InstructorProfiles().AsNoTracking()
+            .Where(profile => profile.Id == course.InstructorId)
+            .Select(profile => (Guid?)profile.UserId)
+            .SingleOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        if (ownerUserId is null)
+        {
+            return Result.Failure<ApproveCourseResponse>(DomainError.Validation("The course instructor could not be found."));
+        }
+        var mediaReadiness = await CourseMediaReadiness.ValidateAsync(course, ownerUserId.Value, mediaAssets, cancellationToken).ConfigureAwait(false);
+        if (mediaReadiness.IsFailure)
+        {
+            return Result.Failure<ApproveCourseResponse>(mediaReadiness.Error);
         }
 
         course.Publish(clock);

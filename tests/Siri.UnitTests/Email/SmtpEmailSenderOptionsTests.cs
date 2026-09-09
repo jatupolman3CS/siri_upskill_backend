@@ -1,10 +1,44 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Siri.Integrations.Email;
 
 namespace Siri.UnitTests.Email;
 
 public class SmtpEmailSenderOptionsTests
 {
+    [Theory]
+    [InlineData("Development", true)]
+    [InlineData("Production", false)]
+    [InlineData("Staging", false)]
+    public void UnencryptedCaptureServer_IsAllowedOnlyInDevelopment(string environment, bool allowed)
+    {
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            EnvironmentName = environment,
+            DisableDefaults = true,
+        });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Email:Provider"] = "Smtp",
+            ["Email:Smtp:Host"] = "mailpit",
+            ["Email:Smtp:FromAddress"] = "no-reply@example.test",
+            ["Email:Smtp:AllowInsecure"] = "true",
+        });
+        builder.Services.AddEmailIntegration(builder.Configuration);
+        using var host = builder.Build();
+        var options = host.Services.GetRequiredService<IOptions<SmtpEmailSenderOptions>>();
+        if (allowed)
+        {
+            Assert.True(options.Value.AllowInsecure);
+        }
+        else
+        {
+            Assert.Throws<OptionsValidationException>(() => options.Value);
+        }
+    }
+
     [Fact]
     public void Binding_FromEmailSmtpConfigurationSection_PopulatesEveryField()
     {

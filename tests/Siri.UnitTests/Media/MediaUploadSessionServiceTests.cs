@@ -8,6 +8,11 @@ namespace Siri.UnitTests.Media;
 
 public sealed class MediaUploadSessionServiceTests
 {
+    private sealed class FakeClock(DateTime now) : IClock
+    {
+        public DateTime UtcNow => now;
+    }
+
     private sealed class FakeMediaAssetRepository : IMediaAssetRepository
     {
         public readonly Dictionary<Guid, MEDIA_ASSET> Assets = [];
@@ -46,6 +51,9 @@ public sealed class MediaUploadSessionServiceTests
 
     private sealed class FakeVideoProvider : IVideoProvider
     {
+        public VideoProcessingStatus Status { get; set; } = VideoProcessingStatus.Processing;
+        public int StatusCalls { get; private set; }
+        public bool StatusFails { get; set; }
         public Task<Result<VideoAsset>> CreateVideoAsync(string title, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Success(new VideoAsset("vid-1", title)));
 
@@ -53,9 +61,13 @@ public sealed class MediaUploadSessionServiceTests
             Task.FromResult(Result.Success(
                 new VideoUploadUrl("https://upload.bunny.net/tus/vid-1", DateTime.UtcNow.AddMinutes(30))));
 
-        public Task<Result<VideoStatus>> GetStatusAsync(string providerVideoId, CancellationToken cancellationToken) =>
-            Task.FromResult(Result.Success(
-                new VideoStatus(providerVideoId, VideoProcessingStatus.Ready, TimeSpan.FromMinutes(2))));
+        public Task<Result<VideoStatus>> GetStatusAsync(string providerVideoId, CancellationToken cancellationToken)
+        {
+            StatusCalls++;
+            return Task.FromResult(StatusFails
+                ? Result.Failure<VideoStatus>(new DomainError("provider_unavailable", "Provider unavailable"))
+                : Result.Success(new VideoStatus(providerVideoId, Status, TimeSpan.FromMinutes(2))));
+        }
 
         public Task<Result> DeleteVideoAsync(string providerVideoId, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Success());
@@ -74,7 +86,7 @@ public sealed class MediaUploadSessionServiceTests
         var assetRepo = new FakeMediaAssetRepository();
         var sessionRepo = new FakeMediaUploadSessionRepository();
         var provider = new FakeVideoProvider();
-        var service = new MediaUploadSessionService(sessionRepo, assetRepo, provider);
+        var service = new MediaUploadSessionService(sessionRepo, assetRepo, provider, new FakeClock(DateTime.UtcNow));
 
         var ownerId = Guid.NewGuid();
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", ownerId, true);
@@ -95,7 +107,7 @@ public sealed class MediaUploadSessionServiceTests
         var assetRepo = new FakeMediaAssetRepository();
         var sessionRepo = new FakeMediaUploadSessionRepository();
         var provider = new FakeVideoProvider();
-        var service = new MediaUploadSessionService(sessionRepo, assetRepo, provider);
+        var service = new MediaUploadSessionService(sessionRepo, assetRepo, provider, new FakeClock(DateTime.UtcNow));
 
         var ownerId = Guid.NewGuid();
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", ownerId, true);
@@ -109,5 +121,99 @@ public sealed class MediaUploadSessionServiceTests
         Assert.True(result.IsSuccess);
         Assert.Equal(MediaUploadSessionStatus.Completed, result.Value.Status);
         Assert.Equal(MediaAssetStatus.Processing, asset.STATUS);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_BeforeProviderReceivesBytes_DoesNotCompleteOrGrantReady()
+    {
+        var (service, asset, session, provider) = CreatePendingUpload();
+        provider.Status = VideoProcessingStatus.Uploading;
+
+        var result = await service.CompleteAsync(asset.UPLOADED_BY_USER_ID, session.MEDIA_UPLOAD_SESSION_ID, CancellationToken.None);
+
+        Assert.Equal("conflict", result.Error.Code);
+        Assert.Equal(MediaUploadSessionStatus.Pending, session.STATUS);
+        Assert.Equal(MediaAssetStatus.Uploading, asset.STATUS);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_ProviderReady_StoresVerifiedDurationAndIsIdempotent()
+    {
+        var (service, asset, session, provider) = CreatePendingUpload();
+        provider.Status = VideoProcessingStatus.Ready;
+
+        var result = await service.CompleteAsync(asset.UPLOADED_BY_USER_ID, session.MEDIA_UPLOAD_SESSION_ID, CancellationToken.None);
+        var retry = await service.CompleteAsync(asset.UPLOADED_BY_USER_ID, session.MEDIA_UPLOAD_SESSION_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(retry.IsSuccess);
+        Assert.Equal(MediaAssetStatus.Ready, asset.STATUS);
+        Assert.Equal(120, asset.DURATION_SECONDS);
+        Assert.Equal(1, provider.StatusCalls);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_ExpiredSession_RejectsWithoutCallingProvider()
+    {
+        var (service, asset, session, provider) = CreatePendingUpload(expired: true);
+
+        var result = await service.CompleteAsync(asset.UPLOADED_BY_USER_ID, session.MEDIA_UPLOAD_SESSION_ID, CancellationToken.None);
+
+        Assert.Equal("conflict", result.Error.Code);
+        Assert.Equal(MediaUploadSessionStatus.Expired, session.STATUS);
+        Assert.Equal(MediaAssetStatus.Uploading, asset.STATUS);
+        Assert.Equal(0, provider.StatusCalls);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_OtherOwner_RejectsWithoutCallingProvider()
+    {
+        var (service, asset, session, provider) = CreatePendingUpload();
+
+        var result = await service.CompleteAsync(Guid.NewGuid(), session.MEDIA_UPLOAD_SESSION_ID, CancellationToken.None);
+
+        Assert.Equal("forbidden", result.Error.Code);
+        Assert.Equal(MediaUploadSessionStatus.Pending, session.STATUS);
+        Assert.Equal(MediaAssetStatus.Uploading, asset.STATUS);
+        Assert.Equal(0, provider.StatusCalls);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_ProviderUnavailable_LeavesUploadRetryable()
+    {
+        var (service, asset, session, provider) = CreatePendingUpload();
+        provider.StatusFails = true;
+
+        var result = await service.CompleteAsync(asset.UPLOADED_BY_USER_ID, session.MEDIA_UPLOAD_SESSION_ID, CancellationToken.None);
+
+        Assert.Equal("provider_unavailable", result.Error.Code);
+        Assert.Equal(MediaUploadSessionStatus.Pending, session.STATUS);
+        Assert.Equal(MediaAssetStatus.Uploading, asset.STATUS);
+    }
+
+    [Fact]
+    public async Task CreateAsync_AlreadyProcessing_DoesNotCreateReplacementSession()
+    {
+        var (service, asset, _, _) = CreatePendingUpload();
+        asset.MarkProcessing();
+
+        var result = await service.CreateAsync(asset.UPLOADED_BY_USER_ID, asset.MEDIA_ASSET_ID, CancellationToken.None);
+
+        Assert.Equal("conflict", result.Error.Code);
+    }
+
+    private static (MediaUploadSessionService Service, MEDIA_ASSET Asset, MEDIA_UPLOAD_SESSION Session, FakeVideoProvider Provider)
+        CreatePendingUpload(bool expired = false)
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 8, 12, 0, 0, DateTimeKind.Utc));
+        var assetRepo = new FakeMediaAssetRepository();
+        var sessionRepo = new FakeMediaUploadSessionRepository();
+        var provider = new FakeVideoProvider();
+        var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
+        assetRepo.Add(asset);
+        var session = MEDIA_UPLOAD_SESSION.Create(asset.MEDIA_ASSET_ID, "https://upload.bunny.net/tus/vid-1",
+            expired ? clock.UtcNow : clock.UtcNow.AddMinutes(30));
+        sessionRepo.Add(session);
+        return (new MediaUploadSessionService(sessionRepo, assetRepo, provider, clock), asset, session, provider);
     }
 }

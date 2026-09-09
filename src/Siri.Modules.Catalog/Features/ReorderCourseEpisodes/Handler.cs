@@ -58,7 +58,7 @@ public sealed class ReorderCourseEpisodesHandler(AppDbContext dbContext)
         var orderedIds = command.Items.OrderBy(i => i.SortOrder).Select(i => i.EpisodeId).ToList();
         section.ReorderEpisodes(orderedIds);
 
-        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await CourseGraphPersistence.SaveAsync(dbContext, course.Id, cancellationToken).ConfigureAwait(false);
 
         return Result.Success();
     }

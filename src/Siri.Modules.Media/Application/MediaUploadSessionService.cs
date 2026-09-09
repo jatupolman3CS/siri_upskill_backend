@@ -11,7 +11,8 @@ namespace Siri.Modules.Media.Application;
 public sealed class MediaUploadSessionService(
     IMediaUploadSessionRepository sessionRepository,
     IMediaAssetRepository assetRepository,
-    IVideoProvider videoProvider)
+    IVideoProvider videoProvider,
+    IClock clock)
 {
     /// <summary>Starts a new upload session for <paramref name="mediaAssetId"/> with IDOR check.</summary>
     public async Task<Result<MediaUploadSessionResponse>> CreateAsync(Guid callerUserId, Guid mediaAssetId, CancellationToken cancellationToken)
@@ -25,6 +26,11 @@ public sealed class MediaUploadSessionService(
         if (asset.UPLOADED_BY_USER_ID != callerUserId)
         {
             return Result.Failure<MediaUploadSessionResponse>(DomainError.Forbidden("You do not own this media asset."));
+        }
+
+        if (asset.STATUS != MediaAssetStatus.Uploading)
+        {
+            return Result.Failure<MediaUploadSessionResponse>(DomainError.Conflict("Only an uploading media asset can receive a new upload session."));
         }
 
         var uploadUrlResult = await videoProvider.GetUploadUrlAsync(asset.PROVIDER_ASSET_ID, cancellationToken).ConfigureAwait(false);
@@ -76,20 +82,50 @@ public sealed class MediaUploadSessionService(
             return Result.Failure<MediaUploadSessionResponse>(DomainError.Forbidden("You do not own this upload session."));
         }
 
-        try
+        if (session.STATUS == MediaUploadSessionStatus.Completed)
         {
-            session.Complete();
-            if (asset.STATUS == MediaAssetStatus.Uploading)
-            {
-                asset.MarkProcessing();
-                await assetRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            }
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Result.Failure<MediaUploadSessionResponse>(DomainError.Conflict(ex.Message));
+            return Result.Success(session.ToResponse());
         }
 
+        if (session.STATUS == MediaUploadSessionStatus.Expired || session.EXPIRES_AT_UTC <= clock.UtcNow)
+        {
+            if (session.STATUS == MediaUploadSessionStatus.Pending)
+            {
+                session.MarkExpired();
+                await sessionRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            return Result.Failure<MediaUploadSessionResponse>(DomainError.Conflict("The upload session has expired."));
+        }
+
+        if (asset.STATUS == MediaAssetStatus.Failed)
+        {
+            return Result.Failure<MediaUploadSessionResponse>(DomainError.Conflict("The video provider could not process this upload."));
+        }
+
+        if (asset.STATUS != MediaAssetStatus.Ready)
+        {
+            var statusResult = await videoProvider.GetStatusAsync(asset.PROVIDER_ASSET_ID, cancellationToken).ConfigureAwait(false);
+            if (statusResult.IsFailure)
+            {
+                return Result.Failure<MediaUploadSessionResponse>(statusResult.Error);
+            }
+
+            if (statusResult.Value.Status == VideoProcessingStatus.Uploading)
+            {
+                return Result.Failure<MediaUploadSessionResponse>(DomainError.Conflict("The video provider has not finished receiving this upload yet."));
+            }
+
+            if (MediaAssetStatusUpdater.Apply(asset, statusResult.Value, clock))
+            {
+                await assetRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            if (asset.STATUS == MediaAssetStatus.Failed)
+            {
+                return Result.Failure<MediaUploadSessionResponse>(DomainError.Conflict("The video provider could not process this upload."));
+            }
+        }
+
+        session.Complete();
         await sessionRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         return Result.Success(session.ToResponse());
     }

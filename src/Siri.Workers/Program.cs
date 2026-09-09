@@ -1,4 +1,4 @@
-using DotNetEnv;
+using Siri.SharedKernel.Configuration;
 using Hangfire;
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
@@ -25,10 +25,6 @@ public static class Program
 {
     public static async Task Main(string[] args)
     {
-        // Load .env by traversing parent directories from AppContext.BaseDirectory and CurrentDirectory.
-        // Gitignored, no-op in production where real env vars are injected by container/host.
-        LoadDotEnv();
-
         // Bootstrap logger: catches early startup errors before host DI is built.
         Log.Logger = new LoggerConfiguration()
             .MinimumLevel.Information()
@@ -39,6 +35,7 @@ public static class Program
         try
         {
             var builder = Host.CreateApplicationBuilder(args);
+            builder.Configuration.AddSiriDotEnvDefaults(builder.Environment);
 
             // Serilog configuration
             builder.Services.AddSerilog((services, configuration) =>
@@ -135,32 +132,4 @@ public static class Program
         }
     }
 
-    private static void LoadDotEnv()
-    {
-        var isProduction = string.Equals(Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT"), "Production", StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT"), "Production", StringComparison.OrdinalIgnoreCase);
-
-        var candidates = isProduction
-            ? new[] { ".env.production", ".env_prd", ".env", ".env.local" }
-            : new[] { ".env", ".env.local", ".env.development", ".env_prd", ".env.production" };
-
-        var searchDirs = new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() };
-        foreach (var baseDir in searchDirs)
-        {
-            var dir = new DirectoryInfo(baseDir);
-            while (dir != null)
-            {
-                foreach (var fileName in candidates)
-                {
-                    var candidate = Path.Combine(dir.FullName, fileName);
-                    if (File.Exists(candidate))
-                    {
-                        Env.Load(candidate, new LoadOptions(clobberExistingVars: true));
-                        return;
-                    }
-                }
-                dir = dir.Parent;
-            }
-        }
-    }
 }
