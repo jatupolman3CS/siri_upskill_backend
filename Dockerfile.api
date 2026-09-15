@@ -16,7 +16,7 @@ RUN dotnet publish "src/Siri.Api/Siri.Api.csproj" \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends tzdata && \
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata libgssapi-krb5-2 && \
     ln -snf /usr/share/zoneinfo/Asia/Bangkok /etc/localtime && \
     echo "Asia/Bangkok" > /etc/timezone && \
     rm -rf /var/lib/apt/lists/*
