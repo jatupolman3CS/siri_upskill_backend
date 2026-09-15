@@ -1,6 +1,68 @@
-# SIRI UpSkill backend
+# SIRI UpSkill — Backend API
 
-ASP.NET Core on .NET 10, EF Core/Npgsql, PostgreSQL 17, Redis, Hangfire, Stripe PromptPay and Bunny Stream. Modules retain their existing handlers/services and MVC controllers.
+**A course-commerce backend where video protection is a first-class requirement, not an afterthought.**
+
+SIRI UpSkill is an e-learning marketplace in the SkillLane/FutureSkill mould: learners buy long-term access to video courses, instructors self-publish and get paid a revenue share, and the platform is responsible for making sure paid video isn't trivially copied or shared. This repository is the ASP.NET Core API + background workers behind it — a modular monolith with signed/short-lived playback tokens, webhook-verified payments, and ownership checks enforced on every endpoint that touches money or access rights.
+
+> Frontend (Angular) lives in the sibling repository [`siri_upskill_ui`](https://github.com/jatupolman3CS/siri_upskill_ui).
+
+## Key features
+
+**Learner-facing**
+- Course catalog with Thai-aware full-text search (`pg_trgm`), category tree, instructor/price/rating filters
+- Course detail with syllabus, free-preview episodes, and learning outcomes
+- Checkout via Stripe (PromptPay QR), webhook-driven order fulfilment and enrollment
+- Signed, short-lived playback sessions behind Bunny Stream, gated by active enrollment + device/session limits
+- Progress tracking, quizzes/assignments, discussion threads per episode
+
+**Instructor-facing**
+- Course builder (sections/episodes, TUS resumable video upload, autosave)
+- Submit-for-review / approve / reject publishing workflow
+- Payout accounts with encrypted bank/tax details and a scheduled revenue-split payout run
+
+**Platform / admin**
+- Role-based auth (JWT + refresh-token rotation + reuse detection + concurrent-session eviction)
+- Admin moderation for courses, instructors and CMS content (sanitized HTML)
+- Announcements, analytics, and an auditable revenue-split ledger
+
+## Architecture
+
+Modular monolith, one Visual Studio project per bounded context, wired together only through explicit `Contracts/` interfaces (enforced by an architecture test suite, not just convention):
+
+| Module | Responsibility |
+|---|---|
+| `Siri.Modules.Identity` | Auth, sessions, device management |
+| `Siri.Modules.Catalog` | Courses, categories, search, instructor applications |
+| `Siri.Modules.Commerce` | Orders, pricing, Stripe checkout/webhooks, promo codes |
+| `Siri.Modules.Media` | Video asset lifecycle, playback-token issuance (Bunny Stream) |
+| `Siri.Modules.Learning` | Enrollments, progress, quizzes, assignments, certificates |
+| `Siri.Modules.Payout` | Revenue split, instructor payout batches |
+| `Siri.Modules.Cms` | Banners, blog/articles (sanitized on write and read) |
+| `Siri.Modules.Community` | Discussion threads per episode |
+| `Siri.Modules.Analytics` | Instructor/admin reporting |
+| `Siri.Modules.Notification` | Email outbox + Hangfire delivery |
+
+Two data-access styles coexist by deliberate choice, not drift: the original modules (Identity/Catalog/Notification) use a vertical-slice `{UseCase}Handler` per command/query; the modules added later (Commerce/Media/Learning/Payout/Cms/Community/Analytics) use Repository + Service per aggregate. Both are documented in `.claude/rules/backend.md` and enforced the same way — no god services, no cross-module reach into another module's `Domain`/`Infrastructure`.
+
+Endpoints are ASP.NET Core MVC controllers under `src/Siri.Api/Controllers/**`, default-deny (every action must explicitly declare `[Authorize]` or `[AllowAnonymous]`), returning `Result<T>` mapped to RFC 9457 `ProblemDetails` on failure.
+
+## Project status
+
+Actively developed as a portfolio/capstone project, tracked task-by-task in [`docs/TASKS.md`](docs/TASKS.md) (190 tracked items: 46 verified done, 58 implemented pending QA sign-off, 28 partial, the rest planned). It is **not** a finished production deployment — see that file's "สถานะจริงของงานที่ยังไม่ปิด" section for exactly what's outstanding before it could go live, and [`docs/DECISIONS.md`](docs/DECISIONS.md) for the architectural trade-offs made along the way (why Stripe over a card-only PSP, why PostgreSQL over the original SQL Server choice, why MVC controllers over Minimal API, etc.).
+
+## Architecture & code quality notes
+
+Honest self-review, not a polish claim. What holds up well: no `.Result`/`.Wait()`/`async void` anywhere in `src/`, every async method threads a `CancellationToken`, and the "pricing logic lives only in `Commerce/Domain/Pricing`" rule genuinely holds — a full-tree search found zero price math duplicated outside `PricingEngine.cs`. The two coexisting data-access patterns (vertical-slice for Identity/Catalog/Notification, Repository+Service for the seven modules added later) are applied consistently per module, matching what's documented in `.claude/rules/backend.md`, not architectural drift.
+
+Concrete debts, prioritized:
+
+- **A duplicate routing layer survives the 2026-09-01 Minimal-API → MVC Controllers migration.** `Program.cs` only wires `MapControllers()` in production, but 36 `*Endpoints.cs` files are still compiled in and still exercised directly by ~23 integration tests that bypass the controllers. It's parallel surface area, not simple dead code — cleanup is tracked as `X-22`.
+- **Revenue-split money math has two trust boundaries in the Payout module.** `RevenueSplitContract` correctly derives instructor/platform amounts from the catalog price + configured share percent; `RevenueSplitService.CreateAsync` (reachable from `AdminPayoutController`) accepts those same amounts as raw caller-supplied numbers with no recomputation. The single-source-of-truth pricing discipline that Commerce enforces strictly hasn't yet been extended to this path.
+- **`InstructorCoursesController` (504 lines, 18 actions)** mixes course, section and episode management in one file — the rest of the controllers layer averages ~110 lines; a split into per-resource controllers is a natural next refactor.
+- **`COURSE.cs` (605 lines)** carries publish-workflow, denormalized stat recalculation and media-attachment logic together on one aggregate root. Well-documented and invariant-protecting, but a `CourseStatsRecalculator` extraction would shrink it.
+- **`PaymentOpsQueueService`/`PayoutBatchService`** are trending toward multiple responsibilities per class (queueing + retry + batch computation + tax certificates) — still single-aggregate per the project's own rule, worth watching as Payout grows.
+
+Not a defect: the UPPERCASE `ENTITY`/`COLUMN` naming spanning every module (including Identity/Catalog/Notification since the 2026-08-29 standardization) is a deliberate, fully-documented convention, applied consistently.
 
 ## Windows development (no Docker required)
 
