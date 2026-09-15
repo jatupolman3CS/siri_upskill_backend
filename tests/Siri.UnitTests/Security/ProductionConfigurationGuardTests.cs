@@ -44,6 +44,51 @@ public sealed class ProductionConfigurationGuardTests
     }
 
     [Fact]
+    public void ValidateDeploymentConfiguration_WhenContainerUsesNativeDevDatabase_Throws()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DOTNET_RUNNING_IN_CONTAINER"] = "true",
+                ["ConnectionStrings:Default"] = "Host=127.0.0.1;Port=5433;Database=SIRIUPSKILL;Username=siriupskill_dev;Password=secret",
+            })
+            .Build();
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            ProductionConfigurationGuard.ValidateDeploymentConfiguration(config, new FakeHostEnvironment("QA")));
+
+        Assert.Contains("native Windows development database", ex.Message);
+        Assert.Contains("ConnectionStrings__Default", ex.Message);
+    }
+
+    [Fact]
+    public void ValidateDeploymentConfiguration_WhenLocalDevelopmentUsesNativeDevDatabase_DoesNotThrow()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Default"] = "Host=127.0.0.1;Port=5433;Database=SIRIUPSKILL;Username=siriupskill_dev;Password=secret",
+            })
+            .Build();
+
+        ProductionConfigurationGuard.ValidateDeploymentConfiguration(config, new FakeHostEnvironment("Development"));
+    }
+
+    [Fact]
+    public void ValidateDeploymentConfiguration_WhenQaUsesServiceHost_DoesNotThrow()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DOTNET_RUNNING_IN_CONTAINER"] = "true",
+                ["ConnectionStrings:Default"] = "Host=postgres;Port=5432;Database=SIRIUPSKILL;Username=siriupskill_app;Password=secret",
+            })
+            .Build();
+
+        ProductionConfigurationGuard.ValidateDeploymentConfiguration(config, new FakeHostEnvironment("QA"));
+    }
+
+    [Fact]
     public void ValidateProductionConfiguration_WithDefaultPlaceholder_ThrowsInvalidOperationException()
     {
         var config = new ConfigurationBuilder()

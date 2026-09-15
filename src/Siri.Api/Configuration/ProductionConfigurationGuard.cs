@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 using Siri.Integrations.Payment.Stripe;
 using Siri.Modules.Payout;
 using Siri.Modules.Payout.Infrastructure;
@@ -118,6 +119,53 @@ public static class ProductionConfigurationGuard
         {
             throw new InvalidOperationException(
                 "PRODUCTION CONFIGURATION VALIDATION FAILED:\n - " + string.Join("\n - ", errors));
+        }
+    }
+
+    public static void ValidateDeploymentConfiguration(IConfiguration configuration, IHostEnvironment environment)
+    {
+        var runsInContainer = configuration.GetValue("DOTNET_RUNNING_IN_CONTAINER", false);
+        if (environment.IsDevelopment() && !runsInContainer)
+        {
+            return;
+        }
+
+        var connectionString = configuration.GetConnectionString("Default");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            connectionString = configuration["ConnectionStrings__Default"];
+        }
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            return;
+        }
+
+        NpgsqlConnectionStringBuilder builder;
+        try
+        {
+            builder = new NpgsqlConnectionStringBuilder(connectionString);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new InvalidOperationException("ConnectionStrings:Default must be a valid PostgreSQL connection string.", ex);
+        }
+
+        var host = builder.Host;
+        var isLoopback = string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(host, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(host, "::1", StringComparison.OrdinalIgnoreCase);
+
+        var isNativeDevDatabase = isLoopback
+            && builder.Port == 5433
+            && string.Equals(builder.Username, "siriupskill_dev", StringComparison.OrdinalIgnoreCase);
+
+        if (isNativeDevDatabase)
+        {
+            throw new InvalidOperationException(
+                "Deployment database configuration points at the native Windows development database " +
+                "(127.0.0.1:5433 / siriupskill_dev). For QA, set ConnectionStrings__Default in .env " +
+                "to the QA PostgreSQL host reachable from the deployed app, for example Host=postgres;Port=5432;Database=SIRIUPSKILL;Username=siriupskill_app;Password=...");
         }
     }
 }

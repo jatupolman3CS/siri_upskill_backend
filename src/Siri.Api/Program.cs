@@ -277,6 +277,7 @@ try
 
     // P7-12: Fast-fail validation of production secrets and critical configurations
     ProductionConfigurationGuard.ValidateProductionConfiguration(builder.Configuration, builder.Environment);
+    ProductionConfigurationGuard.ValidateDeploymentConfiguration(builder.Configuration, builder.Environment);
 
     var app = builder.Build();
 
@@ -340,19 +341,23 @@ try
             options.RoutePrefix = "swagger";
         });
 
-        // Ensure dev environment automatically has Bunny Stream sample media asset linked
-        try
+        var sampleVideoEnabled = builder.Configuration.GetValue("SIRI_DEV_SAMPLE_VIDEO", false);
+        if (sampleVideoEnabled)
         {
-            await using var devSeedScope = app.Services.CreateAsyncScope();
-            var devMediaSeeder = devSeedScope.ServiceProvider.GetService<MediaSeeder>();
-            if (devMediaSeeder is not null)
+            // Ensure native dev automatically has Bunny Stream sample media asset linked.
+            try
             {
-                await devMediaSeeder.SeedAsync(Guid.Empty, CancellationToken.None);
+                await using var devSeedScope = app.Services.CreateAsyncScope();
+                var devMediaSeeder = devSeedScope.ServiceProvider.GetService<MediaSeeder>();
+                if (devMediaSeeder is not null)
+                {
+                    await devMediaSeeder.SeedAsync(Guid.Empty, CancellationToken.None);
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Dev startup media auto-link note: {Message}", ex.Message);
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Dev startup media auto-link note: {Message}", ex.Message);
+            }
         }
     }
 

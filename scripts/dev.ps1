@@ -189,11 +189,21 @@ Payment__Stripe__WebhookSecret=$stripeWebhook
     [IO.File]::WriteAllText($dotenvPath, $content + [Environment]::NewLine, $utf8)
 }
 $local = Read-Dotenv $dotenvPath
-if ($local['ConnectionStrings__Default'] -ne $connection) { throw 'Local database configuration differs from .dev/settings.json. Reconcile it before running the native dev script.' }
-if ($local['Email__Smtp__Host'] -ne '127.0.0.1' -or $local['Email__Smtp__Port'] -ne '1025') { throw 'The native dev script expects Mailpit at 127.0.0.1:1025. Update .env before starting the stack.' }
 if ([string]$local['Payment__Stripe__SecretKey'] -like 'sk_live_*') { throw 'Use a Stripe test key in .env for this development stack.' }
 
 # Child hosts inherit these local settings above any stale user-secrets/process values.
+$local['ConnectionStrings__Default'] = $connection
+$local['Redis__ConnectionString'] = '127.0.0.1:6380,abortConnect=false'
+$local['Email__Provider'] = 'Smtp'
+$local['Email__Smtp__Host'] = '127.0.0.1'
+$local['Email__Smtp__Port'] = '1025'
+$local['Email__Smtp__Username'] = ''
+$local['Email__Smtp__Password'] = ''
+$local['Email__Smtp__FromAddress'] = 'no-reply@siriupskill.test'
+$local['Email__Smtp__FromDisplayName'] = 'SIRI UpSkill Dev'
+$local['Email__Smtp__UseStartTls'] = 'false'
+$local['Email__Smtp__AllowInsecure'] = 'true'
+$local['SIRI_DEV_SAMPLE_VIDEO'] = 'true'
 $local['ASPNETCORE_ENVIRONMENT'] = 'Development'
 $local['DOTNET_ENVIRONMENT'] = 'Development'
 $local['API_INTERNAL_URL'] = 'http://localhost:5190'
