@@ -9,6 +9,23 @@ namespace Siri.Persistence.DependencyInjection;
 
 public static class PersistenceServiceCollectionExtensions
 {
+    public static string GetDefaultConnectionString(IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString("Default");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            connectionString = configuration["ConnectionStrings__Default"];
+        }
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException(
+                "Missing 'ConnectionStrings:Default'. Set it via ConnectionStrings__Default in .env/user-secrets/environment variables.");
+        }
+
+        return NormalizePostgreSqlConnectionString(connectionString);
+    }
+
     public static string NormalizePostgreSqlConnectionString(string connectionString)
     {
         var normalized = System.Text.RegularExpressions.Regex.Replace(
@@ -55,12 +72,7 @@ public static class PersistenceServiceCollectionExtensions
 
         services.AddDbContext<AppDbContext>((serviceProvider, optionsBuilder) =>
         {
-            var connectionString = configuration.GetConnectionString("Default");
-            if (string.IsNullOrWhiteSpace(connectionString))
-            {
-                connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Default")
-                                   ?? Environment.GetEnvironmentVariable("DATABASE_CONNECTION_STRING");
-            }
+            var connectionString = GetDefaultConnectionString(configuration);
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new InvalidOperationException(

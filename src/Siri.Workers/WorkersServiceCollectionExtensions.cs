@@ -56,15 +56,7 @@ public static class WorkersServiceCollectionExtensions
     /// </summary>
     public static IServiceCollection AddHangfireStorage(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("Default");
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Missing 'ConnectionStrings:Default'. Set it via user-secrets or environment variables — never in appsettings.json.");
-        }
-
-        connectionString = PersistenceServiceCollectionExtensions.NormalizePostgreSqlConnectionString(connectionString);
-
+        var connectionString = PersistenceServiceCollectionExtensions.GetDefaultConnectionString(configuration);
         services.AddHangfire(config => config
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
             .UseSimpleAssemblyNameTypeSerializer()
