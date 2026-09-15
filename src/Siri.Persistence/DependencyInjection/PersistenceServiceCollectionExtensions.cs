@@ -11,10 +11,15 @@ public static class PersistenceServiceCollectionExtensions
 {
     public static string NormalizePostgreSqlConnectionString(string connectionString)
     {
-        return System.Text.RegularExpressions.Regex.Replace(
+        var normalized = System.Text.RegularExpressions.Regex.Replace(
             connectionString,
             @"(?i)(^|;)\s*Connect\s+Timeout\s*=",
             "$1Timeout=");
+
+        return System.Text.RegularExpressions.Regex.Replace(
+            normalized,
+            @"(?i)(^|;)\s*Server\s*=\s*([^;,\s]+)\s*,\s*(\d+)\s*(?=;|$)",
+            "$1Host=$2;Port=$3");
     }
 
     /// <summary>Applies checked-in migrations for the explicit operator command, without starting the host.</summary>

@@ -20,6 +20,17 @@ public sealed class WorkersTests
     }
 
     [Fact]
+    public void NormalizePostgreSqlConnectionString_ConvertsSqlServerHostAndPortSyntax()
+    {
+        const string connectionString = "Server=127.0.0.1,5432;Database=SIRIUPSKILL;Username=app";
+
+        var normalized = PersistenceServiceCollectionExtensions.NormalizePostgreSqlConnectionString(connectionString);
+
+        Assert.Contains("Host=127.0.0.1;Port=5432", normalized);
+        Assert.DoesNotContain("Server=", normalized, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void MapRecurringJobs_RegistersAllScheduledJobs()
     {
         // Arrange
