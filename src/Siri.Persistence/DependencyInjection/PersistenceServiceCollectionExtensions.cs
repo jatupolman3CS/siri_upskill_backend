@@ -9,6 +9,14 @@ namespace Siri.Persistence.DependencyInjection;
 
 public static class PersistenceServiceCollectionExtensions
 {
+    public static string NormalizePostgreSqlConnectionString(string connectionString)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(
+            connectionString,
+            @"(?i)(^|;)\s*Connect\s+Timeout\s*=",
+            "$1Timeout=");
+    }
+
     /// <summary>Applies checked-in migrations for the explicit operator command, without starting the host.</summary>
     public static async Task ApplyDatabaseMigrationsAsync(this IServiceProvider services, CancellationToken cancellationToken)
     {
@@ -53,6 +61,8 @@ public static class PersistenceServiceCollectionExtensions
                 throw new InvalidOperationException(
                     "Missing 'ConnectionStrings:Default'. Set it via user-secrets or environment variables (.env) — never in appsettings.json.");
             }
+
+            connectionString = NormalizePostgreSqlConnectionString(connectionString);
 
             optionsBuilder
                 .UseNpgsql(connectionString, npgsql => npgsql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName))

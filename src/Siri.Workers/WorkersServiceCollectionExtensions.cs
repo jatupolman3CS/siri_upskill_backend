@@ -2,6 +2,7 @@ using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Siri.Persistence.DependencyInjection;
 
 namespace Siri.Workers;
 
@@ -61,6 +62,8 @@ public static class WorkersServiceCollectionExtensions
             throw new InvalidOperationException(
                 "Missing 'ConnectionStrings:Default'. Set it via user-secrets or environment variables — never in appsettings.json.");
         }
+
+        connectionString = PersistenceServiceCollectionExtensions.NormalizePostgreSqlConnectionString(connectionString);
 
         services.AddHangfire(config => config
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)

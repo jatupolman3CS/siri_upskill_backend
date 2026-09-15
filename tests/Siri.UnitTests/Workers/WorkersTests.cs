@@ -1,11 +1,24 @@
 using Hangfire;
 using Hangfire.Common;
+using Siri.Persistence.DependencyInjection;
 using Siri.Workers;
 
 namespace Siri.UnitTests.Workers;
 
 public sealed class WorkersTests
 {
+    [Fact]
+    public void NormalizePostgreSqlConnectionString_ConvertsSqlServerTimeoutAlias()
+    {
+        const string connectionString = "Server=localhost;Database=SIRIUPSKILL;Password=not-a-secret;Connect Timeout=300";
+
+        var normalized = PersistenceServiceCollectionExtensions.NormalizePostgreSqlConnectionString(connectionString);
+
+        Assert.Contains("Timeout=300", normalized);
+        Assert.DoesNotContain("Connect Timeout", normalized, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Password=not-a-secret", normalized);
+    }
+
     [Fact]
     public void MapRecurringJobs_RegistersAllScheduledJobs()
     {
