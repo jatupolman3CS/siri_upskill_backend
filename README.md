@@ -77,7 +77,7 @@ Requires PostgreSQL 18, .NET 10 SDK and Node/npm already installed. The script u
 - Web: http://localhost:4202 (ports 4200 and 4201 belong to other projects on this machine).
 - API / Swagger: http://localhost:5190/swagger.
 - Development email inbox: http://localhost:8025. Confirmation emails arrive after the worker's next one-minute cycle.
-- PostgreSQL: `127.0.0.1:5433`, database/user `siriupskill_dev`; generated password is in the ignored `.env.development.local`.
+- PostgreSQL: `127.0.0.1:5433`, database `SIRIUPSKILL`, user `siriupskill_dev`; generated password is stored in `.dev/settings.json` and referenced by `.env`.
 - Cache/session store: `127.0.0.1:6380`, using [Microsoft Garnet](https://microsoft.github.io/garnet/docs/getting-started), a Redis-protocol-compatible server for native Windows development.
 
 The script builds .NET, applies migrations, seeds 20 courses and sample accounts, then starts API, workers and Angular with source watching. It downloads pinned Garnet and Mailpit releases into `.dev/tools` and checks SHA-256 hashes. PostgreSQL data, captured email, process IDs and logs stay under the ignored `.dev` directory. Stop retains this data.
@@ -95,21 +95,21 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\siri_upskill_backend\s
 | Instructor | instructor1.seed@example.test | LocalOnlyLearner123! |
 | Admin | admin@example.test | LocalOnlyAdmin123! |
 
-Native development uses `.env.development.local` to override the old SQL Server connection in `.env`. The launcher also passes these settings to both hosts above stale user-secrets and environment values. It creates a separate PostgreSQL cluster; the existing PostgreSQL service and its databases are preserved. Email goes to local Mailpit. Stripe test keys can be set in `.env.development.local`; the initial file copies `Payment__Stripe__*` from `.env` only when the secret key starts with `sk_test_`.
+Native development uses `.env` directly. The launcher also passes these settings to both hosts above stale user-secrets and environment values. It creates a separate PostgreSQL cluster; the existing PostgreSQL service and its databases are preserved. Email goes to local Mailpit. Stripe test keys can be set in `.env`.
 
-Sample courses use the existing public HLS test clip by default, so classroom playback/progress can be tested without a Bunny account. This requires internet access. The launcher switches only the two known sample media assets in `siriupskill_dev`; uploaded media remains on its configured provider. To test actual Bunny media, set `SIRI_DEV_SAMPLE_VIDEO=false` in `.env.development.local`, configure `VideoProvider__TokenAuthenticationKey` with the **CDN Token Authentication Key** (different from the library API key), and Stop/Start. The seeded video ID must exist in that library. Bunny signing follows the [directory-token specification](https://bunny.net/docs/cdn/security/token-authentication/advanced) so HLS segment requests retain authorization.
+Sample courses use the existing public HLS test clip by default, so classroom playback/progress can be tested without a Bunny account. This requires internet access. The launcher switches only the two known sample media assets in `SIRIUPSKILL`; uploaded media remains on its configured provider. To test actual Bunny media, set `SIRI_DEV_SAMPLE_VIDEO=false` in `.env`, configure `VideoProvider__TokenAuthenticationKey` with the **CDN Token Authentication Key** (different from the library API key), and Stop/Start. The seeded video ID must exist in that library. Bunny signing follows the [directory-token specification](https://bunny.net/docs/cdn/security/token-authentication/advanced) so HLS segment requests retain authorization.
 
 For checkout without an external payment provider, log in as admin and create a 100% discount code, then use it as a learner. This exercises the actual order/enrollment transaction. The local database on this machine already has **`DEVFREE`** (100% discount) for testing. This code is test data, not automatically created in new databases.
 
 ### Stripe PromptPay test payments
 
-Stripe webhook forwarding is enabled in this machine's `.env.development.local`. A fresh setup leaves it disabled until a Stripe test key is available. To enable it, set:
+Stripe webhook forwarding is enabled in this machine's `.env` when configured. A fresh setup leaves it disabled until a Stripe test key is available. To enable it, set:
 
 ```dotenv
 SIRI_DEV_STRIPE_WEBHOOKS=true
 ```
 
-Keep `Payment__Stripe__SecretKey` and `Payment__Stripe__PublishableKey` set to your test keys, then Stop/Start using `scripts/dev.ps1`. The launcher downloads a pinned official Stripe CLI with checksum verification, obtains its local webhook signing secret, updates only `Payment__Stripe__WebhookSecret` in `.env.development.local`, and starts a tracked test-mode listener. API, workers and the listener use the same secret. `Status` includes the listener and `Stop` stops it too. No public webhook URL or deployment is needed; events are forwarded to `http://localhost:5190/api/commerce/webhooks/stripe`.
+Keep `Payment__Stripe__SecretKey` and `Payment__Stripe__PublishableKey` set to your test keys, then Stop/Start using `scripts/dev.ps1`. The launcher downloads a pinned official Stripe CLI with checksum verification, obtains its local webhook signing secret, updates only `Payment__Stripe__WebhookSecret` in `.env`, and starts a tracked test-mode listener. API, workers and the listener use the same secret. `Status` includes the listener and `Stop` stops it too. No public webhook URL or deployment is needed; events are forwarded to `http://localhost:5190/api/commerce/webhooks/stripe`.
 
 Choose a course without a 100% discount and click Pay. Scan the displayed **test** QR using a QR reader to open Stripe's test payment page, then select **Authorize Test Payment**. Checkout polls the payment status and automatically opens the success page after the webhook grants access. Stripe CLI logs are in `.dev/logs/stripe.log` and `stripe.err.log`; they can contain the signing secret, so keep them private. Set `SIRI_DEV_STRIPE_WEBHOOKS=false` to start dev without connecting the listener to Stripe.
 
@@ -160,7 +160,7 @@ docker compose --env-file .env.example -f docker-compose.dev.yml down
 
 ### Optional Stripe and Bunny testing
 
-The sample stack contains no functioning external-provider credentials. Put the following dedicated development variables in an ignored `.env.development`, then use it instead of `.env.example` with `--env-file`:
+The sample stack contains no functioning external-provider credentials. Put the following dedicated development variables in `.env`, then use it instead of `.env.example` with `--env-file`:
 
 - `SIRI_DEV_STRIPE_SECRET_KEY` (`sk_test_...`), `SIRI_DEV_STRIPE_PUBLISHABLE_KEY`, `SIRI_DEV_STRIPE_WEBHOOK_SECRET`.
 - `SIRI_DEV_VIDEO_LIBRARY_ID`, `SIRI_DEV_VIDEO_API_KEY`, `SIRI_DEV_VIDEO_READONLY_API_KEY`, `SIRI_DEV_VIDEO_PULL_ZONE`, `SIRI_DEV_VIDEO_CDN_HOSTNAME`, `SIRI_DEV_VIDEO_TOKEN_KEY`.
@@ -187,7 +187,7 @@ From the UI repository run `npm ci` and `npm start`. The browser proxy and SSR d
 
 ## Configuration precedence
 
-JSON defaults < dotenv < user-secrets < environment variables < CLI arguments. Development loads only `.env`, `.env.local`, `.env.development` and `.env.development.local`. Production loads only `.env_prd` and `.env.production`. Other environments (including IntegrationTest) do not discover dotenv files.
+JSON defaults < dotenv < user-secrets < environment variables < CLI arguments. Development and QA load only `.env`. Production loads only `.env_prd` and `.env.production`. Other environments (including IntegrationTest) do not discover dotenv files.
 
 Select the host environment through the launch profile, real environment variables or `--environment`; a value inside a dotenv file does not select the host environment. The API and workers use the same loader.
 

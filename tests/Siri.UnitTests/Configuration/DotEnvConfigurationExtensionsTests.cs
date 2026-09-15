@@ -61,7 +61,7 @@ public sealed class DotEnvConfigurationExtensionsTests : IDisposable
     }
 
     [Fact]
-    public void DevelopmentFiles_ApplyLocalAndEnvironmentSpecificOverrides()
+    public void Development_LoadsOnlyDotEnv()
     {
         File.WriteAllText(Path.Combine(_directory, ".env"), "Settings__Value=base\nSettings__BaseOnly=base");
         File.WriteAllText(Path.Combine(_directory, ".env.local"), "Settings__Value=local\nSettings__LocalOnly=local");
@@ -71,9 +71,22 @@ public sealed class DotEnvConfigurationExtensionsTests : IDisposable
 
         var configuration = Load(Environments.Development);
 
-        Assert.Equal("development-local", configuration["Settings:Value"]);
+        Assert.Equal("base", configuration["Settings:Value"]);
         Assert.Equal("base", configuration["Settings:BaseOnly"]);
-        Assert.Equal("local", configuration["Settings:LocalOnly"]);
+        Assert.Null(configuration["Settings:LocalOnly"]);
+    }
+
+    [Fact]
+    public void Qa_LoadsOnlyDotEnv()
+    {
+        File.WriteAllText(Path.Combine(_directory, ".env"), "Settings__Value=base");
+        File.WriteAllText(Path.Combine(_directory, ".env.local"), "Settings__Value=local");
+        File.WriteAllText(Path.Combine(_directory, ".env.development"), "Settings__Value=development");
+        File.WriteAllText(Path.Combine(_directory, ".env.production"), "Settings__Value=production");
+
+        var configuration = Load("QA");
+
+        Assert.Equal("base", configuration["Settings:Value"]);
     }
 
     [Fact]
@@ -91,13 +104,14 @@ public sealed class DotEnvConfigurationExtensionsTests : IDisposable
     }
 
     [Fact]
-    public void Development_DoesNotFallBackToProductionFiles()
+    public void DevelopmentAndQa_DoNotFallBackToProductionFiles()
     {
         var key = $"ProductionOnly{Guid.NewGuid():N}";
         File.WriteAllText(Path.Combine(_directory, ".env_prd"), $"{key}=legacy");
         File.WriteAllText(Path.Combine(_directory, ".env.production"), $"{key}=production");
 
         Assert.Null(Load(Environments.Development)[key]);
+        Assert.Null(Load("QA")[key]);
     }
 
     [Theory]

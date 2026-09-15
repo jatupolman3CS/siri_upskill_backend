@@ -12,7 +12,7 @@ $devRoot = Join-Path $backendRoot '.dev'
 $logsRoot = Join-Path $devRoot 'logs'
 $statePath = Join-Path $devRoot 'processes.json'
 $settingsPath = Join-Path $devRoot 'settings.json'
-$dotenvPath = Join-Path $backendRoot '.env.development.local'
+$dotenvPath = Join-Path $backendRoot '.env'
 $pgData = Join-Path $devRoot 'postgres'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 New-Item -ItemType Directory -Force $logsRoot | Out-Null
@@ -145,7 +145,7 @@ if (!(Test-Path $settingsPath)) {
     [IO.File]::WriteAllText($settingsPath, ($settings | ConvertTo-Json), $utf8)
 }
 $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
-$connection = "Host=127.0.0.1;Port=5433;Database=siriupskill_dev;Username=siriupskill_dev;Password=$($settings.AppPassword)"
+$connection = "Host=127.0.0.1;Port=5433;Database=SIRIUPSKILL;Username=siriupskill_dev;Password=$($settings.AppPassword)"
 if (!(Test-Path $dotenvPath)) {
     $original = Read-Dotenv (Join-Path $backendRoot '.env')
     $stripeSecret = 'CHANGE_ME_DEV_ONLY_sk_test_placeholder_key'
@@ -190,8 +190,8 @@ Payment__Stripe__WebhookSecret=$stripeWebhook
 }
 $local = Read-Dotenv $dotenvPath
 if ($local['ConnectionStrings__Default'] -ne $connection) { throw 'Local database configuration differs from .dev/settings.json. Reconcile it before running the native dev script.' }
-if ($local['Email__Smtp__Host'] -ne '127.0.0.1' -or $local['Email__Smtp__Port'] -ne '1025') { throw 'The native dev script expects Mailpit at 127.0.0.1:1025.' }
-if ([string]$local['Payment__Stripe__SecretKey'] -like 'sk_live_*') { throw 'Use a Stripe test key in .env.development.local for this development stack.' }
+if ($local['Email__Smtp__Host'] -ne '127.0.0.1' -or $local['Email__Smtp__Port'] -ne '1025') { throw 'The native dev script expects Mailpit at 127.0.0.1:1025. Update .env before starting the stack.' }
+if ([string]$local['Payment__Stripe__SecretKey'] -like 'sk_live_*') { throw 'Use a Stripe test key in .env for this development stack.' }
 
 # Child hosts inherit these local settings above any stale user-secrets/process values.
 $local['ASPNETCORE_ENVIRONMENT'] = 'Development'
@@ -254,9 +254,9 @@ try {
         "CREATE ROLE siriupskill_dev LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '$($settings.AppPassword)';" | & $psql @psqlArgs *> (Join-Path $logsRoot 'create-role.log')
         if ($LASTEXITCODE -ne 0) { throw 'Development database role creation failed.' }
     }
-    $exists = & $psql @psqlArgs -Atc "SELECT 1 FROM pg_database WHERE datname='siriupskill_dev'"
+    $exists = & $psql @psqlArgs -Atc "SELECT 1 FROM pg_database WHERE datname='SIRIUPSKILL'"
     if ($LASTEXITCODE -ne 0) { throw 'Cannot query development databases.' }
-    if ($exists -ne '1') { Run-Logged 'create-database' (Join-Path $PostgresBin 'createdb.exe') @('-h','127.0.0.1','-p','5433','-U','siri_dev_admin','-O','siriupskill_dev','siriupskill_dev') $backendRoot }
+    if ($exists -ne '1') { Run-Logged 'create-database' (Join-Path $PostgresBin 'createdb.exe') @('-h','127.0.0.1','-p','5433','-U','siri_dev_admin','-O','siriupskill_dev','SIRIUPSKILL') $backendRoot }
 
     if (!$NoBuild) { Write-Host 'Building .NET...'; Run-Logged 'build' $dotnet @('build','SiriUpSkill.sln','--nologo') $backendRoot }
     if (!(Test-Path (Join-Path $uiRoot 'node_modules\@angular\cli\bin\ng.js'))) { Write-Host 'Installing frontend dependencies...'; Run-Logged 'npm-ci' $npm @('ci') $uiRoot }
@@ -280,7 +280,7 @@ WHERE target."PROVIDER" = 'BunnyStream' AND target."PROVIDER_ASSET_ID" = '__DEV_
       AND "PROVIDER_ASSET_ID" IN ('mock-video-demo-1', '448944e4-c1bd-4f61-a8b1-3e10e469aa69'))
   AND episode."MEDIA_ASSET_ID" <> target."MEDIA_ASSET_ID";
 '@
-    $sampleSql.Replace('__DEV_SAMPLE_TARGET__', $targetSample) | & $psql -X -h 127.0.0.1 -p 5433 -U siri_dev_admin -d siriupskill_dev -v ON_ERROR_STOP=1 *> (Join-Path $logsRoot 'sample-video.log')
+    $sampleSql.Replace('__DEV_SAMPLE_TARGET__', $targetSample) | & $psql -X -h 127.0.0.1 -p 5433 -U siri_dev_admin -d SIRIUPSKILL -v ON_ERROR_STOP=1 *> (Join-Path $logsRoot 'sample-video.log')
     if ($LASTEXITCODE -ne 0) { throw 'Could not configure the local sample video.' }
     Write-Host $(if ($sampleVideoEnabled) { 'Sample courses use the public HLS test clip (development only).' } else { 'Sample courses use the configured Bunny library.' })
     Start-DevProcess 'cache' (Join-Path $devRoot 'tools\garnet\net10.0\GarnetServer.exe') '--bind 127.0.0.1 --port 6380 --memory 128m --page 4m --index 8m' $devRoot

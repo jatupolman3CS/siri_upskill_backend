@@ -19,9 +19,9 @@ public static class DotEnvLoader
         ArgumentNullException.ThrowIfNull(environment);
 
         string[] fileNames;
-        if (environment.IsDevelopment())
+        if (environment.IsDevelopment() || environment.IsEnvironment("QA"))
         {
-            fileNames = [".env", ".env.local", ".env.development", ".env.development.local"];
+            fileNames = [".env"];
         }
         else if (environment.IsProduction())
         {
