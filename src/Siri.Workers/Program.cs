@@ -35,7 +35,7 @@ public static class Program
         try
         {
             var builder = Host.CreateApplicationBuilder(args);
-            builder.Configuration.AddSiriDotEnvDefaults(builder.Environment);
+            DotEnvLoader.AddDefaults(builder.Configuration, builder.Environment);
 
             // Serilog configuration
             builder.Services.AddSerilog((services, configuration) =>

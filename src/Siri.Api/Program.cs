@@ -35,81 +35,6 @@ using Siri.SharedKernel;
 using Siri.SharedKernel.Configuration;
 using Siri.Workers;
 
-// Load `.env` / `.env_prd` into the process environment before the host boots. This keeps the
-// configuration flow in the standard ASP.NET Core pattern: appsettings + real environment variables
-// + command-line arguments remain the source of truth, and local developer secret files act as a
-// default fallback rather than a hard override.
-static void ApplyDotEnvValues()
-{
-    var candidates = new[]
-    {
-        ".env",
-        ".env_prd",
-        ".env.production",
-        ".env.local",
-    };
-
-    var searchDirs = new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() };
-
-    foreach (var baseDir in searchDirs)
-    {
-        var dir = new DirectoryInfo(baseDir);
-        while (dir != null)
-        {
-            foreach (var fileName in candidates)
-            {
-                var candidate = Path.Combine(dir.FullName, fileName);
-                if (File.Exists(candidate))
-                {
-                    foreach (var entry in ParseDotEnvFile(candidate))
-                    {
-                        if (Environment.GetEnvironmentVariable(entry.Key) is null)
-                        {
-                            Environment.SetEnvironmentVariable(entry.Key, entry.Value);
-                        }
-                    }
-
-                    return;
-                }
-            }
-
-            dir = dir.Parent;
-        }
-    }
-}
-
-static Dictionary<string, string?> ParseDotEnvFile(string filePath)
-{
-    var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-
-    foreach (var rawLine in File.ReadAllLines(filePath))
-    {
-        var line = rawLine.Trim();
-        if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
-        {
-            continue;
-        }
-
-        var separatorIndex = line.IndexOf('=');
-        if (separatorIndex <= 0)
-        {
-            continue;
-        }
-
-        var key = line[..separatorIndex].Trim();
-        var value = line[(separatorIndex + 1)..].Trim();
-
-        if (value.Length >= 2 && value.StartsWith('"') && value.EndsWith('"'))
-        {
-            value = value[1..^1];
-        }
-
-        values[key] = value;
-    }
-
-    return values;
-}
-
 // Bootstrap logger: catches anything that goes wrong before the host's own Serilog pipeline
 // (built further down from configuration) is ready.
 Log.Logger = new LoggerConfiguration()
@@ -120,10 +45,8 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    ApplyDotEnvValues();
-
     var builder = WebApplication.CreateBuilder(args);
-    builder.Configuration.AddSiriDotEnvDefaults(builder.Environment);
+    DotEnvLoader.AddDefaults(builder.Configuration, builder.Environment);
 
     // P0-13 observability: read the section directly here (same reasoning as JwtOptions below —
     // Serilog's pipeline and AddOpenTelemetry's exporter registration both happen before the DI
