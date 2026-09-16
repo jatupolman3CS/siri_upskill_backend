@@ -15,6 +15,7 @@ using Siri.Modules.Catalog.Features.GetCourseBuilder;
 using Siri.Modules.Catalog.Features.GetMyCourses;
 using Siri.Modules.Catalog.Features.ReorderCourseEpisodes;
 using Siri.Modules.Catalog.Features.ReorderCourseSections;
+using Siri.Modules.Catalog.Features.SetCourseDeliveryFormat;
 using Siri.Modules.Catalog.Features.SubmitCourseForReview;
 using Siri.Modules.Catalog.Features.UpdateCourse;
 using Siri.Modules.Catalog.Features.UpdateCourseEpisode;
@@ -496,6 +497,33 @@ public class InstructorCoursesController : ControllerBase
         }
 
         var result = await handler.RemoveAsync(userId, courseId, sectionId, episodeId, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(HttpContext);
+    }
+
+    [HttpPut("{id:guid}/delivery-format")]
+    [EndpointName("CatalogSetCourseDeliveryFormat")]
+    [EndpointSummary("เปลี่ยนรูปแบบการส่งมอบคอร์ส (OnDemand, Live, Hybrid)")]
+    [ProducesResponseType(typeof(SetCourseDeliveryFormatResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IResult> SetDeliveryFormat(
+        [FromRoute] Guid id,
+        [FromBody] SetCourseDeliveryFormatCommand command,
+        [FromServices] SetCourseDeliveryFormatHandler handler,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await handler.HandleAsync(userId, id, command, cancellationToken).ConfigureAwait(false);
 
         return result.IsSuccess
             ? Results.Ok(result.Value)

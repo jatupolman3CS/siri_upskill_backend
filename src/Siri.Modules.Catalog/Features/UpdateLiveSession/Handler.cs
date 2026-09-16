@@ -1,0 +1,115 @@
+using Microsoft.AspNetCore.OutputCaching;
+using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Contracts;
+using Siri.Modules.Catalog.Domain;
+using Siri.Modules.Catalog.Features.CreateLiveSession;
+using Siri.Modules.Catalog.Infrastructure;
+using Siri.Persistence;
+using Siri.SharedKernel;
+
+namespace Siri.Modules.Catalog.Features.UpdateLiveSession;
+
+public sealed class UpdateLiveSessionHandler(
+    AppDbContext dbContext,
+    IClock clock,
+    ILiveMeetingSink liveMeetingSink,
+    IOutputCacheStore outputCacheStore)
+{
+    private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สหรือคาบสอนสดนี้");
+    private static readonly DomainError NotOwnerError = DomainError.Forbidden("คุณไม่มีสิทธิ์แก้ไขคอร์สนี้");
+
+    public async Task<Result<LiveSessionResponse>> HandleAsync(
+        Guid userId,
+        Guid courseId,
+        Guid sessionId,
+        UpdateLiveSessionCommand command,
+        CancellationToken cancellationToken)
+    {
+        var course = await dbContext.Courses()
+            .Include(c => c.LiveSessions)
+            .FirstOrDefaultAsync(c => c.Id == courseId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (course is null)
+        {
+            return Result.Failure<LiveSessionResponse>(NotFoundError);
+        }
+
+        var instructorProfile = await dbContext.InstructorProfiles()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.UserId == userId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (instructorProfile is null || course.InstructorId != instructorProfile.Id)
+        {
+            return Result.Failure<LiveSessionResponse>(NotOwnerError);
+        }
+
+        var session = course.LiveSessions.FirstOrDefault(s => s.Id == sessionId);
+        if (session is null)
+        {
+            return Result.Failure<LiveSessionResponse>(NotFoundError);
+        }
+
+        if (session.Status != CourseLiveSessionStatus.Scheduled)
+        {
+            return Result.Failure<LiveSessionResponse>(
+                DomainError.Conflict($"Cannot update a live session in {session.Status} status."));
+        }
+
+        if (session.EndsAtUtc <= clock.UtcNow)
+        {
+            return Result.Failure<LiveSessionResponse>(
+                DomainError.Conflict("Cannot update a live session that has already ended."));
+        }
+
+        if (command.StartsAtUtc.Kind != DateTimeKind.Utc || command.EndsAtUtc.Kind != DateTimeKind.Utc)
+        {
+            return Result.Failure<LiveSessionResponse>(
+                DomainError.Validation("startsAtUtc and endsAtUtc must be UTC (ISO-8601 with Z suffix)."));
+        }
+
+        var duration = command.EndsAtUtc - command.StartsAtUtc;
+        if (duration < TimeSpan.FromMinutes(15) || duration > TimeSpan.FromHours(8))
+        {
+            return Result.Failure<LiveSessionResponse>(
+                DomainError.Validation("Live session duration must be between 15 minutes and 8 hours."));
+        }
+
+        var overlaps = course.LiveSessions.Any(s =>
+            s.Id != sessionId
+            && s.Status == CourseLiveSessionStatus.Scheduled
+            && s.StartsAtUtc < command.EndsAtUtc
+            && command.StartsAtUtc < s.EndsAtUtc);
+
+        if (overlaps)
+        {
+            return Result.Failure<LiveSessionResponse>(
+                DomainError.Conflict("This time overlaps with another scheduled live session in this course."));
+        }
+
+        try
+        {
+            course.UpdateLiveSession(sessionId, command.Title, command.Description, command.StartsAtUtc, command.EndsAtUtc, clock);
+        }
+        catch (ArgumentException ex)
+        {
+            return Result.Failure<LiveSessionResponse>(DomainError.Validation(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result.Failure<LiveSessionResponse>(DomainError.Conflict(ex.Message));
+        }
+
+        await liveMeetingSink.OnSessionChangedAsync(sessionId, cancellationToken).ConfigureAwait(false);
+
+        await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        if (course.Status == CourseStatus.Published)
+        {
+            await outputCacheStore.EvictByTagAsync(CourseOutputCache.Tag, cancellationToken).ConfigureAwait(false);
+        }
+
+        return Result.Success(CreateLiveSessionHandler.ToResponse(session));
+    }
+}

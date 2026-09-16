@@ -11,11 +11,13 @@ using Siri.Modules.Catalog.Features.ApproveCourse;
 using Siri.Modules.Catalog.Features.ApproveInstructorApplication;
 using Siri.Modules.Catalog.Features.AttachEpisodeMedia;
 using Siri.Modules.Catalog.Features.AutosaveCourse;
+using Siri.Modules.Catalog.Features.CancelLiveSession;
 using Siri.Modules.Catalog.Features.CreateCategory;
 using Siri.Modules.Catalog.Features.CreateCourse;
 using Siri.Modules.Catalog.Features.CreateCourseEpisode;
 using Siri.Modules.Catalog.Features.CreateCourseReview;
 using Siri.Modules.Catalog.Features.CreateCourseSection;
+using Siri.Modules.Catalog.Features.CreateLiveSession;
 using Siri.Modules.Catalog.Features.DeleteCategory;
 using Siri.Modules.Catalog.Features.DeleteCourse;
 using Siri.Modules.Catalog.Features.DeleteCourseEpisode;
@@ -39,12 +41,14 @@ using Siri.Modules.Catalog.Features.ReorderCategories;
 using Siri.Modules.Catalog.Features.ReorderCourseEpisodes;
 using Siri.Modules.Catalog.Features.ReorderCourseSections;
 using Siri.Modules.Catalog.Features.SearchCourses;
+using Siri.Modules.Catalog.Features.SetCourseDeliveryFormat;
 using Siri.Modules.Catalog.Features.SubmitCourseForReview;
 using Siri.Modules.Catalog.Features.UnpublishCourse;
 using Siri.Modules.Catalog.Features.UpdateCategory;
 using Siri.Modules.Catalog.Features.UpdateCourse;
 using Siri.Modules.Catalog.Features.UpdateCourseEpisode;
 using Siri.Modules.Catalog.Features.UpdateCourseSection;
+using Siri.Modules.Catalog.Features.UpdateLiveSession;
 using Siri.Modules.Catalog.Features.Wishlist;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Modules.Catalog.Infrastructure.Seeding;
@@ -207,6 +211,25 @@ public static class CatalogModule
         // Virus scanner seam (P4-03)
         services.AddSingleton<Contracts.IAttachmentVirusScanner, Infrastructure.NullAttachmentVirusScanner>();
 
+        // P11-01: live-session cross-module seams. ILiveMeetingSink has no real implementation yet
+        // (Siri.Modules.Live, task P11-03) — NullLiveMeetingSink lets P11-02's handlers call it safely
+        // from day one; Siri.Modules.Live will register its own implementation over this once it exists.
+        // ILiveScheduleReader IS implemented here (Catalog owns the schedule data) — see
+        // LiveScheduleReader's own doc comment.
+        services.AddSingleton<Contracts.ILiveMeetingSink, Infrastructure.NullLiveMeetingSink>();
+        services.AddScoped<Contracts.ILiveScheduleReader, Infrastructure.LiveScheduleReader>();
+
+        // P11-02: Instructor live-session API
+        services.AddScoped<IValidator<CreateLiveSessionCommand>, CreateLiveSessionCommandValidator>();
+        services.AddScoped<IValidator<UpdateLiveSessionCommand>, UpdateLiveSessionCommandValidator>();
+        services.AddScoped<IValidator<CancelLiveSessionCommand>, CancelLiveSessionCommandValidator>();
+        services.AddScoped<IValidator<SetCourseDeliveryFormatCommand>, SetCourseDeliveryFormatCommandValidator>();
+
+        services.AddScoped<CreateLiveSessionHandler>();
+        services.AddScoped<UpdateLiveSessionHandler>();
+        services.AddScoped<CancelLiveSessionHandler>();
+        services.AddScoped<SetCourseDeliveryFormatHandler>();
+
         // Cross-module contracts
         services.AddScoped<Contracts.ICatalogPriceContract, Infrastructure.Contracts.CatalogPriceContract>();
         services.AddScoped<Contracts.ICourseSummaryReader, Infrastructure.Contracts.CatalogPriceContract>();
@@ -297,6 +320,12 @@ public static class CatalogModule
         instructorCourseGroup.MapDeleteCourseEpisodeEndpoint();
         instructorCourseGroup.MapReorderCourseEpisodesEndpoint();
         instructorCourseGroup.MapAutosaveCourseEndpoint();
+
+        // P11-02: live sessions
+        instructorCourseGroup.MapCreateLiveSessionEndpoint();
+        instructorCourseGroup.MapUpdateLiveSessionEndpoint();
+        instructorCourseGroup.MapCancelLiveSessionEndpoints();
+        instructorCourseGroup.MapSetCourseDeliveryFormatEndpoint();
 
         // P1-05: mirrors the /admin/instructors sub-group's shape exactly.
         var courseAdminGroup = group.MapGroup("/admin/courses").RequireAuthorization(AuthorizationPolicyNames.AdminOnly);
