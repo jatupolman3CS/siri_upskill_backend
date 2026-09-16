@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -12,7 +13,7 @@ namespace Siri.Modules.Catalog.Features.GetCourseDetail;
 /// Rejected course's slug returns the exact same 404 as a slug that was never registered at all, so
 /// nothing about an unpublished course's existence leaks through this endpoint either.
 /// </summary>
-public sealed class GetCourseDetailHandler(AppDbContext dbContext, IUserContext userContext)
+public sealed class GetCourseDetailHandler(AppDbContext dbContext, IUserContext userContext, IClock clock)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
 
@@ -63,11 +64,44 @@ public sealed class GetCourseDetailHandler(AppDbContext dbContext, IUserContext 
             .AnyAsync(w => w.UserId == userContext.UserId.Value && w.CourseId == course.Id, cancellationToken)
             .ConfigureAwait(false);
 
+        CourseDetailLiveSchedule? liveSchedule = null;
+        if (course.DeliveryFormat != DeliveryFormat.OnDemand)
+        {
+            var sessions = await dbContext.CourseLiveSessions()
+                .AsNoTracking()
+                .Where(s => s.CourseId == course.Id && s.Status == CourseLiveSessionStatus.Scheduled)
+                .OrderBy(s => s.StartsAtUtc)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var nowUtc = clock.UtcNow;
+            var detailSessions = sessions.Select(s => new CourseDetailLiveSession(
+                s.Id,
+                s.Title,
+                s.StartsAtUtc,
+                s.EndsAtUtc,
+                LiveSessionDisplayStateCalculator.Compute(LiveSessionStatus.Scheduled, s.StartsAtUtc, s.EndsAtUtc, nowUtc),
+                s.RecordingEpisodeId.HasValue
+            )).ToList();
+
+            var upcomingCount = detailSessions.Count(s => s.DisplayState is LiveSessionDisplayState.Upcoming or LiveSessionDisplayState.Live);
+            var pastCount = detailSessions.Count(s => s.DisplayState == LiveSessionDisplayState.Ended);
+            var nextStartsAtUtc = detailSessions.FirstOrDefault(s => s.DisplayState != LiveSessionDisplayState.Ended)?.StartsAtUtc;
+
+            liveSchedule = new CourseDetailLiveSchedule(
+                "Asia/Bangkok",
+                upcomingCount,
+                pastCount,
+                nextStartsAtUtc,
+                detailSessions);
+        }
+
         return new CourseDetailResponse(
             course.Id, course.Slug, course.Title, course.Subtitle, course.Description,
             course.Level, course.Language, course.ThumbnailUrl, course.Price, course.ComparePrice, course.Currency,
             course.AccessDurationDays, course.RatingAverage, course.RatingCount, course.EnrollmentCount,
             course.EpisodeCount, course.TotalDurationSeconds, course.SeoTitle, course.SeoDescription,
-            course.PublishedAtUtc, course.CategoryId, instructor, outcomes, requirements, sections, isWishlisted);
+            course.PublishedAtUtc, course.CategoryId, instructor, outcomes, requirements, sections, isWishlisted,
+            course.DeliveryFormat, liveSchedule);
     }
 }

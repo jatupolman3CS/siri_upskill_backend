@@ -14,4 +14,5 @@ public sealed record SearchCoursesQuery(
     decimal? MinRating,
     CourseSearchSort Sort,
     int Page,
-    int PageSize);
+    int PageSize,
+    DeliveryFormat? Format = null);

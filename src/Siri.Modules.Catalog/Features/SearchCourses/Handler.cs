@@ -12,7 +12,8 @@ namespace Siri.Modules.Catalog.Features.SearchCourses;
 /// </summary>
 public sealed class SearchCoursesHandler(
     AppDbContext dbContext,
-    IUserContext userContext)
+    IUserContext userContext,
+    IClock clock)
 {
     public const int DefaultPageSize = 20;
     public const int MaxPageSize = 100;
@@ -93,7 +94,18 @@ public sealed class SearchCoursesHandler(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var formatFacets = await baseCourses
+            .GroupBy(c => c.DeliveryFormat)
+            .Select(g => new FormatFacet(g.Key, g.Count()))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var filtered = baseCourses;
+
+        if (query.Format is { } format)
+        {
+            filtered = filtered.Where(c => c.DeliveryFormat == format);
+        }
 
         if (query.CategoryId is { } categoryId)
         {
@@ -155,17 +167,30 @@ public sealed class SearchCoursesHandler(
                 .ConfigureAwait(false)).ToHashSet()
             : [];
 
+        var nowUtc = clock.UtcNow;
+        var nextStartsAtByCourseId = pageCourseIds.Count > 0
+            ? await dbContext.CourseLiveSessions()
+                .AsNoTracking()
+                .Where(s => pageCourseIds.Contains(s.CourseId) && s.Status == CourseLiveSessionStatus.Scheduled && s.StartsAtUtc > nowUtc)
+                .GroupBy(s => s.CourseId)
+                .Select(g => new { CourseId = g.Key, NextStartsAtUtc = g.Min(s => s.StartsAtUtc) })
+                .ToDictionaryAsync(x => x.CourseId, x => (DateTime?)x.NextStartsAtUtc, cancellationToken)
+                .ConfigureAwait(false)
+            : [];
+
         var items = pageCourses
             .Select(c => new CourseSearchResultItem(
                 c.Id, c.Slug, c.Title, c.Subtitle, c.ThumbnailUrl, c.Price, c.ComparePrice, c.Currency,
                 c.Level, c.Language, c.RatingAverage, c.RatingCount, c.EnrollmentCount, c.EpisodeCount,
                 c.TotalDurationSeconds, c.InstructorId, instructorNames.GetValueOrDefault(c.InstructorId, string.Empty),
-                c.CategoryId, wishlistedSet.Contains(c.Id)))
+                c.CategoryId, wishlistedSet.Contains(c.Id),
+                c.DeliveryFormat,
+                c.DeliveryFormat == DeliveryFormat.OnDemand ? null : nextStartsAtByCourseId.GetValueOrDefault(c.Id)))
             .ToList();
 
         return new SearchCoursesResponse(
             PagedResult<CourseSearchResultItem>.Create(items, totalCount, effectivePage, effectivePageSize),
-            new CourseSearchFacets(categoryFacets, levelFacets, instructorFacets));
+            new CourseSearchFacets(categoryFacets, levelFacets, instructorFacets, formatFacets));
     }
 
     private async Task<List<COURSE>> FetchPageByRelevanceAsync(

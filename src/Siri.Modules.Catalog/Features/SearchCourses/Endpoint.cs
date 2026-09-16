@@ -43,9 +43,10 @@ public static class SearchCoursesEndpoint
         decimal? minRating = null,
         CourseSearchSort sort = CourseSearchSort.Relevance,
         int page = 1,
-        int pageSize = SearchCoursesHandler.DefaultPageSize)
+        int pageSize = SearchCoursesHandler.DefaultPageSize,
+        DeliveryFormat? format = null)
     {
-        var query = new SearchCoursesQuery(q, categoryId, instructorId, level, minPrice, maxPrice, minRating, sort, page, pageSize);
+        var query = new SearchCoursesQuery(q, categoryId, instructorId, level, minPrice, maxPrice, minRating, sort, page, pageSize, format);
         var result = await handler.HandleAsync(query, cancellationToken).ConfigureAwait(false);
 
         return Results.Ok(result);

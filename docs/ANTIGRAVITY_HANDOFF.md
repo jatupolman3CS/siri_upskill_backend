@@ -67,6 +67,8 @@
 
 ## 4. คิวงาน — ฉบับ 2026-08-28 (แทนคิว Phase A–G ฉบับ 2026-08-27 ทั้งหมด)
 
+> **[2026-09-16] มีเฟสใหม่ P11 (Hybrid Live) / P12 (AI Study) ใน `TASKS.md` แล้ว (D-21)** — **ยังไม่เข้าคิวนี้** จนกว่าเจ้าของโปรเจ็คตอบ Q10–Q13 ใน `DECISIONS.md` และ system-architect ออก contract ต่อ task ที่ `docs/contracts/P11-xx-*.md` · Antigravity ห้ามหยิบ task ที่ `Status=BLOCK` หรือไม่มี contract FROZEN · งานที่ AG ทำได้หลัง contract: P11-02/07/08/20/21/23/25/26/31, P12-03/05/20~23 · พร้อมส่งตอนนี้เลยไม่ต้องรอ contract: X-29/X-30 (ดู §7 Phase M ด้านล่าง — ไม่เกี่ยวกับ Live module) · ที่เหลือเป็นของ Claude (Contracts ข้ามโมดูล/entitlement/เงิน) · อ่าน `docs/HYBRID_LIVE.md` ก่อนเสมอ
+
 ### ✅ `P0-41` ย้าย SQL Server → PostgreSQL 17 — **Claude Code ทำเสร็จเองแล้ว ห้ามทำซ้ำ** (2026-09-05)
 
 งานนี้เคยถูกวางไว้ให้ Antigravity ทำ แต่เจ้าของโปรเจ็คให้ Claude Code ลงมือเองแทน **ทำจบแล้วทั้งหมด**
@@ -399,9 +401,233 @@ Definition of done: ตาม §3 ทุกข้อ ต่อ task · ห้า
 
 ---
 
+### M1 — `X-30` Role guard บน `/admin` และ `/instructor` (S)
+
+```
+Task: X-30 — Role guard บน /admin และ /instructor (FE)
+
+อ่านก่อน: CLAUDE.md · docs/TASKS.md § "ปัญหาข้ามเฟส" แถว X-30 · docs/ANTIGRAVITY_HANDOFF.md §2 §3 ·
+.claude/rules/frontend.md
+
+ปัญหาจริง (อ่านโค้ดจริง 2026-09-16): frontend/src/app/app.routes.ts:209 (route /instructor) และ
+:258 (route /admin) มีแค่ canActivate: [authGuard] — authGuard (core/guards/auth.guard.ts) เช็คแค่
+"ล็อกอินหรือยัง" ไม่เช็ค role เลย ฝั่ง backend มี policy AdminOnly (Admin/SuperAdmin) และ
+InstructorOnly (Instructor/Admin/SuperAdmin) คุม API จริงอยู่แล้ว (ไม่ใช่ security hole — endpoint
+ปลอดภัย) แต่ผู้เรียนที่ล็อกอินแล้วพิมพ์ URL ตรงเข้า /admin หรือ /instructor จะเห็น shell ของหน้านั้น
+เปล่า ๆ พร้อม error 403 ทุกช่องที่เรียก API — UX ผิด ไม่ใช่ช่องโหว่ข้อมูล
+
+สิ่งที่ต้องทำ:
+- guard ใหม่ core/guards/role.guard.ts (functional CanActivateFn ตาม pattern เดียวกับ auth.guard.ts)
+  รับ allowed roles ผ่าน route data เช่น { roles: ['Admin', 'SuperAdmin'] }
+- อ่าน role จริงจาก AuthService.currentUser()?.roles (มีอยู่แล้วที่ core/auth/auth.service.ts —
+  computed signal ตัวนี้ให้ผลถูกต้องทั้งโหมดจริงและโหมด bypass/mock ตาม environment.devAuth.bypass
+  อยู่แล้ว — ห้ามเขียน logic bypass ใหม่ซ้ำ ห้ามอ่าน JWT ตรงในไฟล์นี้)
+- ใส่ data.roles ให้ตรงกับ policy ฝั่ง backend เป๊ะ (ห้ามคิดชุด role เอง):
+  /admin/** = ['Admin', 'SuperAdmin'] · /instructor/** = ['Instructor', 'Admin', 'SuperAdmin']
+- ผู้ใช้ authenticated แต่ role ไม่ตรง → redirect ไป '/' (ยังไม่มีหน้า 403 ในระบบตอนนี้ — ห้ามสร้าง
+  หน้าใหม่ในงานนี้ ถ้าคิดว่าจำเป็นให้หยุดแล้วรายงานแทนที่จะเดาทำเอง)
+- ผู้ใช้ยังไม่ authenticated ปล่อยให้ authGuard เดิมจัดการเหมือนเดิม (ใส่ทั้งสอง guard ใน
+  canActivate: [authGuard, roleGuard] เรียงกัน ไม่รวมเป็นตัวเดียว — authGuard ทำงานก่อนเสมอ)
+- unit test (มี pattern ให้ดูที่ core/guards/auth.guard.spec.ts): authenticated + role ผิด →
+  redirect '/' · authenticated + role ตรง → ผ่าน (return true) · ครอบทั้งโหมด bypass (ตั้ง
+  currentMockRole) และโหมดจริง (mock currentUser ผ่าน signal)
+
+ข้อห้ามเฉพาะงานนี้: ห้ามแก้ auth.guard.ts เดิม (ทำงานถูกอยู่แล้ว มีเทสต์คลุม) · ห้ามสร้างหน้า 403 ใหม่ ·
+ห้ามแตะ backend เลย (policy ฝั่ง API ถูกอยู่แล้ว งานนี้เป็น FE UX ล้วน)
+
+Definition of done: ตาม §3 ทุกข้อ (lint + test + build เขียว)
+```
+
+### M2 — `X-29` Heartbeat: partitioned rate limit + เขียน `WATCH_EVENT` จริง (M)
+
+```
+Task: X-29 — Heartbeat: partitioned rate limit + เขียน WATCH_EVENT จริง (Learning module)
+
+อ่านก่อน: CLAUDE.md · docs/TASKS.md § "ปัญหาข้ามเฟส" แถว X-29 · docs/ANTIGRAVITY_HANDOFF.md §2 §3 ·
+.claude/rules/backend.md (Learning = Repository+Service pattern, ไม่ใช่ vertical slice) ·
+.claude/rules/database.md · .claude/rules/security.md
+
+สภาพจริงของโค้ดที่เกี่ยวข้อง (อ่านแล้ว 2026-09-16 — ไม่ใช่คัดจาก doc เก่า):
+- PUT /api/learning/enrollments/{enrollmentId}/episode-progress/{episodeId}
+  (Siri.Api/Controllers/Learning/EpisodeProgressController.cs:11-18) ไม่มี [EnableRateLimiting] เลย —
+  player ยิง heartbeat ทุก 15 วิ (frontend video-player.ts:213 — ห้ามแตะ ไม่ใช่ scope งานนี้) เข้า
+  endpoint นี้ไม่จำกัด
+- Siri.Api/Program.cs มี 3 policy อยู่แล้ว (auth/default/webhook) ทั้งหมดเป็น
+  AddFixedWindowLimiter แบบไม่ partition (จำกัดรวมทุกคนทั้งแอปเป็นก้อนเดียว ไม่ใช่ต่อผู้ใช้ —
+  อ่านคอมเมนต์ที่ Program.cs กำกับไว้เอง) — ห้ามใช้ policy "default" กับ endpoint นี้เด็ดขาด
+  เพราะ "default" คือ 100 request/นาทีรวมทุกคนทั้งระบบ ถ้าผู้เรียนพร้อมกันหลักร้อย/พันคนแชร์
+  โควตาเดียวกัน endpoint จะ 429 ผู้ใช้ทั่วไปทันทีในสภาพใช้งานจริง (นี่คือความต่างสำคัญจาก pattern ที่
+  endpoint อื่นในโค้ดเบสใช้อยู่ — อ่านให้เข้าใจก่อนลอกมา อย่า copy [EnableRateLimiting("default")] มาแปะ)
+- EpisodeProgressService.UpsertProgressAsync (Siri.Modules.Learning/Application/
+  EpisodeProgressService.cs:13) เขียน EPISODE_PROGRESS (Add หรือ Touch) ทุกครั้งที่ถูกเรียก ไม่ว่า
+  ตำแหน่งจะขยับจากเดิมกี่วินาที
+- WATCH_EVENT (Domain/WATCH_EVENT.cs, ตาราง LEARNING.WATCH_EVENTS, enum WatchEventType มี
+  Play|Pause|Seek|Ended|Heartbeat) มีอยู่แล้วพร้อม static factory WATCH_EVENT.Create(enrollmentId,
+  episodeId, eventType, positionSeconds, clock) และ IWatchEventRepository.Append(WATCH_EVENT) +
+  SaveChangesAsync (Siri.Modules.Learning/Application/IWatchEventRepository.cs, impl
+  WatchEventRepository.cs) — ลงทะเบียนใน LearningModule.cs แล้ว แต่ไม่มีที่ไหนเรียก Append เลย
+  ในทั้งโปรเจ็ค (grep ยืนยันแล้ว) → analytics drop-off (P4-23) ที่ query ตารางนี้จึงว่างเปล่าตลอด
+
+สิ่งที่ต้องทำ:
+1. เพิ่ม partitioned rate-limit policy ใหม่ชื่อ "heartbeat" ใน Program.cs ข้างๆ 3 policy เดิม ผ่าน
+   options.AddPolicy<string>("heartbeat", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+   partitionKey เป็น userId จริงจาก httpContext (endpoint นี้ [Authorize] เสมอ — ดึงผ่าน
+   IUserContext หรือ ClaimTypes ตาม pattern ที่ใช้จริงในโปรเจ็คแล้วที่อื่น), factory: _ => new
+   FixedWindowRateLimiterOptions { Window = TimeSpan.FromSeconds(30), PermitLimit = 6, QueueLimit = 0 }))
+   — 6 ครั้ง/30 วิ/ผู้ใช้ พอสำหรับ heartbeat ทุก 15 วิ (คาด 2 ครั้ง/30 วิ) + เผื่อ burst จาก resume/seek
+   ติดกัน · ใส่ [EnableRateLimiting("heartbeat")] ที่ EpisodeProgressController หรือเฉพาะ action
+   Upsert ก็ได้
+2. ใน UpsertProgressAsync: ก่อนเขียน EPISODE_PROGRESS เช็คว่าเข้าเงื่อนไขข้อใดข้อหนึ่ง — (ก) เป็นแถวใหม่
+   (progress is null) (ข) command.IsCompleted เป็น true (ค) |command.LastPositionSeconds -
+   progress.LAST_POSITION_SECONDS| >= 10 — ถ้าไม่เข้าเงื่อนไขไหนเลย ให้ข้ามการเรียก Create/Touch แต่ยัง
+   ทำข้อ 3 เสมอ (heartbeat ที่ตำแหน่งแทบไม่ขยับก็ยังมีค่าสำหรับ analytics)
+3. ทุกครั้งที่เรียก UpsertProgressAsync สำเร็จ (ไม่ว่าข้อ 2 จะเขียน EPISODE_PROGRESS หรือไม่) ให้ inject
+   IWatchEventRepository แล้ว Append(WATCH_EVENT.Create(enrollmentId, episodeId, eventType,
+   command.LastPositionSeconds, clock)) — eventType = WatchEventType.Ended ถ้า
+   command.IsCompleted เป็น true มิฉะนั้น WatchEventType.Heartbeat · SaveChangesAsync ครั้งเดียว
+   ท้ายเมธอด (repository ทั้งสองตัวใช้ AppDbContext เดียวกัน เรียก SaveChangesAsync จากตัวไหนก็พอ —
+   ห้ามเรียกสองรอบ)
+4. unit test (mock ทั้งสอง repository): (ก) ตำแหน่งขยับ <10 วิ, ไม่ใช่แถวใหม่, ไม่ completed →
+   ไม่เรียก Create/Touch แต่ Append ถูกเรียกด้วย eventType Heartbeat (ข) IsCompleted=true → Touch/Create
+   ถูกเรียกเสมอไม่ว่าตำแหน่งจะขยับแค่ไหน + Append เป็น Ended (ค) แถวใหม่ → Create ถูกเรียกเสมอ +
+   Append เป็น Heartbeat (ง) rate-limit policy: integration/smoke test ว่า request ที่ 7 ภายใน 30 วิ
+   จากผู้ใช้เดียวกันได้ 429 (ถ้าเครื่องมี Docker/Testcontainers) — ถ้าไม่มีให้ทำ unit test ระดับ
+   policy configuration แทนและรายงานว่าไม่ได้ทดสอบผ่าน HTTP จริง
+
+ข้อห้ามเฉพาะงานนี้: ห้ามแก้ GET .../episode-progress (list) หรือ entitlement check ที่มีอยู่แล้ว
+(enrollment.STATUS/EXPIRES_AT_UTC) — งานนี้แค่เพิ่ม rate limit ต่อผู้ใช้ + ลด write ที่ไม่จำเป็น + เติม
+WATCH_EVENT ที่ขาดหายไป ห้ามเปลี่ยน response shape ที่ FE เห็น (EpisodeProgressResponse เดิมทุก field) ·
+ห้ามใช้ policy "default"/"auth"/"webhook" เดิม (คนละความหมาย อ่านเหตุผลด้านบน)
+
+Definition of done: ตาม §3 ทุกข้อ รวม integration test (Testcontainers PostgreSQL) ถ้าเครื่องที่รันมี
+Docker — ถ้าไม่มีให้ unit test ครบตามข้อ 4 อย่างน้อยและรายงานว่า integration ยังไม่ได้รันจริง
+```
+
+---
+
+### N1 — `P11-02` Instructor live-session API (M)
+
+```
+Task: P11-02 — Instructor live-session API
+
+อ่านก่อน (เรียงตามนี้):
+0. docs/contracts/P11-01-catalog-live-sessions.md — contract นี้เป็นข้อผูกพัน ชนะบล็อกนี้ถ้าขัดกัน
+   เริ่มได้เมื่อ Status: FROZEN (ตอนนี้ FROZEN แล้ว) — อ่าน §3 และ §2.3/§2.6 ให้ครบก่อนเขียนโค้ด
+1. CLAUDE.md — กฎโปรเจ็ค (repo นี้คือ siri_upskill_backend, path ไม่มี prefix backend/ แล้ว)
+2. docs/TASKS.md แถว P11-02
+3. docs/ANTIGRAVITY_HANDOFF.md §2 (กฎ) + §3 (DoD)
+4. .claude/rules/backend.md — Catalog เป็น vertical slice จริง (Features/{UseCase}/...) แต่ entity
+   class เป็น UPPERCASE (COURSE, COURSE_LIVE_SESSION) — อ่าน contract's "แก้ข้อสมมติ" ก่อนสับสน
+5. .claude/rules/database.md, .claude/rules/security.md (endpoint นี้แก้ schedule ของคอร์ส — ownership
+   ต้องเช็คจริงทุก endpoint)
+
+สภาพจริงของโค้ดที่เกี่ยวข้อง (เช็คแล้วตอนเขียน contract):
+- src/Siri.Api/Controllers/Catalog/InstructorCoursesController.cs — controller ที่มีอยู่แล้วสำหรับ
+  instructor course CRUD, route prefix "api/catalog/instructor/courses", [Authorize(Policy =
+  AuthorizationPolicyNames.InstructorOnly)] ระดับ class, action คืน IResult ผ่าน
+  Results.Ok()/Results.Created()/result.Error.ToProblemHttpResult(HttpContext) — เป็น template ที่ต้อง
+  ทำตามเป๊ะสำหรับ controller ใหม่ของงานนี้
+- src/Siri.Modules.Catalog/Features/CreateCourseSection/Handler.cs (ทั้งไฟล์) — ตัวอย่าง ownership
+  pattern จริงที่ต้องใช้: query dbContext.InstructorProfiles() หา profile ของ userId แล้วเทียบ
+  course.InstructorId ตรง ๆ — ไม่ใช่เรียก ICatalogPriceContract.IsInstructorOwnerOfCourseAsync
+  (contract ตัวนั้นมีไว้ให้โมดูลอื่นเรียก ไม่ใช่ให้ Catalog เรียกตัวเอง)
+- src/Siri.Modules.Catalog/Infrastructure/CourseOutputCache.cs — PolicyName/Tag ที่ต้อง evict
+  (EvictByTagAsync(CourseOutputCache.Tag, ct) หลัง SaveChangesAsync สำเร็จ ถ้า course.Status ==
+  CourseStatus.Published — ตำแหน่งเดียวกับ ApproveCourseHandler.cs:56-58)
+- P11-01 (backend-developer) เพิ่ม COURSE.AddLiveSession/UpdateLiveSession/CancelLiveSession/
+  SetDeliveryFormat + Contracts.ILiveMeetingSink (NullLiveMeetingSink default) + accessor
+  CourseLiveSessions() บน AppDbContextCatalogExtensions.cs แล้วก่อนหน้านี้ — ใช้ของที่มีอยู่ตรง ๆ
+  ห้ามเขียน domain logic ซ้ำเอง (invariant ทั้งหมดอยู่ใน domain method แล้ว)
+
+สิ่งที่ต้องทำ (ตาม contract §3 ทั้งหมด):
+- Controller ใหม่ src/Siri.Api/Controllers/Catalog/LiveSessionsController.cs (POST/PUT/DELETE
+  live-sessions[/{sid}], POST {sid}/cancel) + action ใหม่บน InstructorCoursesController.cs
+  (PUT {id}/delivery-format)
+- Feature folder ใหม่ต่อ use case (Command/Validator/Handler/Response) — 5 use case: CreateLiveSession,
+  UpdateLiveSession, CancelLiveSession (ใช้ทั้ง DELETE และ POST /cancel), SetCourseDeliveryFormat
+- Handler orchestration ตาม contract §3's "Handler orchestration" ย่อหน้าเป๊ะ: domain method →
+  ILiveMeetingSink (stage) → SaveChangesAsync ครั้งเดียว → evict cache
+- ก่อนเขียนอย่างอื่น: เขียน unit test เล็ก ๆ ยืนยันว่า System.Text.Json's default DateTime converter
+  บน .NET 10 parse ISO string ที่มี "Z" suffix ได้ DateTimeKind.Utc จริง (ห้ามเดา — ดู contract §3.1's
+  หมายเหตุ) ถ้าไม่ใช่ต้องหาวิธี normalize ก่อนส่งเข้า domain method
+- Minimal-API mapper คู่ (Endpoint.cs) — เช็ค docs/TASKS.md's P11-30 Status ก่อน ถ้ายังไม่ landed ให้เขียนคู่
+  ตาม contract §3.7
+
+Definition of done: ตาม §3 ของ docs/ANTIGRAVITY_HANDOFF.md ทุกข้อ (ปรับ: Testcontainers เป็น PostgreSQL 17
+ไม่ใช่ MSSQL — ดู CLAUDE.md's P0-41) รวม integration test ครบตาม contract §5's checklist (IDOR, overlap
+409, duration boundary, meetUrl ไม่หลุด public response, cache eviction)
+
+นอกขอบเขต: ห้ามแตะ COURSE.cs/COURSE_LIVE_SESSION.cs domain logic เอง (ถ้าพบว่า invariant ที่ P11-01 ทำไว้
+ไม่พอ/ผิด ให้หยุดแล้วรายงาน ห้ามแก้เอง) · ห้ามสร้าง Siri.Modules.Live หรือแตะอะไรเกี่ยวกับ Google Calendar
+(P11-03, ยังบล็อกอยู่) · ห้ามทำ POST .../recording (P11-06) หรือ GET .../live-sessions ฝั่งผู้สอนที่มี
+meetUrl (P11-05) · ห้ามแก้ GetCourseDetail/SearchCourses (P11-07 — คนละ task ทำขนานได้แต่ไม่ใช่ของคุณ)
+
+ห้ามตั้ง Status เป็น DONE ให้ตัวเอง (ตั้งได้แค่ BUILT/PART) และถ้าเจอว่า contract ทำไม่ได้จริง ให้หยุดแล้ว
+รายงาน ห้ามแก้ contract เอง ห้าม deviate เงียบ ๆ
+
+Commit message: feat(catalog): instructor live-session API [P11-02]
+```
+
+### N2 — `P11-07` Public read model + search (live schedule) (M)
+
+```
+Task: P11-07 — Public read model + search (live schedule)
+
+อ่านก่อน (เรียงตามนี้):
+0. docs/contracts/P11-01-catalog-live-sessions.md — contract นี้เป็นข้อผูกพัน ชนะบล็อกนี้ถ้าขัดกัน
+   เริ่มได้เมื่อ Status: FROZEN (ตอนนี้ FROZEN แล้ว) — อ่าน §4 ทั้งหมดก่อนเขียนโค้ด
+1. CLAUDE.md — กฎโปรเจ็ค
+2. docs/TASKS.md แถว P11-07
+3. docs/ANTIGRAVITY_HANDOFF.md §2 (กฎ) + §3 (DoD)
+4. .claude/rules/backend.md, .claude/rules/database.md
+
+สภาพจริงของโค้ดที่เกี่ยวข้อง (เช็คแล้วตอนเขียน contract):
+- src/Siri.Modules.Catalog/Features/GetCourseDetail/Response.cs (ทั้งไฟล์) — CourseDetailResponse เป็น
+  record positional 20 field ปัจจุบัน ลงท้ายด้วย "bool IsWishlisted = false" — ต้องต่อท้าย ไม่ reorder
+  field เดิม (มี caller ที่พึ่งตำแหน่งอยู่)
+- src/Siri.Modules.Catalog/Features/GetCourseDetail/Endpoint.cs — MapGetCourseDetailEndpoint ที่มี
+  .CacheOutput(CourseOutputCache.PolicyName) อยู่แล้ว — ไม่ต้องแก้ endpoint นี้เอง แค่ handler/response
+- src/Siri.Modules.Catalog/Features/SearchCourses/Response.cs + Query.cs (ทั้งสองไฟล์) — โครงสร้าง
+  facet ปัจจุบัน (CategoryFacet/LevelFacet/InstructorFacet) คำนวณจาก search-matched+Published set
+  ก่อนกรอง filter ของ request เอง (v1 simplification ตาม CourseSearchFacets's doc comment เดิม) —
+  FormatFacet ใหม่ต้องเดินตาม pattern เดียวกันเป๊ะ ไม่ใช่คิดวิธีใหม่
+- P11-01 (backend-developer) เพิ่ม COURSE.DeliveryFormat, COURSE_LIVE_SESSION entity, accessor
+  CourseLiveSessions() บน AppDbContextCatalogExtensions.cs, และ
+  Siri.Modules.Catalog.Contracts.LiveSessionDisplayStateCalculator (ใน Contracts namespace ไม่ใช่
+  Domain) ไว้ให้แล้วก่อนหน้านี้ — เรียกใช้ตรง ๆ ห้ามคำนวณ Upcoming/Live/Ended เองใหม่
+
+สิ่งที่ต้องทำ (ตาม contract §4 ทั้งหมด):
+- GetCourseDetailResponse + CourseDetailLiveSchedule/CourseDetailLiveSession ใหม่ (§4.1) — ย้ำ:
+  ห้ามมี field ชื่อ meetUrl/meetingUrl ในนี้เด็ดขาด เป็น security requirement ไม่ใช่แค่ scope
+- GetCourseDetailHandler.cs: logic คำนวณ UpcomingCount/PastCount/NextStartsAtUtc/Sessions ตาม §4.1
+  ทุกจุด (Scheduled เท่านั้น, เรียงตาม StartsAtUtc, ผ่าน LiveSessionDisplayStateCalculator)
+- SearchCoursesQuery + Format, SearchCoursesResponse + FormatFacet ตาม §4.2 — NextStartsAtUtc ต่อ card
+  ต้อง query แบบ projection รวมในคิวรีเดียว ห้าม N+1 (query แยกทีละคอร์สในหน้าผลลัพธ์)
+
+Definition of done: ตาม §3 ของ docs/ANTIGRAVITY_HANDOFF.md ทุกข้อ รวม integration test ตาม contract
+§5's checklist ข้อที่เกี่ยวกับ read model โดยเฉพาะ: automated test เดิน JSON tree ของทั้ง course detail
+และ search response หา meetUrl ต้องไม่เจอเลย, cache eviction ยืนยันด้วย black-box test (publish → เพิ่ม
+session → GET เห็นทันที ไม่ใช่ค้าง cache)
+
+นอกขอบเขต: ห้ามแก้ COURSE.cs/COURSE_LIVE_SESSION.cs domain logic เอง · ห้ามแตะ LiveSessionsController.cs/
+InstructorCoursesController.cs (P11-02 — คนละ task ทำขนานได้แต่ไม่ใช่ของคุณ ถ้าเห็นว่าไฟล์นั้นกำลังถูกแก้
+พร้อมกัน ให้เช็ค git status/mtime ก่อน ไม่ใช่แก้ทับ) · ห้ามแตะ CourseOutputCache.cs's ค่า policy/tag เดิม
+(อ่านอย่างเดียว ไม่เพิ่มจุด evict ใหม่ — evict เป็นหน้าที่ P11-02 ทำแล้ว)
+
+ห้ามตั้ง Status เป็น DONE ให้ตัวเอง และถ้าเจอว่า contract ทำไม่ได้จริง ให้หยุดแล้วรายงาน ห้ามแก้ contract เอง
+
+Commit message: feat(catalog): live schedule in public course detail and search [P11-07]
+```
+
+---
+
 ## 8. ประวัติการแก้แผน
 
 | วันที่ | เปลี่ยนอะไร |
 |-------|------------|
+| 2026-09-16 | Antigravity ทำ Phase N (N1: P11-02, N2: P11-07) เสร็จสิ้น (สถานะ `BUILT`) — สร้าง instructor live session API 4 use cases, controller, delivery-format action, read model projection + search live schedule, zero meetUrl security automated check, unit tests ผ่าน 966/966, architecture tests ผ่าน 5/5, build 0 warning/0 error |
+| 2026-09-16 | Antigravity ทำ Phase M (M1: X-30, M2: X-29) เสร็จสิ้น (สถานะ `BUILT`) — ผ่าน 851 backend unit tests, 5 architecture tests, 1 HTTP rate-limit integration test, 12 frontend guard unit tests, ng lint 0 error, .NET และ Angular build 0 error |
+| 2026-09-16 | เพิ่ม §7 Phase N (P11-02/P11-07 — พร้อมส่ง Antigravity หลัง contract `P11-01-catalog-live-sessions.md` FROZEN) — งานคู่ขนานกันได้ทั้งสอง ไม่ชนไฟล์ · P11-01 เองมอบให้ backend-developer (Claude) เพราะแตะ cross-module Contracts ใหม่ |
+| 2026-09-16 | เพิ่ม §7 Phase M (X-29/X-30 — พร้อมส่ง Antigravity ทันที ไม่ติด Q10-Q13) ระหว่างออกแบบ Hybrid Live (D-21) — X-31 ไม่อยู่ใน Phase M เพราะตรวจแล้วต้องเพิ่ม Contracts ข้ามโมดูลใหม่ (Learning to Notification) จึงเป็นงานของ Claude ไม่ใช่ AG (ดู TASKS.md) |
 | 2026-08-28 | เขียน §4 ใหม่ทั้งหมด (Phase H–L) หลัง Claude Code ตรวจโค้ดจริงทีละไฟล์ — คิว Phase A–G เดิมล้าสมัยเกือบหมด · §7 แทนบล็อก A/B/C ด้วย H/I/J · §6 ขยาย mapping เป็น 18 หน้าจอตาม mockup v2026-08-28 · เจ้าของโปรเจ็คสั่งตัดวิดีโอ/player/DRM และ login/auth ออกจากรอบนี้ |
 | 2026-08-27 | คิว Phase A–G (แทนคิว 2026-08-25) |

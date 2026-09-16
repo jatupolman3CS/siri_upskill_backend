@@ -36,9 +36,10 @@ public class CoursesController : ControllerBase
         [FromQuery] CourseSearchSort sort = CourseSearchSort.Relevance,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = SearchCoursesHandler.DefaultPageSize,
+        [FromQuery] DeliveryFormat? format = null,
         CancellationToken cancellationToken = default)
     {
-        var query = new SearchCoursesQuery(q, categoryId, instructorId, level, minPrice, maxPrice, minRating, sort, page, pageSize);
+        var query = new SearchCoursesQuery(q, categoryId, instructorId, level, minPrice, maxPrice, minRating, sort, page, pageSize, format);
         var result = await handler.HandleAsync(query, cancellationToken).ConfigureAwait(false);
 
         return Results.Ok(result);

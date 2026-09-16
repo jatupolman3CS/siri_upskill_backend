@@ -34,12 +34,15 @@ public sealed record CourseSearchResultItem(
     Guid InstructorId,
     string InstructorDisplayName,
     Guid CategoryId,
-    bool IsWishlisted = false);
+    bool IsWishlisted,
+    DeliveryFormat DeliveryFormat,
+    DateTime? NextStartsAtUtc = null);
 
 public sealed record CourseSearchFacets(
     IReadOnlyList<CategoryFacet> Categories,
     IReadOnlyList<LevelFacet> Levels,
-    IReadOnlyList<InstructorFacet> Instructors);
+    IReadOnlyList<InstructorFacet> Instructors,
+    IReadOnlyList<FormatFacet> Formats);
 
 public sealed record CategoryFacet(Guid CategoryId, int Count);
 
@@ -49,3 +52,5 @@ public sealed record LevelFacet(CourseLevel Level, int Count);
 /// category id against the category tree it already fetches, but has no instructor directory to resolve
 /// an instructor id against, so the name must ride along or the facet is unrenderable (P1-10).</summary>
 public sealed record InstructorFacet(Guid InstructorId, string DisplayName, int Count);
+
+public sealed record FormatFacet(DeliveryFormat Format, int Count);
