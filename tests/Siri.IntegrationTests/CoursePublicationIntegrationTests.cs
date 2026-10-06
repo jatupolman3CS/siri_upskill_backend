@@ -66,7 +66,7 @@ public sealed class CoursePublicationIntegrationTests(PostgresFixture fixture) :
                     var second = course.AddEpisode(section.Id, "Video under test", null, false);
                     if (testedId is { } id) course.AttachEpisodeMedia(second.Id, id, 15);
                 }
-                if (approving) course.SubmitForReview();
+                if (approving) course.SubmitForReview(clock);
                 db.Categories().Add(category);
                 db.InstructorProfiles().Add(owner);
                 db.Courses().Add(course);
@@ -81,7 +81,7 @@ public sealed class CoursePublicationIntegrationTests(PostgresFixture fixture) :
                 var contract = new MediaAssetContractService(db);
                 var success = approving
                     ? (await new ApproveCourseHandler(db, clock, cache, contract).HandleAsync(courseId, CancellationToken.None)).IsSuccess
-                    : (await new SubmitCourseForReviewHandler(db, contract).HandleAsync(userId, courseId, CancellationToken.None)).IsSuccess;
+                    : (await new SubmitCourseForReviewHandler(db, contract, clock).HandleAsync(userId, courseId, CancellationToken.None)).IsSuccess;
                 Assert.Equal(mediaState == "Ready", success);
             }
             using (var scope = fixture.CreateScope())
@@ -119,7 +119,7 @@ public sealed class CoursePublicationIntegrationTests(PostgresFixture fixture) :
             if (published)
             {
                 course.AttachEpisodeMedia(episode.Id, Guid.NewGuid(), 12);
-                course.SubmitForReview();
+                course.SubmitForReview(new SystemClock());
                 course.Publish(new SystemClock());
             }
             db.Categories().Add(category);

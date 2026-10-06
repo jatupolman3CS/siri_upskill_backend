@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Siri.Modules.Identity.Features.ConfirmEmail;
 using Siri.Modules.Identity.Features.Admin;
 using Siri.Modules.Identity.Features.AnonymizeAccount;
 using Siri.Modules.Identity.Features.DataExport;
 using Siri.Modules.Identity.Features.ForgotPassword;
+using Siri.Modules.Identity.Features.GoogleLogin;
 using Siri.Modules.Identity.Features.ListSessions;
 using Siri.Modules.Identity.Features.Login;
 using Siri.Modules.Identity.Features.Logout;
@@ -73,6 +75,14 @@ public static class IdentityModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        // Sign in with Google (Google Identity Services ID-token flow). ClientId empty = feature off.
+        services.AddOptions<GoogleLoginOptions>()
+            .Bind(configuration.GetSection(GoogleLoginOptions.SectionName))
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<GoogleLoginOptions>, GoogleLoginOptionsValidator>();
+        services.AddHttpClient(GoogleIdTokenVerifier.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddSingleton<IGoogleIdTokenVerifier, GoogleIdTokenVerifier>();
+
         services.AddOptions<JwtOptions>()
             .Bind(configuration.GetSection(JwtOptions.SectionName))
             .ValidateDataAnnotations()
@@ -116,6 +126,7 @@ public static class IdentityModule
         services.AddScoped<IValidator<RegisterCommand>, RegisterValidator>();
         services.AddScoped<IValidator<ConfirmEmailCommand>, ConfirmEmailValidator>();
         services.AddScoped<IValidator<LoginCommand>, LoginValidator>();
+        services.AddScoped<IValidator<GoogleLoginCommand>, GoogleLoginValidator>();
         services.AddScoped<IValidator<ForgotPasswordCommand>, ForgotPasswordValidator>();
         services.AddScoped<IValidator<ResetPasswordCommand>, ResetPasswordValidator>();
         services.AddScoped<IValidator<AnonymizeAccountCommand>, AnonymizeAccountValidator>();
@@ -131,7 +142,9 @@ public static class IdentityModule
         // Notification's EmailOutboxSenderJob.
         services.AddScoped<RegisterHandler>();
         services.AddScoped<ConfirmEmailHandler>();
+        services.AddScoped<LoginSessionIssuer>();
         services.AddScoped<LoginHandler>();
+        services.AddScoped<GoogleLoginHandler>();
         services.AddScoped<LogoutHandler>();
         services.AddScoped<RefreshHandler>();
         services.AddScoped<ForgotPasswordHandler>();

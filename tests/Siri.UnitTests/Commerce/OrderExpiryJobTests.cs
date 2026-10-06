@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Siri.Integrations.Payment;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Commerce;
 using Siri.Modules.Commerce.Application;
 using Siri.Modules.Commerce.Domain;
@@ -16,6 +17,7 @@ public sealed class OrderExpiryJobTests
     private readonly FakePaymentRepository _paymentRepo = new();
     private readonly FakePaymentMethod _paymentMethod = new();
     private readonly FakePromoCodeRepository _promoCodeRepo = new();
+    private readonly FakeCatalogPriceContract _catalogPriceContract = new();
     private readonly MutableClock _clock = new(new DateTime(2026, 8, 27, 12, 0, 0, DateTimeKind.Utc));
 
     private OrderExpiryJob CreateJob(int expiryMinutes = 30, int batchSize = 50)
@@ -31,9 +33,36 @@ public sealed class OrderExpiryJobTests
             _paymentRepo,
             _paymentMethod,
             _promoCodeRepo,
+            _catalogPriceContract,
             _clock,
             options,
             NullLogger<OrderExpiryJob>.Instance);
+    }
+
+    [Fact]
+    public async Task RunAsync_ExpiredOrderWithCourseItems_ReleasesSeatForEachDistinctCourse()
+    {
+        var userId = Guid.NewGuid();
+        var courseId1 = Guid.NewGuid();
+        var courseId2 = Guid.NewGuid();
+
+        var order = ORDER.Create("ORD-SEAT-EXP-1", userId, 2000m, 0m, 130.84m, 2000m);
+        order.AddItem(courseId1, "COURSE 1", 1000m, 1000m);
+        order.AddItem(courseId2, "COURSE 2", 1000m, 1000m);
+        order.MarkAwaitingPayment();
+        typeof(ORDER).GetProperty(nameof(ORDER.CreatedAtUtc))!.SetValue(order, _clock.UtcNow.AddMinutes(-35));
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var job = CreateJob(expiryMinutes: 30);
+        await job.RunAsync(CancellationToken.None);
+
+        var updatedOrder = await _orderRepo.GetByIdAsync(order.ORDER_ID, CancellationToken.None);
+        Assert.NotNull(updatedOrder);
+        Assert.Equal(OrderStatus.Cancelled, updatedOrder.STATUS);
+
+        Assert.Contains(courseId1, _catalogPriceContract.ReleasedSeatCourseIds);
+        Assert.Contains(courseId2, _catalogPriceContract.ReleasedSeatCourseIds);
+        Assert.Equal(2, _catalogPriceContract.ReleasedSeatCourseIds.Count);
     }
 
     [Fact]
@@ -160,6 +189,30 @@ public sealed class OrderExpiryJobTests
         public DateTime UtcNow { get; set; } = initial;
     }
 
+    private sealed class FakeCatalogPriceContract : ICatalogPriceContract
+    {
+        public readonly List<Guid> ReleasedSeatCourseIds = [];
+
+        public Task<IReadOnlyDictionary<Guid, CoursePriceInfo>> GetPublishedCoursePricesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, CoursePriceInfo>>(new Dictionary<Guid, CoursePriceInfo>());
+
+        public Task<bool> IsEpisodeFreePreviewAsync(Guid episodeId, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task<Guid?> GetCourseIdForEpisodeAsync(Guid episodeId, CancellationToken cancellationToken) => Task.FromResult<Guid?>(null);
+        public Task<bool> IsInstructorOwnerOfEpisodeAsync(Guid episodeId, Guid instructorUserId, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task<bool> IsInstructorOwnerOfCourseAsync(Guid courseId, Guid instructorUserId, CancellationToken cancellationToken) => Task.FromResult(false);
+        public Task<int> GetPendingReviewsCountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
+        public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+        public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
+
+        public Task ReleaseSeatAsync(Guid courseId, CancellationToken cancellationToken)
+        {
+            ReleasedSeatCourseIds.Add(courseId);
+            return Task.CompletedTask;
+        }
+    }
+
     private sealed class FakePaymentMethod : IPaymentMethod
     {
         public readonly List<string> CanceledIntentIds = [];
@@ -178,6 +231,9 @@ public sealed class OrderExpiryJobTests
 
         public Task<Result<PaymentRefundResult>> CreateRefundAsync(CreateRefundRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Success(new PaymentRefundResult("re_test", "succeeded", request.Amount, "thb")));
+
+        public Task<Result<decimal?>> GetChargeFeeAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success<decimal?>(null));
     }
 
     private sealed class FakeOrderRepository : IOrderRepository
@@ -200,7 +256,7 @@ public sealed class OrderExpiryJobTests
         public Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken)
         {
             var result = Orders.Values
-                .Where(o => o.STATUS == OrderStatus.AwaitingPayment && o.CreatedAtUtc <= cutoffUtc)
+                .Where(o => (o.STATUS == OrderStatus.AwaitingPayment || o.STATUS == OrderStatus.Pending) && o.CreatedAtUtc <= cutoffUtc)
                 .OrderBy(o => o.CreatedAtUtc)
                 .Take(batchSize)
                 .ToList();

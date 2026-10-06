@@ -24,6 +24,7 @@ public static class NotificationModule
         services.AddEmailIntegration(configuration);
 
         services.AddScoped<EmailOutboxSenderJob>();
+        services.AddScoped<AnnouncementDispatchJob>();
         services.AddScoped<IEmailOutbox, EmailOutbox>();
 
         // Handlers

@@ -44,7 +44,7 @@ jobs:
       - name: Architecture tests
         run: dotnet test tests/Siri.ArchitectureTests/Siri.ArchitectureTests.csproj --no-build --configuration Release
 
-      - name: Integration tests (Testcontainers MSSQL + Redis)
+      - name: Integration tests (Testcontainers PostgreSQL + Redis)
         run: dotnet test tests/Siri.IntegrationTests/Siri.IntegrationTests.csproj --no-build --configuration Release
 
       # security.md §5: dependency scanning fails the build on high+ severity.

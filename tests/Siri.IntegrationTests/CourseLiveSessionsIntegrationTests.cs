@@ -108,6 +108,7 @@ public sealed class CourseLiveSessionsIntegrationTests : IAsyncLifetime
 
         _app.UseAuthentication();
         _app.UseAuthorization();
+        _app.UseOutputCache();
 
         _app.MapCatalogEndpoints();
 
@@ -516,6 +517,58 @@ public sealed class CourseLiveSessionsIntegrationTests : IAsyncLifetime
         var searchResult = JsonSerializer.Deserialize<SearchCoursesResponse>(rawJson, JsonOptions);
         Assert.NotNull(searchResult);
         Assert.Contains(searchResult.Results.Items, item => item.Id == course.Id && item.DeliveryFormat == DeliveryFormat.Live);
+    }
+
+    // ---- P11-01/P11-02/P11-07 contract §5: output-cache eviction (integrator-qa review gap fill) -----
+
+    [Fact]
+    public async Task CreateLiveSession_OnPublishedCourse_EvictsOutputCacheForCourseDetail()
+    {
+        await using var scope = _app.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+
+        var (profile, token) = await CreateApprovedInstructorAndLoginAsync(_app.Services, dbContext);
+        var category = await CreateCategoryAsync(dbContext);
+        var course = await CreateCourseAsync(dbContext, profile.Id, category.Id, DeliveryFormat.Live);
+
+        var section = course.AddSection("Section 1");
+        var ep = section.AddEpisode("Ep 1", null, isFreePreview: true);
+        ep.AttachMedia(Guid.NewGuid(), 600);
+        course.Publish(clock);
+        await dbContext.SaveChangesAsync();
+
+        // Populate the output cache with the pre-session state — same black-box technique
+        // CourseReadModelTests.cs's SearchThenApprove test uses: drive the actual observable HTTP
+        // behavior rather than inspecting IOutputCacheStore's internal, uninspectable in-memory state.
+        var beforeResponse = await _client.GetAsync($"/api/catalog/courses/{course.Slug}");
+        Assert.Equal(HttpStatusCode.OK, beforeResponse.StatusCode);
+        var before = await beforeResponse.Content.ReadFromJsonAsync<CourseDetailResponse>(JsonOptions);
+        Assert.NotNull(before);
+        Assert.NotNull(before.LiveSchedule);
+        Assert.Empty(before.LiveSchedule.Sessions);
+
+        var start = DateTime.UtcNow.AddDays(3);
+        var end = start.AddHours(1);
+        var createRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/catalog/instructor/courses/{course.Id}/live-sessions")
+        {
+            Content = JsonContent.Create(new CreateLiveSessionCommand("New Session", null, start, end), options: JsonOptions),
+        };
+        createRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var createResponse = await _client.SendAsync(createRequest);
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        // If CreateLiveSessionHandler's EvictByTagAsync(CourseOutputCache.Tag, ...) call were missing
+        // or wrong, this GET would still return the cached "no sessions" response captured above and
+        // this assertion would fail — exactly contract P11-01 §5's "publish คอร์ส Live → เพิ่ม session
+        // ใหม่ → GET courses/{slug} เห็น session ใหม่ทันที" scenario.
+        var afterResponse = await _client.GetAsync($"/api/catalog/courses/{course.Slug}");
+        Assert.Equal(HttpStatusCode.OK, afterResponse.StatusCode);
+        var after = await afterResponse.Content.ReadFromJsonAsync<CourseDetailResponse>(JsonOptions);
+        Assert.NotNull(after);
+        Assert.NotNull(after.LiveSchedule);
+        Assert.Single(after.LiveSchedule.Sessions);
+        Assert.Equal("New Session", after.LiveSchedule.Sessions[0].Title);
     }
 
     private static List<string> FindForbiddenMeetUrlProperties(JsonElement element, string currentPath = "$")

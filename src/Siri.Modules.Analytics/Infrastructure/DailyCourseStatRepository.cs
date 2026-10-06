@@ -29,17 +29,24 @@ public sealed class DailyCourseStatRepository(AppDbContext dbContext) : IDailyCo
             .AsNoTracking()
             .Where(x => x.DATE >= fromDate && x.DATE <= toDate)
             .GroupBy(x => x.COURSE_ID)
-            .Select(g => new CourseStatAggregate(
-                g.Key,
-                g.Sum(x => x.REVENUE),
-                g.Sum(x => x.ENROLLMENTS),
-                g.Sum(x => x.VIEWS)))
+            // Project into an anonymous type, not the CourseStatAggregate record: EF Core cannot translate an
+            // OrderBy over a positional-constructor record built from a GroupBy (the admin dashboard threw
+            // "could not be translated" and answered 500 every time). Mapped to the record in memory below.
+            .Select(g => new
+            {
+                CourseId = g.Key,
+                TotalRevenue = g.Sum(x => x.REVENUE),
+                TotalEnrollments = g.Sum(x => x.ENROLLMENTS),
+                TotalViews = g.Sum(x => x.VIEWS),
+            })
             .OrderByDescending(x => x.TotalRevenue)
             .ThenByDescending(x => x.TotalEnrollments)
             .Take(limit)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return top;
+        return top
+            .Select(x => new CourseStatAggregate(x.CourseId, x.TotalRevenue, x.TotalEnrollments, x.TotalViews))
+            .ToList();
     }
 }

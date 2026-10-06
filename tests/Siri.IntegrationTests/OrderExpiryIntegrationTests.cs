@@ -15,6 +15,9 @@ using Siri.Api.Authorization;
 using Siri.IntegrationTests.Fixtures;
 using Siri.Integrations.Payment;
 using Siri.Modules.Catalog;
+using Siri.Modules.Catalog.Contracts;
+using Siri.Modules.Catalog.Domain;
+using Siri.Modules.Catalog.Infrastructure;
 using Siri.Modules.Commerce;
 using Siri.Modules.Commerce.Application;
 using Siri.Modules.Commerce.Domain;
@@ -151,12 +154,14 @@ public sealed class OrderExpiryIntegrationTests : IAsyncLifetime
         var redemptionCountBefore = await promoRepo.GetUserRedemptionCountAsync(promo.PROMO_CODE_ID, userId, CancellationToken.None);
         Assert.Equal(1, redemptionCountBefore);
 
+        var catalogPriceContract = scope.ServiceProvider.GetRequiredService<ICatalogPriceContract>();
         var fakePaymentMethod = new FakePaymentMethod();
         var job = new OrderExpiryJob(
             orderRepo,
             paymentRepo,
             fakePaymentMethod,
             promoRepo,
+            catalogPriceContract,
             new FakeClockOffset(clock.UtcNow.AddMinutes(45)), // Simulate 45 mins passed
             Options.Create(new OrderExpiryOptions { ExpiryMinutes = 30, BatchSize = 50 }),
             NullLogger<OrderExpiryJob>.Instance);
@@ -169,6 +174,66 @@ public sealed class OrderExpiryIntegrationTests : IAsyncLifetime
         // Promo redemption must be reverted!
         var redemptionCountAfter = await promoRepo.GetUserRedemptionCountAsync(promo.PROMO_CODE_ID, userId, CancellationToken.None);
         Assert.Equal(0, redemptionCountAfter);
+    }
+
+    /// <summary>Task P11-11 (Q13.2 — docs/contracts/P11-11-enrollment-deadline-seat-cap.md §4.4): an
+    /// order that reserved a seat on a capped course but expired before payment must give that seat
+    /// back, atomically with the rest of OrderExpiryJob's existing transaction.</summary>
+    [Fact]
+    public async Task OrderExpiryJob_ExpiresOrderOnSeatCappedCourse_ReleasesSeat()
+    {
+        using var scope = _app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var orderRepo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
+        var paymentRepo = scope.ServiceProvider.GetRequiredService<IPaymentRepository>();
+        var promoRepo = scope.ServiceProvider.GetRequiredService<IPromoCodeRepository>();
+        var catalogPriceContract = scope.ServiceProvider.GetRequiredService<ICatalogPriceContract>();
+        var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+
+        var category = CATEGORY.Create($"cat-{Guid.NewGuid():N}", "หมวดหมู่ทดสอบ", "Test Cat", null, null, 0);
+        db.Categories().Add(category);
+
+        var profile = INSTRUCTOR_PROFILE.Apply(Guid.NewGuid(), "Test Instructor", "Headline", "Bio");
+        profile.Approve(clock);
+        db.InstructorProfiles().Add(profile);
+
+        var course = COURSE.Create($"course-{Guid.NewGuid():N}", "Test COURSE", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 1000m);
+        var section = course.AddSection("Section 1");
+        section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
+        course.Publish(clock);
+        course.SetEnrollmentPolicy(null, maxSeats: 5);
+        db.Courses().Add(course);
+        await db.SaveChangesAsync();
+
+        // Simulate a reservation that already happened when the (now-expiring) order was created.
+        var reserved = await catalogPriceContract.TryReserveSeatAsync(course.Id, CancellationToken.None);
+        Assert.True(reserved);
+
+        var userId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-INT-SEAT-EXP-1", userId, 1000m, 0m, 65.42m, 1000m);
+        order.AddItem(course.Id, "Test COURSE", 1000m, 1000m);
+        order.MarkAwaitingPayment();
+        await db.Orders().AddAsync(order);
+        await db.SaveChangesAsync();
+
+        var fakePaymentMethod = new FakePaymentMethod();
+        var job = new OrderExpiryJob(
+            orderRepo,
+            paymentRepo,
+            fakePaymentMethod,
+            promoRepo,
+            catalogPriceContract,
+            new FakeClockOffset(clock.UtcNow.AddMinutes(45)),
+            Options.Create(new OrderExpiryOptions { ExpiryMinutes = 30, BatchSize = 50 }),
+            NullLogger<OrderExpiryJob>.Instance);
+
+        await job.RunAsync(CancellationToken.None);
+
+        var updatedOrder = await db.Orders().FirstAsync(o => o.ORDER_ID == order.ORDER_ID);
+        Assert.Equal(OrderStatus.Cancelled, updatedOrder.STATUS);
+
+        var updatedCourse = await db.Courses().AsNoTracking().FirstAsync(c => c.Id == course.Id);
+        Assert.Equal(0, updatedCourse.SeatsUsed);
     }
 
     private sealed class FakeClockOffset(DateTime now) : IClock
@@ -189,5 +254,8 @@ public sealed class OrderExpiryIntegrationTests : IAsyncLifetime
 
         public Task<Result<PaymentRefundResult>> CreateRefundAsync(CreateRefundRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Success(new PaymentRefundResult("re_test", "succeeded", request.Amount, "thb")));
+
+        public Task<Result<decimal?>> GetChargeFeeAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success<decimal?>(null));
     }
 }

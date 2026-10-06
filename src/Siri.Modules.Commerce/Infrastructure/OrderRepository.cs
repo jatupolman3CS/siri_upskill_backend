@@ -49,7 +49,7 @@ public sealed class OrderRepository(AppDbContext dbContext) : IOrderRepository
     public async Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken)
     {
         return await dbContext.Orders()
-            .Where(o => o.STATUS == OrderStatus.AwaitingPayment && o.CreatedAtUtc <= cutoffUtc)
+            .Where(o => (o.STATUS == OrderStatus.AwaitingPayment || o.STATUS == OrderStatus.Pending) && o.CreatedAtUtc <= cutoffUtc)
             .OrderBy(o => o.CreatedAtUtc)
             .Take(batchSize)
             .ToListAsync(cancellationToken)

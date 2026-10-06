@@ -5,6 +5,12 @@
     <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
     <ProjectReference Include="..\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
     <ProjectReference Include="..\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <!-- X-31: implements Notification.Contracts.IAnnouncementRecipientResolver so Notification can
+         deliver course announcements without referencing Learning/Identity directly (Notification cannot
+         reference either without creating a circular project reference — see
+         docs/contracts/X-31-announcement-delivery.md §3.1). Safe here because Siri.Modules.Notification.csproj
+         has no ProjectReference of its own back to any module — it is a dependency "sink". -->
+    <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
   </ItemGroup>
 
   <ItemGroup>

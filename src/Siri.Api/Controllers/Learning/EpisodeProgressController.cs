@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Siri.Modules.Learning.Application;
 using Siri.SharedKernel;
@@ -10,6 +11,7 @@ namespace Siri.Api.Controllers.Learning;
 [ApiController]
 [Route("api/learning/enrollments/{enrollmentId:guid}/episode-progress")]
 [Authorize]
+[EnableRateLimiting("heartbeat")]
 [Tags("Learning")]
 public class EpisodeProgressController : ControllerBase
 {

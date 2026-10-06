@@ -27,7 +27,20 @@ public interface IPaymentMethod
     Task<Result<PaymentRefundResult>> CreateRefundAsync(
         CreateRefundRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>Best-effort lookup of the actual fee Stripe deducted from this PaymentIntent's charge
+    /// (same unit as Amount, i.e. THB not satang). Contract: always returns Result.Success(null) when
+    /// the fee cannot be determined (transient API error, fee not yet settled, etc.) — never returns
+    /// Failure because callers always have a fallback (Payout:EstimatedPaymentFeePercent config, see
+    /// docs/DECISIONS.md Q4) and this call must never fail payment fulfillment.</summary>
+    Task<Result<decimal?>> GetChargeFeeAsync(string providerPaymentIntentId, CancellationToken cancellationToken);
 }
+
+/// <summary>Provider-level payment method type. Intentionally separate from
+/// <see cref="Siri.Modules.Commerce.Domain.PaymentMethod"/> — this project only references
+/// <c>Siri.SharedKernel</c>, so referencing Commerce would invert the module dependency direction.
+/// <see cref="Siri.Modules.Commerce.Application.PaymentService"/> maps between the two.</summary>
+public enum PaymentMethodType { PromptPay, Card }
 
 public sealed record CreatePaymentIntentRequest(
     Guid OrderId,
@@ -35,7 +48,8 @@ public sealed record CreatePaymentIntentRequest(
     decimal Amount,
     string Currency = "thb",
     string? Description = null,
-    string? CustomerEmail = null);
+    string? CustomerEmail = null,
+    PaymentMethodType Method = PaymentMethodType.PromptPay);
 
 public sealed record PaymentIntentResult(
     string PaymentIntentId,

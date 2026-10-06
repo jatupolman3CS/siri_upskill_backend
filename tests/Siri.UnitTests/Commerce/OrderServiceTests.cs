@@ -1,3 +1,4 @@
+using Siri.Integrations.Payment;
 using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Commerce.Application;
 using Siri.Modules.Commerce.Domain;
@@ -18,6 +19,15 @@ public sealed class OrderServiceTests
     {
         public readonly Dictionary<Guid, CoursePriceInfo> Prices = [];
 
+        // P11-11: configurable per-test enrollment policy + seat reservation behavior. Kept separate
+        // (SeatReservationSucceeds) instead of deriving pass/fail from EnrollmentPolicies' MaxSeats/
+        // SeatsUsed, so a test can prove OrderService reacts correctly to TryReserveSeatAsync's return
+        // value without having to fake out real seat-counting arithmetic.
+        public readonly Dictionary<Guid, CourseEnrollmentPolicyInfo> EnrollmentPolicies = [];
+        public bool SeatReservationSucceeds = true;
+        public readonly List<Guid> ReservedSeatCourseIds = [];
+        public readonly List<Guid> ReleasedSeatCourseIds = [];
+
         public Task<IReadOnlyDictionary<Guid, CoursePriceInfo>> GetPublishedCoursePricesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken)
         {
             var result = courseIds
@@ -35,6 +45,26 @@ public sealed class OrderServiceTests
             Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
         public Task<IReadOnlyDictionary<Guid, decimal>> GetInstructorRevenueSharePercentsAsync(IEnumerable<Guid> instructorIds, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
+
+        public Task<IReadOnlyDictionary<Guid, CourseEnrollmentPolicyInfo>> GetEnrollmentPoliciesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken)
+        {
+            var result = courseIds
+                .Where(id => EnrollmentPolicies.ContainsKey(id))
+                .ToDictionary(id => id, id => EnrollmentPolicies[id]);
+            return Task.FromResult<IReadOnlyDictionary<Guid, CourseEnrollmentPolicyInfo>>(result);
+        }
+
+        public Task<bool> TryReserveSeatAsync(Guid courseId, CancellationToken cancellationToken)
+        {
+            ReservedSeatCourseIds.Add(courseId);
+            return Task.FromResult(SeatReservationSucceeds);
+        }
+
+        public Task ReleaseSeatAsync(Guid courseId, CancellationToken cancellationToken)
+        {
+            ReleasedSeatCourseIds.Add(courseId);
+            return Task.CompletedTask;
+        }
     }
 
 
@@ -42,6 +72,10 @@ public sealed class OrderServiceTests
     private sealed class FakeLearningAccessContract : ILearningAccessContract
     {
         public readonly HashSet<(Guid UserId, Guid CourseId)> Enrolled = [];
+
+        // P11-13 (Q13.3): captures the ExpiresAtUtc actually granted per course, so tests can assert the
+        // real computed value (session-based vs. now-based fallback) instead of only "enrolled or not".
+        public readonly Dictionary<Guid, DateTime?> ExpiresAtUtcByCourseId = [];
 
         // Call counts prove OrderService uses the batched overloads for a multi-course order instead of
         // looping the single-course ones (the N+1 this fix removes).
@@ -76,6 +110,7 @@ public sealed class OrderServiceTests
         {
             EnrollUserCallCount++;
             Enrolled.Add((userId, courseId));
+            ExpiresAtUtcByCourseId[courseId] = expiresAtUtc;
             return Task.FromResult(Result.Success());
         }
 
@@ -89,6 +124,7 @@ public sealed class OrderServiceTests
             foreach (var grant in grants)
             {
                 Enrolled.Add((userId, grant.CourseId));
+                ExpiresAtUtcByCourseId[grant.CourseId] = grant.ExpiresAtUtc;
             }
 
             return Task.FromResult(Result.Success());
@@ -121,7 +157,7 @@ public sealed class OrderServiceTests
         public Task<IReadOnlyList<ORDER>> GetStaleAwaitingPaymentOrdersAsync(DateTime cutoffUtc, int batchSize, CancellationToken cancellationToken)
         {
             var result = Orders.Values
-                .Where(o => o.STATUS == OrderStatus.AwaitingPayment && o.CreatedAtUtc <= cutoffUtc)
+                .Where(o => (o.STATUS == OrderStatus.AwaitingPayment || o.STATUS == OrderStatus.Pending) && o.CreatedAtUtc <= cutoffUtc)
                 .OrderBy(o => o.CreatedAtUtc)
                 .Take(batchSize)
                 .ToList();
@@ -215,17 +251,85 @@ public sealed class OrderServiceTests
         public Task<int> CountAsync(CancellationToken cancellationToken) => Task.FromResult(Bundles.Count);
     }
 
+    /// <summary>P11-13 (Q13.3): only <see cref="GetEarliestScheduledSessionAsync"/> is used by
+    /// <see cref="OrderService"/> — every other member of <see cref="ILiveScheduleReader"/> throws so a
+    /// test would fail loudly if the production code path ever changed to call one of them.</summary>
+    private sealed class FakeLiveScheduleReader : ILiveScheduleReader
+    {
+        public readonly Dictionary<Guid, LiveSessionInfo> EarliestSessionByCourseId = [];
+
+        public Task<IReadOnlyList<LiveSessionInfo>> GetSessionsForCourseAsync(Guid courseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this service under test — only GetEarliestScheduledSessionAsync is called.");
+
+        public Task<IReadOnlyList<LiveSessionInfo>> GetUpcomingSessionsAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this service under test — only GetEarliestScheduledSessionAsync is called.");
+
+        public Task<LiveSessionInfo?> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this service under test — only GetEarliestScheduledSessionAsync is called.");
+
+        public Task<LiveSessionInfo?> GetEarliestScheduledSessionAsync(Guid courseId, CancellationToken cancellationToken) =>
+            Task.FromResult(EarliestSessionByCourseId.TryGetValue(courseId, out var session) ? session : null);
+    }
+
+    private sealed class FakePaymentRepository : IPaymentRepository
+    {
+        public readonly Dictionary<Guid, PAYMENT> Payments = [];
+
+        public Task<PAYMENT?> GetByIdAsync(Guid paymentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Payments.TryGetValue(paymentId, out var p) ? p : null);
+
+        public Task<PAYMENT?> GetByProviderPaymentIntentIdAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Payments.Values.FirstOrDefault(p => p.PROVIDER_PAYMENT_INTENT_ID == providerPaymentIntentId));
+
+        public Task AddAsync(PAYMENT payment, CancellationToken cancellationToken)
+        {
+            Payments[payment.PAYMENT_ID] = payment;
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<PAYMENT>> GetPendingByOrderIdAsync(Guid orderId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PAYMENT>>(Payments.Values
+                .Where(p => p.ORDER_ID == orderId && (p.STATUS == PaymentStatus.Pending || p.STATUS == PaymentStatus.Processing))
+                .ToList());
+    }
+
+    private sealed class FakePaymentMethod : IPaymentMethod
+    {
+        public readonly List<string> CanceledIntentIds = [];
+        public bool CancelSucceeds = true;
+
+        public Task<Result<PaymentIntentResult>> CreatePaymentIntentAsync(CreatePaymentIntentRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<Result<PaymentIntentResult>> GetPaymentIntentAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<Result> CancelPaymentIntentAsync(string providerPaymentIntentId, CancellationToken cancellationToken)
+        {
+            CanceledIntentIds.Add(providerPaymentIntentId);
+            return Task.FromResult(CancelSucceeds ? Result.Success() : Result.Failure(DomainError.Conflict("cannot cancel")));
+        }
+
+        public Task<Result<PaymentRefundResult>> CreateRefundAsync(CreateRefundRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<Result<decimal?>> GetChargeFeeAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
     private static OrderService CreateOrderService(
         FakeOrderRepository orderRepo,
         FakePromoCodeRepository promoRepo,
         FakeCatalogPriceContract catalog,
         FakeLearningAccessContract learning,
-        IClock clock)
+        IClock clock,
+        FakeLiveScheduleReader? liveScheduleReader = null)
     {
         var flashRepo = new FakeFlashSaleRepository();
         var bundleRepo = new FakeBundleRepository();
         var pricingEngine = new PricingEngine(catalog, flashRepo, bundleRepo, promoRepo, clock);
-        return new OrderService(orderRepo, promoRepo, catalog, learning, pricingEngine, clock);
+        return new OrderService(orderRepo, promoRepo, catalog, liveScheduleReader ?? new FakeLiveScheduleReader(), learning, pricingEngine, clock,
+            new FakePaymentRepository(), new FakePaymentMethod());
     }
 
     [Fact]
@@ -417,6 +521,146 @@ public sealed class OrderServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_EnrollmentDeadlineHasPassed_ReturnsConflictBeforeCreatingOrder()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+
+        var courseId = Guid.NewGuid();
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
+        catalog.EnrollmentPolicies[courseId] = new CourseEnrollmentPolicyInfo(courseId, now.AddDays(-1), null, 0);
+
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var result = await service.CreateAsync(Guid.NewGuid(), new CreateOrderCommand([courseId]), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("conflict", result.Error.Code);
+        Assert.Empty(orderRepo.Orders);
+
+        // Deadline check must happen before pricing/seat reservation — no seat should ever be reserved.
+        Assert.Empty(catalog.ReservedSeatCourseIds);
+    }
+
+    [Fact]
+    public async Task CreateAsync_EnrollmentDeadlineInTheFuture_Succeeds()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+
+        var courseId = Guid.NewGuid();
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
+        catalog.EnrollmentPolicies[courseId] = new CourseEnrollmentPolicyInfo(courseId, now.AddDays(1), null, 0);
+
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var result = await service.CreateAsync(Guid.NewGuid(), new CreateOrderCommand([courseId]), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(orderRepo.Orders);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SeatCappedCourseFull_ReturnsConflictAndDoesNotPersistOrder()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+
+        var courseId = Guid.NewGuid();
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
+        catalog.EnrollmentPolicies[courseId] = new CourseEnrollmentPolicyInfo(courseId, null, 1, 1);
+        catalog.SeatReservationSucceeds = false;
+
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var result = await service.CreateAsync(Guid.NewGuid(), new CreateOrderCommand([courseId]), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("conflict", result.Error.Code);
+        Assert.Empty(orderRepo.Orders);
+        Assert.Contains(courseId, catalog.ReservedSeatCourseIds);
+    }
+
+    [Fact]
+    public async Task CreateAsync_SeatCappedCourseWithAvailableSeats_ReservesSeatAndSucceeds()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+
+        var courseId = Guid.NewGuid();
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
+        catalog.EnrollmentPolicies[courseId] = new CourseEnrollmentPolicyInfo(courseId, null, 10, 3);
+
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var result = await service.CreateAsync(Guid.NewGuid(), new CreateOrderCommand([courseId]), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(orderRepo.Orders);
+        Assert.Contains(courseId, catalog.ReservedSeatCourseIds);
+    }
+
+    [Fact]
+    public async Task CreateAsync_CourseWithNoEnrollmentPolicySet_ReservesSeatSymmetricWithReleaseAndSkipsDeadline()
+    {
+        // A course with EnrollmentDeadlineUtc/MaxSeats both null (the default for every pre-existing
+        // course) still reserves a seat — CancelAsync/OrderExpiryJob release for every course, so Reserve
+        // must be symmetric or SeatsUsed drifts low when a cap is set/cleared while orders are open.
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+
+        var courseId = Guid.NewGuid();
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
+        // No entry in catalog.EnrollmentPolicies at all — mirrors GetEnrollmentPoliciesAsync's real
+        // implementation, which only returns rows that exist (it never fabricates a null/null entry).
+
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var result = await service.CreateAsync(Guid.NewGuid(), new CreateOrderCommand([courseId]), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(orderRepo.Orders);
+        Assert.Contains(courseId, catalog.ReservedSeatCourseIds);
+    }
+
+    [Fact]
+    public async Task CancelAsync_OrderWithCourseItems_ReleasesSeatForEachDistinctCourse()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+
+        var courseId = Guid.NewGuid();
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
+        catalog.EnrollmentPolicies[courseId] = new CourseEnrollmentPolicyInfo(courseId, null, 10, 1);
+
+        var userId = Guid.NewGuid();
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock);
+        var createResult = await service.CreateAsync(userId, new CreateOrderCommand([courseId]), CancellationToken.None);
+        Assert.True(createResult.IsSuccess);
+
+        var cancelResult = await service.CancelAsync(userId, createResult.Value.Id, CancellationToken.None);
+
+        Assert.True(cancelResult.IsSuccess);
+        Assert.Equal(OrderStatus.Cancelled, cancelResult.Value.Status);
+        Assert.Contains(courseId, catalog.ReleasedSeatCourseIds);
+    }
+
+    [Fact]
     public async Task CreateAsync_WithExpiredPromoCode_ReturnsValidationError()
     {
         var orderRepo = new FakeOrderRepository();
@@ -493,5 +737,111 @@ public sealed class OrderServiceTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("not_found", result.Error.Code);
+    }
+
+    // P11-13 (Q13.3): zero-amount fast path (100%-discount promo code) must compute ExpiresAtUtc the same
+    // way the paid webhook path does — from the course's earliest scheduled live session when one exists,
+    // otherwise falling back to "now" (covers both an OnDemand course and a Live/Hybrid course with no
+    // session scheduled yet, which the production code cannot and must not try to tell apart — see
+    // docs/contracts/P11-13-access-duration-first-session.md §0.2).
+
+    [Fact]
+    public async Task CreateAsync_ZeroAmountWithEarliestScheduledSession_ComputesExpiresAtUtcFromSessionStart()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+
+        var courseId = Guid.NewGuid();
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), 30);
+
+        var sessionStartsAtUtc = now.AddDays(10);
+        var liveScheduleReader = new FakeLiveScheduleReader();
+        liveScheduleReader.EarliestSessionByCourseId[courseId] =
+            new LiveSessionInfo(Guid.NewGuid(), courseId, "Session 1", sessionStartsAtUtc, sessionStartsAtUtc.AddHours(1), LiveSessionStatus.Scheduled, null);
+
+        var promo = PROMO_CODE.Create("FREE100SESSION", PromoCodeDiscountType.Percentage, 100m, 10, 1, 0m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
+        await promoRepo.AddAsync(promo, CancellationToken.None);
+
+        var userId = Guid.NewGuid();
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock, liveScheduleReader);
+        var result = await service.CreateAsync(userId, new CreateOrderCommand([courseId], "free100session"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains((userId, courseId), learning.Enrolled);
+
+        // Must equal session.StartsAtUtc.AddDays(30), and must NOT equal clock.UtcNow.AddDays(30) — the
+        // two are asserted separately so this test cannot pass by coincidence.
+        var expectedExpiresAtUtc = sessionStartsAtUtc.AddDays(30);
+        var fallbackExpiresAtUtc = now.AddDays(30);
+        Assert.NotEqual(expectedExpiresAtUtc, fallbackExpiresAtUtc);
+        Assert.Equal(expectedExpiresAtUtc, learning.ExpiresAtUtcByCourseId[courseId]);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ZeroAmountWithNoScheduledSession_FallsBackToNowPlusAccessDurationDays()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+
+        // No entry in liveScheduleReader.EarliestSessionByCourseId for this course — covers both "the
+        // course is OnDemand" and "the course is Live/Hybrid but nothing is scheduled yet" (see class
+        // comment above): production code cannot distinguish the two, and Q13.3 wants the same fallback
+        // for both, so one test stands in for both cases.
+        var courseId = Guid.NewGuid();
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), 30);
+
+        var promo = PROMO_CODE.Create("FREE100NOSESSION", PromoCodeDiscountType.Percentage, 100m, 10, 1, 0m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
+        await promoRepo.AddAsync(promo, CancellationToken.None);
+
+        var userId = Guid.NewGuid();
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock, new FakeLiveScheduleReader());
+        var result = await service.CreateAsync(userId, new CreateOrderCommand([courseId], "free100nosession"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains((userId, courseId), learning.Enrolled);
+        Assert.Equal(now.AddDays(30), learning.ExpiresAtUtcByCourseId[courseId]);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ZeroAmountWithNullAccessDurationDays_GrantsLifetimeAccessWithoutQueryingLiveSchedule()
+    {
+        var orderRepo = new FakeOrderRepository();
+        var promoRepo = new FakePromoCodeRepository();
+        var catalog = new FakeCatalogPriceContract();
+        var learning = new FakeLearningAccessContract();
+        var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+
+        // AccessDurationDays = null (lifetime access) — the short-circuit `AccessDurationDays is { } days`
+        // guard must skip GetEarliestScheduledSessionAsync entirely, not just discard its result. Every
+        // other member of FakeLiveScheduleReader throws, so this test would fail loudly if production
+        // code ever called GetSessionsForCourseAsync/GetUpcomingSessionsAsync/GetSessionAsync here —
+        // GetEarliestScheduledSessionAsync itself would not throw even if called, so a session is seeded
+        // anyway to prove it is genuinely never consulted (the resulting ExpiresAtUtc stays null either way).
+        var courseId = Guid.NewGuid();
+        catalog.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
+
+        var liveScheduleReader = new FakeLiveScheduleReader();
+        liveScheduleReader.EarliestSessionByCourseId[courseId] =
+            new LiveSessionInfo(Guid.NewGuid(), courseId, "Session 1", now.AddDays(10), now.AddDays(10).AddHours(1), LiveSessionStatus.Scheduled, null);
+
+        var promo = PROMO_CODE.Create("FREE100LIFETIME", PromoCodeDiscountType.Percentage, 100m, 10, 1, 0m, now.AddDays(-1), now.AddDays(1), PromoCodeScope.AllCourses, null);
+        await promoRepo.AddAsync(promo, CancellationToken.None);
+
+        var userId = Guid.NewGuid();
+        var service = CreateOrderService(orderRepo, promoRepo, catalog, learning, clock, liveScheduleReader);
+        var result = await service.CreateAsync(userId, new CreateOrderCommand([courseId], "free100lifetime"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains((userId, courseId), learning.Enrolled);
+        Assert.Null(learning.ExpiresAtUtcByCourseId[courseId]);
     }
 }

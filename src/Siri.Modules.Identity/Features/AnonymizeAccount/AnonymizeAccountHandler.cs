@@ -81,6 +81,14 @@ public sealed class AnonymizeAccountHandler(
             token.Revoke(null, clock);
         }
 
+        // Linked sign-in providers hold the provider's email and subject — personal data that is neither
+        // money nor entitlement, so (unlike orders/enrollments) it is erased outright rather than kept.
+        var externalLogins = await dbContext.UserExternalLogins()
+            .Where(l => l.UserId == command.UserId)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        dbContext.UserExternalLogins().RemoveRange(externalLogins);
+
         var auditDetail = $"{{\"userId\":\"{user.Id}\",\"status\":\"Deleted\",\"action\":\"PDPA Anonymize\"}}";
         dbContext.SecurityAudits().Add(SECURITY_AUDIT.Record(AuditEventType, user.Id, auditDetail, ipAddress, clock));
 

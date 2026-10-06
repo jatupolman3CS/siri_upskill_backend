@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Siri.Integrations.Payment;
 using Siri.Integrations.Payment.Stripe;
 using Siri.Modules.Commerce.Application;
+using Siri.Modules.Commerce.Domain;
 using Siri.Modules.Commerce.Infrastructure;
 using Siri.SharedKernel;
 
@@ -58,6 +59,20 @@ public static class CommerceModule
                 }
             })
             .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // P11-09: operational gate for which payment methods are currently enabled
+        var paymentSection = configuration.GetSection(PaymentOptions.SectionName);
+        services.AddOptions<PaymentOptions>()
+            .Bind(paymentSection)
+            .PostConfigure(options =>
+            {
+                // Bind() appends configured list items to the [PromptPay] default instead of replacing it
+                // (duplicates, and PromptPay could never be switched off) — re-read the raw section so any
+                // configured value replaces the default, which only applies when nothing is configured.
+                var configured = paymentSection.GetSection(nameof(PaymentOptions.EnabledMethods)).Get<List<PaymentMethod>>();
+                options.EnabledMethods = configured is { Count: > 0 } ? configured.Distinct().ToList() : [PaymentMethod.PromptPay];
+            })
             .ValidateOnStart();
 
         // P3-03: Order expiry job options & worker

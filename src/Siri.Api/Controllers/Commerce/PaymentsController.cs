@@ -14,6 +14,14 @@ namespace Siri.Api.Controllers.Commerce;
 [Tags("Commerce")]
 public class PaymentsController : ControllerBase
 {
+    [HttpGet("config")]
+    [EnableRateLimiting("default")]
+    [EndpointName("CommerceGetPaymentConfig")]
+    [EndpointSummary("ดึง publishable key และวิธีชำระเงินที่เปิดใช้งาน")]
+    [ProducesResponseType(typeof(PaymentConfigResponse), StatusCodes.Status200OK)]
+    public IResult GetConfig([FromServices] PaymentService paymentService) =>
+        Results.Ok(paymentService.GetConfig());
+
     [HttpGet("{paymentId:guid}")]
     [EndpointName("CommerceGetPayment")]
     [EndpointSummary("ดูสถานะการชำระเงิน")]

@@ -22,7 +22,7 @@ public class ObservabilityOptionsTests
 
         Assert.False(options.OtlpExportEnabled);
         Assert.Equal(OtlpTransport.Grpc, options.OtlpProtocol);
-        Assert.Equal("Siri.Api", options.ServiceName);
+        Assert.Equal("siriupskill-api", options.ServiceName);
         Assert.Empty(Validate(options));
     }
 
@@ -121,7 +121,16 @@ public class ObservabilityOptionsTests
 
         Assert.False(options.OtlpExportEnabled);
         Assert.Equal(OtlpTransport.Grpc, options.OtlpProtocol);
-        Assert.Equal("Siri.Api", options.ServiceName);
+        Assert.Equal("siriupskill-api", options.ServiceName);
+    }
+
+    [Fact]
+    public void OtlpApiKey_Blank_IsValidAndMeansNoAuthHeader()
+    {
+        var options = new ObservabilityOptions { OtlpEndpoint = "http://localhost:4317" };
+
+        Assert.Null(options.OtlpApiKey);
+        Assert.Empty(Validate(options));
     }
 
     [Fact]

@@ -42,6 +42,13 @@ public sealed class DataExportHandler(AppDbContext dbContext, IClock clock)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        var externalLogins = await dbContext.UserExternalLogins()
+            .AsNoTracking()
+            .Where(l => l.UserId == command.UserId)
+            .OrderBy(l => l.LinkedAtUtc)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var profileDto = new UserExportDto(
             user.Id,
             user.Email,
@@ -72,7 +79,12 @@ public sealed class DataExportHandler(AppDbContext dbContext, IClock clock)
             clock.UtcNow,
             profileDto,
             sessionDtos,
-            auditDtos);
+            auditDtos,
+            externalLogins.Select(l => new ExternalLoginExportDto(
+                l.Provider.ToString(),
+                l.ProviderEmail,
+                l.LinkedAtUtc,
+                l.LastLoginAtUtc)).ToList());
 
         return Result.Success(response);
     }

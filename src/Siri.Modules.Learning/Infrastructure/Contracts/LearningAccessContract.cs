@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Learning.Application;
 using Siri.Modules.Learning.Contracts;
@@ -196,5 +197,24 @@ public sealed class LearningAccessContract(
         await enrollmentRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return Result.Success();
+    }
+
+    public async Task<IReadOnlySet<Guid>> GetActiveEnrolledUserIdsAsync(Guid courseId, CancellationToken cancellationToken)
+    {
+        if (courseId == Guid.Empty)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var now = clock.UtcNow;
+        var userIds = await enrollmentRepository.Query()
+            .Where(e => e.COURSE_ID == courseId
+                && e.STATUS == EnrollmentStatus.Active
+                && (!e.EXPIRES_AT_UTC.HasValue || e.EXPIRES_AT_UTC.Value > now))
+            .Select(e => e.USER_ID)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return userIds.ToHashSet();
     }
 }

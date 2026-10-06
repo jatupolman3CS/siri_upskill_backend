@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -35,6 +37,12 @@ using Siri.SharedKernel;
 using Siri.SharedKernel.Configuration;
 using Siri.Workers;
 
+// Serilog swallows sink failures (bad network, malformed export, OTLP auth rejected) by design so
+// they never disrupt app logging — SelfLog is the documented escape hatch to see them. Kept on
+// permanently (writes to stderr only on an actual sink failure, so it's silent in the normal case)
+// since P0-13's OTLP wiring has no other way to surface a misconfigured/unreachable collector.
+Serilog.Debugging.SelfLog.Enable(Console.Error);
+
 // Bootstrap logger: catches anything that goes wrong before the host's own Serilog pipeline
 // (built further down from configuration) is ready.
 Log.Logger = new LoggerConfiguration()
@@ -55,12 +63,44 @@ try
     // loudly instead of silently exporting nowhere.
     var observability = builder.Configuration.GetSection(ObservabilityOptions.SectionName)
         .Get<ObservabilityOptions>() ?? new ObservabilityOptions();
+    // "<project>-<component>-<env>" naming for the shared VPS-wide OTLP collector (see
+    // ObservabilityOptions.ServiceName's doc comment) — applied unconditionally so the same rule
+    // holds whether ServiceName was left at its default or set explicitly via config.
+    observability.ServiceName = $"{observability.ServiceName}-{EnvironmentSuffix(builder.Environment.EnvironmentName)}";
+
+    static string EnvironmentSuffix(string environmentName) => environmentName switch
+    {
+        "Production" => "prd",
+        "Development" => "dev",
+        "QA" => "qa",
+        _ => environmentName.ToLowerInvariant(),
+    };
+
+    // Startup signal for "is OTLP actually wired up" without needing to check the collector itself —
+    // never logs OtlpApiKey's value (security.md), only whether one is set.
+    Log.Information(
+        "Observability: OTLP export {Status} (endpoint={Endpoint}, protocol={Protocol}, service={ServiceName}, apiKeyConfigured={ApiKeyConfigured})",
+        observability.OtlpExportEnabled ? "enabled" : "disabled",
+        observability.OtlpExportEnabled ? observability.OtlpEndpoint : null,
+        observability.OtlpProtocol,
+        observability.ServiceName,
+        !string.IsNullOrWhiteSpace(observability.OtlpApiKey));
 
     builder.Host.UseSerilog((context, services, configuration) =>
     {
         configuration
             .MinimumLevel.Information()
             .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+            // The OTLP SDK exporters (traces/metrics) run through named IHttpClientFactory clients
+            // "OtlpTraceExporter"/"OtlpMetricExporter" (confirmed from their own request/response log
+            // lines at runtime — System.Net.Http.HttpClient.Otlp*Exporter.{LogicalHandler,ClientHandler}),
+            // which by default log every export call at Information. Left alone, that's the exact
+            // feedback loop this wiring must avoid: exporting a log batch about exporting a log batch.
+            // Full source context per client, not a partial-word prefix — confirmed empirically that
+            // Serilog's Override match did NOT fire for "...Otlp" alone (these two exact strings do).
+            // Every other named HttpClient (Stripe, Bunny, ...) keeps logging normally.
+            .MinimumLevel.Override("System.Net.Http.HttpClient.OtlpTraceExporter", Serilog.Events.LogEventLevel.Warning)
+            .MinimumLevel.Override("System.Net.Http.HttpClient.OtlpMetricExporter", Serilog.Events.LogEventLevel.Warning)
             .Enrich.FromLogContext()
             .Enrich.WithProperty("Application", "Siri.Api")
             .WriteTo.Console(new JsonFormatter());
@@ -83,7 +123,12 @@ try
                 {
                     ["service.name"] = observability.ServiceName,
                     ["deployment.environment.name"] = context.HostingEnvironment.EnvironmentName,
+                    ["service.instance.id"] = Environment.MachineName,
                 };
+                if (!string.IsNullOrWhiteSpace(observability.OtlpApiKey))
+                {
+                    options.Headers = new Dictionary<string, string> { ["x-otlp-api-key"] = observability.OtlpApiKey };
+                }
             });
         }
     });
@@ -164,6 +209,13 @@ try
             limiter.PermitLimit = 120;
             limiter.QueueLimit = 0;
         });
+
+        // "heartbeat": applied to playback progress heartbeat endpoints (X-29). Partitioned per user
+        // so that concurrent learners never exhaust a global quota. 6 requests per 30 seconds allows
+        // the normal 15s interval (2 requests/30s) plus bursts from seek/resume events.
+        options.AddPolicy<string>(
+            RateLimiterConfiguration.HeartbeatPolicyName,
+            RateLimiterConfiguration.CreateHeartbeatPartition);
     });
 
     builder.Services.AddHealthChecks();
@@ -180,21 +232,36 @@ try
         .ValidateDataAnnotations()
         .ValidateOnStart();
 
+    // The OTLP exporter's own outbound calls go through HttpClient like any other, which
+    // AddHttpClientInstrumentation() below would otherwise trace/measure like any other outgoing
+    // call — every exported batch would generate a new span for exporting itself, which gets
+    // exported too: an unbounded feedback loop, not just noise. Filtering by host (computed once,
+    // not the full endpoint with path) keeps this correct even though the SDK appends the
+    // per-signal path (/v1/traces, /v1/metrics) to OtlpEndpoint itself for HttpProtobuf.
+    var otlpHost = observability.OtlpExportEnabled ? observability.GetOtlpEndpointUri().Host : null;
+    bool IsNotOtlpExportRequest(HttpRequestMessage request) =>
+        otlpHost is null || !string.Equals(request.RequestUri?.Host, otlpHost, StringComparison.OrdinalIgnoreCase);
+
     var openTelemetry = builder.Services.AddOpenTelemetry()
         .ConfigureResource(resource => resource
             .AddService(observability.ServiceName)
             .AddAttributes([
                 new KeyValuePair<string, object>(
                     "deployment.environment.name", builder.Environment.EnvironmentName),
+                new KeyValuePair<string, object>("service.instance.id", Environment.MachineName),
             ]))
         .WithTracing(tracing => tracing
             // /health is polled continuously by Docker/Caddy/Uptime Kuma (DEPLOYMENT.md) — tracing
             // every probe would drown real request spans in noise.
             .AddAspNetCoreInstrumentation(options =>
                 options.Filter = httpContext => httpContext.Request.Path != "/health")
-            .AddHttpClientInstrumentation())
+            .AddHttpClientInstrumentation(options => options.FilterHttpRequestMessage = IsNotOtlpExportRequest))
         .WithMetrics(metrics => metrics
             .AddAspNetCoreInstrumentation()
+            // MeterProviderBuilder.AddHttpClientInstrumentation() (1.17.0) takes no configure delegate —
+            // only the tracing overload supports FilterHttpRequestMessage, so metrics still aggregate the
+            // exporter's own OTLP calls. That's noise, not a feedback loop (recording a metric doesn't
+            // trigger a new export), so it's left as-is.
             .AddHttpClientInstrumentation()
             .AddRuntimeInstrumentation());
 
@@ -205,6 +272,21 @@ try
                 ? OtlpExportProtocol.Grpc
                 : OtlpExportProtocol.HttpProtobuf,
             observability.GetOtlpEndpointUri());
+
+        if (!string.IsNullOrWhiteSpace(observability.OtlpApiKey))
+        {
+            // UseOtlpExporter(protocol, uri) has no headers parameter, and setting the OTLP spec's own
+            // OTEL_EXPORTER_OTLP_HEADERS env var (the documented approach for headers) does NOT reach
+            // these exporters in this hosted setup — confirmed by live testing against the actual VPS
+            // collector: the trace/metric exporters run through named IHttpClientFactory clients
+            // "OtlpTraceExporter"/"OtlpMetricExporter" (see their own request logs, now quieted above),
+            // and those got 401s with the env var approach. Configuring the named clients' default
+            // headers directly is what actually works — verified the same way (200s after this change).
+            builder.Services.AddHttpClient("OtlpTraceExporter",
+                client => client.DefaultRequestHeaders.Add("x-otlp-api-key", observability.OtlpApiKey));
+            builder.Services.AddHttpClient("OtlpMetricExporter",
+                client => client.DefaultRequestHeaders.Add("x-otlp-api-key", observability.OtlpApiKey));
+        }
     }
 
     // ---- Authentication / Authorization (P0-16) ------------------------------------------
@@ -342,7 +424,16 @@ try
         });
 
         var sampleVideoEnabled = builder.Configuration.GetValue("SIRI_DEV_SAMPLE_VIDEO", false);
-        if (sampleVideoEnabled)
+
+        // Guards against a deployed container (QA/Production) that ends up with
+        // ASPNETCORE_ENVIRONMENT=Development by misconfiguration: IsDevelopment() alone can't be
+        // trusted to mean "this is my native Windows dev machine" — DOTNET_RUNNING_IN_CONTAINER is
+        // set automatically by the aspnet base image regardless of that override, so it stays the
+        // reliable signal. Without this, this block would try to reach the native dev-only Postgres
+        // instance (127.0.0.1:5433, see README.md) from inside the deployed container and fail with a
+        // noisy connection-refused warning — this happened for real on QA.
+        var runsInContainer = ProductionConfigurationGuard.IsRunningInContainer(builder.Configuration);
+        if (sampleVideoEnabled && !runsInContainer)
         {
             // Ensure native dev automatically has Bunny Stream sample media asset linked.
             try

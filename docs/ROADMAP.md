@@ -19,6 +19,8 @@ task ระดับปฏิบัติทั้งหมดอยู่ที
 | P8 | Growth & Engagement | หลัง launch | LX-08, LX-09, LX-10, LX-11 |
 | P9 | B2B Corporate Portal | หลัง launch | CO-01, CO-02, CO-03, CO-04 |
 | P10 | Subscription | หลัง launch | LX-12 |
+| P11 | Hybrid Live (Google Meet + Calendar + Catch-up + บัตร) | หลัง launch / แทรกได้ | HL-01..07 |
+| P12 | AI Study (chapters, summary, watch-plan, marketing copy) | หลัง P11 | AI-01..04 |
 
 > P3 ใช้ **Stripe** (แก้ไข 2026-08-18 จาก EasySlip) — ต้องสมัครบัญชี Stripe Thailand ล่วงหน้าตั้งแต่ P1 (KYC ใช้เวลา); v1 เปิดเฉพาะ PromptPay QR — บัตรเปิดเพิ่มทีหลังได้จาก dashboard แต่**ผ่อนชำระยังไม่มี** (Stripe ไทยไม่รองรับ)
 > P0 หนักขึ้นเพราะ self-host บน Contabo (ต้องทำ infra, backup, CI/CD เอง)
@@ -115,6 +117,23 @@ task ระดับปฏิบัติทั้งหมดอยู่ที
 - Revenue split จาก pool ตามสัดส่วนนาทีที่ถูกดู (default เสนอ — รอ Q6 ยืนยัน)
 - **Exit criteria:** ต่ออายุ/ยกเลิก/บัตรตาย ครบ loop ใน Stripe test clock · subscription ขาด = playback ปฏิเสธทันที
 
+## P11 — Hybrid Live (หลัง launch หรือแทรกก่อน launch ตามธุรกิจ)
+> จากสเปค Hybrid Platform (D-21, 2026-09-16) · แบบเต็ม `HYBRID_LIVE.md` · **รอ Q10 (บัญชี Google/Workspace) Q11 (ICS vs attendee) Q13 (นโยบายคอร์สสด)** ก่อน Wave 2
+- **HL-01** `DeliveryFormat` + ตารางสอน (`CATALOG.COURSE_LIVE_SESSIONS`) ใน Catalog + builder panel + course detail/catalog badge
+- **HL-02/03** module ใหม่ `Siri.Modules.Live` + `Siri.Integrations.Google`: Meet อัตโนมัติ, invite reconciliation job, ICS ผ่าน `EmailOutbox`, reminder
+- **HL-04/05** บันทึกคาบ = episode ปกติ (catch-up ฟรีจาก entitlement เดิม) + ปุ่มเข้าห้องที่ server ตัดสิน + join log
+- **HL-06** บัตรเครดิตบน PaymentIntent เดิม (P11-09/24) + ค่าธรรมเนียมเข้า Q4
+- **HL-07** admin webhook viewer + Bunny quota
+- ต้องปิด **X-28** (FE ไม่ต่ออายุ signed URL 5 นาที) ก่อน — ไม่งั้นบันทึกยาวเล่นไม่จบ
+- **Exit criteria:** ตั้ง 3 คาบ → Meet อัตโนมัติ → ซื้อ (PromptPay+บัตร) → ICS ถึงภายใน 2 นาที เฉพาะคาบอนาคต → เข้าห้องได้เฉพาะช่วงเวลา+มีสิทธิ์ (403 พิสูจน์ด้วยเทสต์) → อัปบันทึก → latecomer ดูย้อนหลัง+resume ได้ · ไม่มี Meet URL ใน response สาธารณะ
+
+## P12 — AI Study (หลัง P11)
+> **รอ Q12** (Anthropic SDK dependency + งบ/เดือน + opt-in ผู้สอน) · chapters ใช้ Bunny Transcribe AI ไม่ใช้ LLM
+- **AI-01** transcript + chapters จาก Bunny → marker บนผู้เล่น Shaka เดิม
+- **AI-02** summary/key points/คำถามทบทวน (LLM, structured output) · **AI-03** watch-plan + fallback rule-based · **AI-04** marketing copy + สรุปคาบ
+- budget ledger + hard stop ต่อเดือน · ไม่ส่ง PII ผู้เรียนเข้า LLM
+- **Exit criteria:** อัปบันทึก 1 ชม. → ภายใน 30 นาที มี chapter + สรุปไทย · เกินงบแล้วหยุดเอง ผู้เรียนไม่เห็น error · คอร์สไม่ opt-in ไม่มี transcript เลย
+
 ---
 
 ## เส้นทางเร่ง (ถ้าต้องออกตลาดเร็ว)
@@ -131,3 +150,6 @@ task ระดับปฏิบัติทั้งหมดอยู่ที
 | **MSSQL Express ชนเพดาน 10 GB** | เขียนข้อมูลไม่ได้กะทันหัน | แยก `WatchEvents` เป็น DB ต่างหาก + purge 90 วัน + alert ที่ 7 GB |
 | ค่า bandwidth วิดีโอบานปลาย | ต้นทุนต่อผู้ใช้สูง | ตั้ง budget alert ที่ Bunny, จำกัด bitrate สูงสุด 1080p |
 | Instructor ไม่ใช้ builder เอง | IN-01 เสียเปล่า | ทดสอบ usability กับ instructor จริง 3 คนกลาง P4 (P4-30) |
+| **Google service account สร้าง Meet ไม่ได้ถ้าไม่มี Workspace + domain-wide delegation** (P11) | HL-02 ทำไม่ได้ทั้งฟีเจอร์ | Q10 ตัดสินก่อนเริ่ม P11-03 · degraded mode `PROVIDER=Manual` (ผู้สอนวางลิงก์เอง) ออกแบบไว้ในโค้ดเดียวกัน |
+| **เพดานผู้เข้าร่วม Meet/attendee ของ Google** (100/150/500 ตามแผน · attendee ~200/event) | คลาสใหญ่เข้าไม่ได้ / invite ไม่ครบ | เลือกแผน Workspace ตามขนาดคลาส · ICS ผ่าน outbox เป็น baseline ไม่พึ่ง attendee · เตือนผู้สอนเมื่อใกล้เพดาน |
+| **ค่า AI บานปลาย** (P12) | ต้นทุนต่อคอร์สเกินคาด | `Ai:MonthlyBudgetUsd` hard stop + ledger + opt-in ต่อคอร์ส · chapters ใช้ Bunny ($0.10/นาที) ไม่ใช่ LLM |

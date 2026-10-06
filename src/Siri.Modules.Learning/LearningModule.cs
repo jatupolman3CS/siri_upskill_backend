@@ -63,6 +63,7 @@ public static class LearningModule
         services.AddScoped<Catalog.Contracts.IEpisodeAccessReader, Infrastructure.Contracts.LearningAccessContract>();
         services.AddScoped<Catalog.Contracts.ILearningEnrollmentChecker, Infrastructure.Contracts.LearningAccessContract>();
         services.AddScoped<Contracts.ILearningAnalyticsContract, Infrastructure.Contracts.LearningAnalyticsContract>();
+        services.AddScoped<Notification.Contracts.IAnnouncementRecipientResolver, Infrastructure.Contracts.AnnouncementRecipientResolver>();
 
         return services;
     }

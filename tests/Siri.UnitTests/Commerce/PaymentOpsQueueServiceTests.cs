@@ -21,6 +21,7 @@ public sealed class PaymentOpsQueueServiceTests
     private readonly FakePaymentMethod _paymentMethod = new();
     private readonly FakeLearningAccessContract _learningAccessContract = new();
     private readonly FakeCatalogPriceContract _catalogPriceContract = new();
+    private readonly FakeLiveScheduleReader _liveScheduleReader = new();
     private readonly FakeRevenueSplitContract _revenueSplitContract = new();
     private readonly FakeEmailOutbox _emailOutbox = new();
     private readonly FakeUserContactReader _userContactReader = new();
@@ -35,6 +36,7 @@ public sealed class PaymentOpsQueueServiceTests
             _paymentMethod,
             _learningAccessContract,
             _catalogPriceContract,
+            _liveScheduleReader,
             _emailOutbox,
             _userContactReader,
             _clock,
@@ -208,6 +210,137 @@ public sealed class PaymentOpsQueueServiceTests
         Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == course2 && g.OrderId == order.ORDER_ID && g.Source == "OpsResolution" && g.ExpiresAtUtc == null);
     }
 
+    // P11-13 (Q13.3): same fix as OrderServiceTests/StripeWebhookHandlerTests — the admin ops-queue path
+    // must compute ExpiresAtUtc for a Live/Hybrid course from the earliest scheduled session's StartsAtUtc,
+    // not from the moment the admin resolves the queue entry, so a student getting access this way is not
+    // treated worse (or differently) than one going through the normal webhook/free-checkout path.
+
+    [Fact]
+    public async Task ResolveAsync_WithReopenAndFulfillOrderAction_CourseHasEarliestScheduledSession_ComputesExpiresAtUtcFromSessionStart()
+    {
+        var service = CreateService();
+        var adminId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var courseId = Guid.NewGuid();
+        _userContactReader.Emails[userId] = "buyer@example.test";
+        _catalogPriceContract.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE Title", 1500m, Guid.NewGuid(), 30);
+
+        var sessionStartsAtUtc = _clock.UtcNow.AddDays(10);
+        _liveScheduleReader.EarliestSessionByCourseId[courseId] =
+            new LiveSessionInfo(Guid.NewGuid(), courseId, "Session 1", sessionStartsAtUtc, sessionStartsAtUtc.AddHours(1), LiveSessionStatus.Scheduled, null);
+
+        var order = ORDER.Create("ORD-REOPEN-SESSION", userId, 1500m, 0m, 0m, 1500m);
+        order.AddItem(courseId, "COURSE Title", 1500m, 1500m);
+        order.MarkAwaitingPayment();
+        var statusProp = typeof(ORDER).GetProperty(nameof(ORDER.STATUS));
+        statusProp!.SetValue(order, OrderStatus.Cancelled); // Cancelled prematurely by expiry
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, "pi_late_paid_session", 1500m, _clock);
+        payment.MarkSucceeded(_clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var entry = PAYMENT_OPS_QUEUE.Create(payment.PAYMENT_ID, "Late payment succeeded after cancellation");
+        await _opsQueueRepo.AddAsync(entry, CancellationToken.None);
+
+        var resolveRequest = new ResolvePaymentOpsRequest(
+            PaymentOpsResolutionAction.ReopenAndFulfillOrder,
+            "Reopened order and enrolled student");
+
+        var result = await service.ResolveAsync(entry.PAYMENT_OPS_QUEUE_ID, adminId, resolveRequest, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+
+        // Must equal session.StartsAtUtc.AddDays(30), and must NOT equal clock.UtcNow.AddDays(30) — the
+        // two are asserted separately so this test cannot pass by coincidence.
+        var expectedExpiresAtUtc = sessionStartsAtUtc.AddDays(30);
+        var fallbackExpiresAtUtc = _clock.UtcNow.AddDays(30);
+        Assert.NotEqual(expectedExpiresAtUtc, fallbackExpiresAtUtc);
+        Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == courseId && g.ExpiresAtUtc == expectedExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WithReopenAndFulfillOrderAction_CourseHasNoScheduledSession_FallsBackToNowPlusAccessDurationDays()
+    {
+        var service = CreateService();
+        var adminId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var courseId = Guid.NewGuid();
+        _userContactReader.Emails[userId] = "buyer@example.test";
+
+        // No entry in _liveScheduleReader.EarliestSessionByCourseId — covers both "the course is
+        // OnDemand" and "the course is Live/Hybrid but nothing is scheduled yet"; production code cannot
+        // and must not try to tell those two apart, so one test stands in for both.
+        _catalogPriceContract.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE Title", 1500m, Guid.NewGuid(), 30);
+
+        var order = ORDER.Create("ORD-REOPEN-NOSESSION", userId, 1500m, 0m, 0m, 1500m);
+        order.AddItem(courseId, "COURSE Title", 1500m, 1500m);
+        order.MarkAwaitingPayment();
+        var statusProp = typeof(ORDER).GetProperty(nameof(ORDER.STATUS));
+        statusProp!.SetValue(order, OrderStatus.Cancelled); // Cancelled prematurely by expiry
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, "pi_late_paid_nosession", 1500m, _clock);
+        payment.MarkSucceeded(_clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var entry = PAYMENT_OPS_QUEUE.Create(payment.PAYMENT_ID, "Late payment succeeded after cancellation");
+        await _opsQueueRepo.AddAsync(entry, CancellationToken.None);
+
+        var resolveRequest = new ResolvePaymentOpsRequest(
+            PaymentOpsResolutionAction.ReopenAndFulfillOrder,
+            "Reopened order and enrolled student");
+
+        var result = await service.ResolveAsync(entry.PAYMENT_OPS_QUEUE_ID, adminId, resolveRequest, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == courseId && g.ExpiresAtUtc == _clock.UtcNow.AddDays(30));
+    }
+
+    [Fact]
+    public async Task ResolveAsync_WithGrantAccessOnlyAction_NullAccessDurationDays_GrantsLifetimeAccessWithoutQueryingLiveSchedule()
+    {
+        var service = CreateService();
+        var adminId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var courseId = Guid.NewGuid();
+        _userContactReader.Emails[userId] = "buyer@example.test";
+
+        // AccessDurationDays = null (lifetime access) — the short-circuit `AccessDurationDays is { } days`
+        // guard must skip GetEarliestScheduledSessionAsync entirely. Every other member of
+        // FakeLiveScheduleReader throws, so this test would fail loudly if production code ever called
+        // GetSessionsForCourseAsync/GetUpcomingSessionsAsync/GetSessionAsync here. A session is seeded
+        // anyway (GetEarliestScheduledSessionAsync itself would not throw if called) to prove it is
+        // genuinely never consulted — the resulting ExpiresAtUtc stays null either way.
+        _catalogPriceContract.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE Title", 1500m, Guid.NewGuid(), null);
+        _liveScheduleReader.EarliestSessionByCourseId[courseId] =
+            new LiveSessionInfo(Guid.NewGuid(), courseId, "Session 1", _clock.UtcNow.AddDays(10), _clock.UtcNow.AddDays(10).AddHours(1), LiveSessionStatus.Scheduled, null);
+
+        var order = ORDER.Create("ORD-GRANT-LIFETIME", userId, 1500m, 0m, 0m, 1500m);
+        order.AddItem(courseId, "COURSE Title", 1500m, 1500m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, "pi_grant_only_lifetime", 1500m, _clock);
+        payment.MarkSucceeded(_clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var entry = PAYMENT_OPS_QUEUE.Create(payment.PAYMENT_ID, "Access dispute resolved in student's favor");
+        await _opsQueueRepo.AddAsync(entry, CancellationToken.None);
+
+        var resolveRequest = new ResolvePaymentOpsRequest(
+            PaymentOpsResolutionAction.GrantAccessOnly,
+            "Granted access without reopening the order");
+
+        var result = await service.ResolveAsync(entry.PAYMENT_OPS_QUEUE_ID, adminId, resolveRequest, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+
+        // GrantAccessOnly must not reopen the order (unlike ReopenAndFulfillOrder).
+        Assert.Equal(OrderStatus.AwaitingPayment, order.STATUS);
+        Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == courseId && g.ExpiresAtUtc == null);
+    }
+
     [Fact]
     public async Task DismissAsync_MarksDismissedWithNote()
     {
@@ -368,6 +501,9 @@ public sealed class PaymentOpsQueueServiceTests
             RefundedIntentIds.Add(request.ProviderPaymentIntentId);
             return Task.FromResult(Result.Success(new PaymentRefundResult("re_123", "succeeded", request.Amount, "thb")));
         }
+
+        public Task<Result<decimal?>> GetChargeFeeAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success<decimal?>(null));
     }
 
     private sealed class FakeCatalogPriceContract : ICatalogPriceContract
@@ -417,6 +553,26 @@ public sealed class PaymentOpsQueueServiceTests
 
             return Task.FromResult(Result.Success());
         }
+    }
+
+    /// <summary>P11-13 (Q13.3): only <see cref="GetEarliestScheduledSessionAsync"/> is used by
+    /// <see cref="PaymentOpsQueueService"/> — every other member throws so a test would fail loudly if the
+    /// production code path ever changed to call one of them.</summary>
+    private sealed class FakeLiveScheduleReader : ILiveScheduleReader
+    {
+        public readonly Dictionary<Guid, LiveSessionInfo> EarliestSessionByCourseId = [];
+
+        public Task<IReadOnlyList<LiveSessionInfo>> GetSessionsForCourseAsync(Guid courseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this service under test — only GetEarliestScheduledSessionAsync is called.");
+
+        public Task<IReadOnlyList<LiveSessionInfo>> GetUpcomingSessionsAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this service under test — only GetEarliestScheduledSessionAsync is called.");
+
+        public Task<LiveSessionInfo?> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this service under test — only GetEarliestScheduledSessionAsync is called.");
+
+        public Task<LiveSessionInfo?> GetEarliestScheduledSessionAsync(Guid courseId, CancellationToken cancellationToken) =>
+            Task.FromResult(EarliestSessionByCourseId.TryGetValue(courseId, out var session) ? session : null);
     }
 
     private sealed class FakeRevenueSplitContract : IRevenueSplitContract

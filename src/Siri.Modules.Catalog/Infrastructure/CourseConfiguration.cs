@@ -77,11 +77,25 @@ public sealed class CourseConfiguration : IEntityTypeConfiguration<COURSE>
         builder.Property(c => c.AccessDurationDays);
 
         builder.Property(c => c.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
+
+        // P11-01: string enum, same pattern as Level/Language/Status directly above — see
+        // docs/contracts/P11-01-catalog-live-sessions.md §2.1. Default 'OnDemand' at the DB level
+        // matches DeliveryFormat's own C# default and DeliveryFormat's enum-member-zero value, so every
+        // pre-existing row gets the correct value with no data-migration script.
+        builder.Property(c => c.DeliveryFormat).HasConversion<string>().HasMaxLength(20).IsRequired()
+            .HasDefaultValue(DeliveryFormat.OnDemand);
+
         builder.Property(c => c.PublishedAtUtc).HasPrecision(3);
         // P1-05: not in docs/DATABASE.md's original Courses column sketch — added the same way P1-02
         // added CourseOutcomes/CourseRequirements beyond that sketch, justified by a real need (an
         // instructor can't act on a rejection with no reason attached to it).
         builder.Property(c => c.RejectionReason).HasMaxLength(1000);
+
+        // P11-11 (Q13.1/Q13.2, docs/contracts/P11-11-enrollment-deadline-seat-cap.md §2.1): additive,
+        // nullable-by-default columns — every existing course gets null/null/0 with no data migration.
+        builder.Property(c => c.EnrollmentDeadlineUtc).HasPrecision(3);
+        builder.Property(c => c.MaxSeats);
+        builder.Property(c => c.SeatsUsed).IsRequired().HasDefaultValue(0);
 
         builder.Property(c => c.TotalDurationSeconds).IsRequired();
         builder.Property(c => c.EpisodeCount).IsRequired();
@@ -132,6 +146,11 @@ public sealed class CourseConfiguration : IEntityTypeConfiguration<COURSE>
         builder.Navigation(c => c.Sections).HasField("_sections").UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(c => c.Outcomes).HasField("_outcomes").UsePropertyAccessMode(PropertyAccessMode.Field);
         builder.Navigation(c => c.Requirements).HasField("_requirements").UsePropertyAccessMode(PropertyAccessMode.Field);
+        // P11-01: same navigation-vs-shadow-FK reasoning as the three lines above — LiveSessions is a
+        // real navigation (backed by a private field), and the .WithMany(c => c.LiveSessions) side of
+        // this relationship lives on CourseLiveSessionConfiguration (mirrors CourseSectionConfiguration's
+        // split exactly).
+        builder.Navigation(c => c.LiveSessions).HasField("_liveSessions").UsePropertyAccessMode(PropertyAccessMode.Field);
 
         // FULLTEXT index on Title/Subtitle/Description (docs/DATABASE.md's catalog block) is NOT here —
         // EF Core has no fluent API for Full-Text Search at all (a SQL Server feature outside EF's

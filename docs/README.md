@@ -17,3 +17,6 @@
 | `DECISIONS.md` | การตัดสินใจที่ล็อกแล้ว (D-xx) + คำถามที่ยังไม่ตอบ (Q-xx) |
 | `ROADMAP.md` / `PLAN.md` | phase และลำดับความสำคัญ |
 | `ANTIGRAVITY_HANDOFF.md` | กติกาส่งงานให้ coding agent อีกตัว + คิวงาน |
+| `HYBRID_LIVE.md` | แบบระบบ Hybrid Live (Google Meet + Calendar + Catch-up) + AI Study — P11/P12, D-21 (2026-09-16) |
+| `external-specs/` | สเปคต้นทางจากเจ้าของโปรเจ็ค เก็บตามต้นฉบับ (SiriLearn 2026-08-19, Hybrid Live 2026-09-16) — ผลการ reconcile อยู่ใน `DECISIONS.md` D-16/D-21 |
+| `contracts/` | contract ต่อ task (FROZEN) ที่ system-architect ออกให้ผู้ลงมือ |

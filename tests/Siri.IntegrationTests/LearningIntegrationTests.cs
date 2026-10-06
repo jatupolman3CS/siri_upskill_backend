@@ -254,6 +254,17 @@ public sealed class LearningIntegrationTests : IAsyncLifetime
         var completeResult = await progressService.UpsertProgressAsync(_learnerUserId, enrollmentId, _episodeId, completeCmd, CancellationToken.None);
         Assert.True(completeResult.IsSuccess);
         Assert.True(completeResult.Value.IsCompleted);
+
+        // Verify WATCH_EVENTS was persisted
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var events = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+            db.WatchEvents().Where(w => w.ENROLLMENT_ID == enrollmentId).OrderBy(w => w.OCCURRED_AT_UTC),
+            CancellationToken.None);
+        Assert.Equal(2, events.Count);
+        Assert.Equal(WatchEventType.Heartbeat, events[0].EVENT_TYPE);
+        Assert.Equal(120, events[0].POSITION_SECONDS);
+        Assert.Equal(WatchEventType.Ended, events[1].EVENT_TYPE);
+        Assert.Equal(295, events[1].POSITION_SECONDS);
     }
 
     [Fact]

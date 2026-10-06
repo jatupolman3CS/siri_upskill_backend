@@ -19,6 +19,7 @@ public sealed class PaymentOpsQueueService
     private readonly IPaymentMethod _paymentMethod;
     private readonly ILearningAccessContract _learningAccessContract;
     private readonly ICatalogPriceContract _catalogPriceContract;
+    private readonly ILiveScheduleReader _liveScheduleReader;
     private readonly IRevenueSplitContract? _revenueSplitContract;
     private readonly IEmailOutbox _emailOutbox;
     private readonly IUserContactReader _userContactReader;
@@ -33,6 +34,7 @@ public sealed class PaymentOpsQueueService
         IPaymentMethod paymentMethod,
         ILearningAccessContract learningAccessContract,
         ICatalogPriceContract catalogPriceContract,
+        ILiveScheduleReader liveScheduleReader,
         IEmailOutbox emailOutbox,
         IUserContactReader userContactReader,
         IClock clock,
@@ -46,6 +48,7 @@ public sealed class PaymentOpsQueueService
         _paymentMethod = paymentMethod;
         _learningAccessContract = learningAccessContract;
         _catalogPriceContract = catalogPriceContract;
+        _liveScheduleReader = liveScheduleReader;
         _emailOutbox = emailOutbox;
         _userContactReader = userContactReader;
         _clock = clock;
@@ -253,15 +256,28 @@ public sealed class PaymentOpsQueueService
                 // SaveChangesAsync) instead of looping EnrollUserAsync per course — same fix already
                 // applied to StripeWebhookHandler.HandlePaymentIntentSucceededAsync and
                 // OrderService.CreateAsync's 100%-discount enroll path.
-                var enrollmentGrants = courseIds
-                    .Select(courseId =>
+                //
+                // P11-13 (Q13.3): Live/Hybrid courses count AccessDurationDays from the first scheduled
+                // live session's StartsAtUtc, not the date the admin resolved this ops-queue entry — same
+                // fallback as the webhook/free-checkout paths when no scheduled session exists (course is
+                // OnDemand, or Live/Hybrid but nothing scheduled yet). See
+                // docs/contracts/P11-13-access-duration-first-session.md §0.4/§3.3.
+                var enrollmentGrants = new List<CourseEnrollmentGrant>(courseIds.Count);
+                foreach (var courseId in courseIds)
+                {
+                    DateTime? expiresAtUtc = null;
+                    if (coursePrices.TryGetValue(courseId, out var enrolledCourseInfo) && enrolledCourseInfo.AccessDurationDays is { } days)
                     {
-                        DateTime? expiresAtUtc = coursePrices.TryGetValue(courseId, out var enrolledCourseInfo) && enrolledCourseInfo.AccessDurationDays is { } days
-                            ? _clock.UtcNow.AddDays(days)
-                            : null;
-                        return new CourseEnrollmentGrant(courseId, order.ORDER_ID, expiresAtUtc);
-                    })
-                    .ToList();
+                        var earliestSession = await _liveScheduleReader.GetEarliestScheduledSessionAsync(courseId, cancellationToken).ConfigureAwait(false);
+                        // Never count from a session that has already started (late buyers would lose the
+                        // elapsed time, or get an already-expired enrollment).
+                        var accessStartUtc = earliestSession is not null && earliestSession.StartsAtUtc > _clock.UtcNow
+                            ? earliestSession.StartsAtUtc
+                            : _clock.UtcNow;
+                        expiresAtUtc = accessStartUtc.AddDays(days);
+                    }
+                    enrollmentGrants.Add(new CourseEnrollmentGrant(courseId, order.ORDER_ID, expiresAtUtc));
+                }
 
                 await _learningAccessContract.EnrollUserInCoursesAsync(
                     order.USER_ID, "OpsResolution", enrollmentGrants, cancellationToken).ConfigureAwait(false);

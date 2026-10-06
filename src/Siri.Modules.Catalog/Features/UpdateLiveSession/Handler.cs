@@ -63,31 +63,8 @@ public sealed class UpdateLiveSessionHandler(
                 DomainError.Conflict("Cannot update a live session that has already ended."));
         }
 
-        if (command.StartsAtUtc.Kind != DateTimeKind.Utc || command.EndsAtUtc.Kind != DateTimeKind.Utc)
-        {
-            return Result.Failure<LiveSessionResponse>(
-                DomainError.Validation("startsAtUtc and endsAtUtc must be UTC (ISO-8601 with Z suffix)."));
-        }
-
-        var duration = command.EndsAtUtc - command.StartsAtUtc;
-        if (duration < TimeSpan.FromMinutes(15) || duration > TimeSpan.FromHours(8))
-        {
-            return Result.Failure<LiveSessionResponse>(
-                DomainError.Validation("Live session duration must be between 15 minutes and 8 hours."));
-        }
-
-        var overlaps = course.LiveSessions.Any(s =>
-            s.Id != sessionId
-            && s.Status == CourseLiveSessionStatus.Scheduled
-            && s.StartsAtUtc < command.EndsAtUtc
-            && command.StartsAtUtc < s.EndsAtUtc);
-
-        if (overlaps)
-        {
-            return Result.Failure<LiveSessionResponse>(
-                DomainError.Conflict("This time overlaps with another scheduled live session in this course."));
-        }
-
+        // Window rules (UTC, 15 min-8 h duration, no overlap, ends in the future) live only in
+        // COURSE.UpdateLiveSession; their exceptions are mapped to Validation/Conflict below.
         try
         {
             course.UpdateLiveSession(sessionId, command.Title, command.Description, command.StartsAtUtc, command.EndsAtUtc, clock);

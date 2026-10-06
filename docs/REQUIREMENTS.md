@@ -80,6 +80,28 @@
 | สกุลเงิน | THB เท่านั้นใน v1 |
 | Access duration | ตั้งค่าได้ต่อคอร์ส (`AccessDurationDays`), default = ตลอดชีพ |
 | ภาษี/ใบกำกับ | ออกใบเสร็จ/e-Tax invoice เป็น Phase 6+ (ยังไม่อยู่ใน MVP) |
-| Live / Cohort class | ไม่อยู่ใน scope v1 (on-demand video เท่านั้น) |
+| Live / Cohort class | ~~ไม่อยู่ใน scope v1 (on-demand video เท่านั้น)~~ **แก้ไข 2026-09-16 (D-21):** รับ hybrid live (Google Meet) เข้า backlog เป็น **P11** — ดู §6 · ยังไม่กระทบ v1 launch จนกว่าเจ้าของโปรเจ็คจะสั่งแทรก |
 | Mobile app | Web responsive + PWA ก่อน, native app เป็น Phase ถัดไป |
 | Scale เป้าหมาย | ~50k registered users, ~5k concurrent viewers ปีแรก |
+
+---
+
+## 6. Hybrid Live + AI Study (สเปค SIRI UPSKILL Hybrid Platform — เจ้าของโปรเจ็ครับเข้า backlog 2026-09-16, D-21)
+
+> ต้นทาง: `docs/external-specs/SIRI-UPSKILL-Hybrid-Live-Platform-Spec-2026-09-16.md` · แบบระบบ: `docs/HYBRID_LIVE.md` · task: `docs/TASKS.md` §P11/§P12
+> requirement ที่สเปคขอแต่**มีอยู่แล้ว**ในระบบ (map ไปที่ ID เดิม ไม่สร้าง ID ใหม่): BR-STU-05 resume/HLS → LX-03 · BR-STU-02 checkout+auto-grant → LX-06 (บัตร = P11-09) · BR-INS-03 direct upload → IN-01/P2-03 · BR-INS-05 dashboard → IN-02 (P4-24 ยัง hardcode → P11-10/25) · BR-ADM-01 RBAC → P6-27 · BR-ADM-02 billing/refund → P3-30/P3-05 (webhook viewer = P11-08) · BR-ADM-03 audit log → P6-27 (Bunny quota = P11-08)
+> **ติดการตัดสินใจ Q10–Q13** ใน `DECISIONS.md` ก่อนเริ่ม Wave 2/4
+
+| ID | Feature | รายละเอียด | Priority | Phase |
+|----|---------|-----------|----------|-------|
+| HL-01 | Course delivery format | คอร์สเป็น OnDemand / Live / Hybrid — Live/Hybrid ต้องมีตารางสอน ≥1 คาบ, badge + filter บน catalog, ตารางสอนบนหน้า course detail (SSR, ไม่มีลิงก์ห้อง) (BR-STU-01, BR-INS-01) | Must (ของ P11) | P11 |
+| HL-02 | Auto Google Meet ต่อคาบ | ผู้สอนตั้งเวลา → ระบบสร้าง Meet ให้เองผ่าน Google Calendar API (บัญชี host กลางของแพลตฟอร์ม — Q10) ไม่ต้องวางลิงก์เอง · ยกเลิก/แก้เวลาแล้วห้องอัปเดตตาม (BR-INS-02) | Must | P11 |
+| HL-03 | Calendar invite อัตโนมัติ | ผู้เรียนที่ enroll ได้ ICS (REQUEST/CANCEL) + in-app + reminder 24 ชม./1 ชม. เฉพาะคาบอนาคต · Google attendee sync เป็น opt-in ต่อคอร์ส (Q11) (BR-STU-03) | Must | P11 |
+| HL-04 | Catch-up mode | ผู้เรียนที่ซื้อทีหลังดูบันทึกคาบที่ผ่านไปแล้วได้ทันที · ผู้เข้าเรียนดูซ้ำได้ · บันทึก = episode ปกติ (resume/progress/quiz ใช้ร่วม) (BR-STU-04) | Must | P11 |
+| HL-05 | เข้าห้องสดแบบมีสิทธิ์ | ปุ่ม "เข้าห้อง" ให้ลิงก์ Meet เฉพาะผู้มี enrollment active ในช่วงเวลา (server ตัดสิน) + log ทุกครั้ง (SE-เทียบเท่า playback) | Must | P11 |
+| HL-06 | บัตรเครดิต/เดบิต | เปิด Visa/MC บน Stripe PaymentIntent เดิม (ไม่ใช่ Checkout Session) + ค่าธรรมเนียมเข้าสูตร Q4 · **ผ่อนชำระยังไม่มี** (ดึง P10-01 มา) (BR-STU-02) | Must | P11 |
+| HL-07 | Admin: webhook + Bunny quota | ดู `StripeWebhookEvents` (filter/raw JSON) + bandwidth/storage ของ Bunny เดือนนี้ + แจ้งเตือนที่ 80% (BR-ADM-02/03) | Nice | P11 |
+| AI-01 | AI chapters | chapter คลิก seek ได้ในผู้เล่น จาก Bunny Transcribe AI (รองรับไทย) — ไม่ใช้ LLM (BR-STU-05) | Nice | P12 |
+| AI-02 | AI summary ต่อบทเรียน | สรุป + key points + คำถามทบทวน ภาษาไทย จาก transcript (LLM, ผู้สอน opt-in ต่อคอร์ส — Q12) (BR-STU-06) | Nice | P12 |
+| AI-03 | Watch-plan ส่วนตัว | "ก่อนคาบหน้าควรดูอะไร กี่นาที" จาก progress + ตารางสอน + summary · fallback rule-based เมื่อ AI ปิด · ไม่ส่ง PII เข้า LLM (BR-STU-06) | Nice | P12 |
+| AI-04 | AI assistant ผู้สอน | marketing copy 3 แบบต่อ channel + สรุปคาบสำหรับโปรโมท · ไม่เขียนทับข้อมูลจริงอัตโนมัติ (BR-INS-04) | Nice | P12 |

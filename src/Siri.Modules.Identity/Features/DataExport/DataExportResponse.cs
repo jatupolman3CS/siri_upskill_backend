@@ -7,7 +7,8 @@ public sealed record DataExportResponse(
     DateTime ExportedAtUtc,
     UserExportDto Profile,
     IReadOnlyList<UserSessionExportDto> Sessions,
-    IReadOnlyList<SecurityAuditExportDto> SecurityAudits);
+    IReadOnlyList<SecurityAuditExportDto> SecurityAudits,
+    IReadOnlyList<ExternalLoginExportDto>? ExternalLogins = null);
 
 public sealed record UserExportDto(
     Guid Id,
@@ -34,3 +35,10 @@ public sealed record SecurityAuditExportDto(
     string EventType,
     DateTime OccurredAtUtc,
     string? IpAddress);
+
+/// <summary>A sign-in provider (e.g. Google) linked to the account — the provider's email counts as personal data.</summary>
+public sealed record ExternalLoginExportDto(
+    string Provider,
+    string ProviderEmail,
+    DateTime LinkedAtUtc,
+    DateTime LastLoginAtUtc);

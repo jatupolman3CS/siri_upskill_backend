@@ -36,6 +36,7 @@ public static class EpisodeProgressEndpoints
             .RequireAuthorization();
 
         group.MapPut("/{episodeId:guid}", UpsertAsync)
+            .RequireRateLimiting("heartbeat")
             .AddEndpointFilter<ValidationEndpointFilter<UpsertEpisodeProgressCommand>>()
             .WithName("LearningUpsertEpisodeProgress")
             .WithSummary("บันทึกความคืบหน้าการดูวิดีโอของบทเรียน (heartbeat)")

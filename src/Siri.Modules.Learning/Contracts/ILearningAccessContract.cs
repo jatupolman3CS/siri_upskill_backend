@@ -97,4 +97,21 @@ public interface ILearningAccessContract
 
         return Result.Success();
     }
+
+    /// <summary>
+    /// User ids that hold an active/non-expired enrollment in <paramref name="courseId"/> right now — the
+    /// same "active" rule <see cref="HasActiveEnrollmentAsync"/> uses (Status == Active AND (ExpiresAtUtc
+    /// is null OR ExpiresAtUtc > now)), just returning the whole set for one course instead of checking
+    /// one user at a time. Added for X-31 (deliver course announcements to actual enrolled learners — see
+    /// <c>Siri.Modules.Notification.Contracts.IAnnouncementRecipientResolver</c>, consumed through
+    /// <c>Siri.Modules.Learning.Infrastructure.Contracts.AnnouncementRecipientResolver</c>) and shaped so
+    /// it can be reused by P11-04 (live-session invite job, docs/HYBRID_LIVE.md, still blocked on Q10/Q11)
+    /// later — this method itself has nothing Live-specific about it and ships now without waiting on P11.
+    /// Default implementation returns an empty set so any other implementer of this interface (e.g. a test
+    /// double in another module) keeps compiling without having to opt in — only
+    /// <c>Infrastructure.Contracts.LearningAccessContract</c> overrides this with a real query.
+    /// </summary>
+    Task<IReadOnlySet<Guid>> GetActiveEnrolledUserIdsAsync(
+        Guid courseId,
+        CancellationToken cancellationToken) => Task.FromResult<IReadOnlySet<Guid>>(new HashSet<Guid>());
 }

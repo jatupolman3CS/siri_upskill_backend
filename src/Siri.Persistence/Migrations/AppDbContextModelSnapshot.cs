@@ -204,6 +204,14 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("DELETED_AT_UTC");
 
+                    b.Property<string>("DeliveryFormat")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("OnDemand")
+                        .HasColumnName("DELIVERY_FORMAT");
+
                     b.Property<string>("Description")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)")
@@ -212,6 +220,11 @@ namespace Siri.Persistence.Migrations
                     b.Property<int>("EnrollmentCount")
                         .HasColumnType("integer")
                         .HasColumnName("ENROLLMENT_COUNT");
+
+                    b.Property<DateTime?>("EnrollmentDeadlineUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("ENROLLMENT_DEADLINE_UTC");
 
                     b.Property<int>("EpisodeCount")
                         .HasColumnType("integer")
@@ -236,6 +249,10 @@ namespace Siri.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("LEVEL");
+
+                    b.Property<int?>("MaxSeats")
+                        .HasColumnType("integer")
+                        .HasColumnName("MAX_SEATS");
 
                     b.Property<decimal>("Price")
                         .HasPrecision(18, 2)
@@ -266,6 +283,12 @@ namespace Siri.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("bytea")
                         .HasColumnName("ROW_VERSION");
+
+                    b.Property<int>("SeatsUsed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("SEATS_USED");
 
                     b.Property<string>("SeoDescription")
                         .HasMaxLength(500)
@@ -436,6 +459,97 @@ namespace Siri.Persistence.Migrations
                         .HasDatabaseName("IX_COURSE_EPISODES_SECTION_ID_SORT_ORDER");
 
                     b.ToTable("COURSE_EPISODES", "CATALOG");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_LIVE_SESSION", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("ID");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("CANCEL_REASON");
+
+                    b.Property<Guid>("CourseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("COURSE_ID");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("CREATED_BY");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("DESCRIPTION");
+
+                    b.Property<DateTime>("EndsAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("ENDS_AT_UTC");
+
+                    b.Property<Guid?>("RecordingEpisodeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("RECORDING_EPISODE_ID");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("ROW_VERSION");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("SORT_ORDER");
+
+                    b.Property<DateTime>("StartsAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("STARTS_AT_UTC");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("STATUS");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("TITLE");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("UPDATED_AT_UTC");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UPDATED_BY");
+
+                    b.HasKey("Id")
+                        .HasName("PK_COURSE_LIVE_SESSIONS");
+
+                    b.HasIndex("RecordingEpisodeId")
+                        .HasDatabaseName("IX_COURSE_LIVE_SESSIONS_RECORDING_EPISODE_ID");
+
+                    b.HasIndex("StartsAtUtc")
+                        .HasDatabaseName("IX_COURSE_LIVE_SESSIONS_STARTS_AT_UTC")
+                        .HasFilter("\"STATUS\" = 'Scheduled'");
+
+                    b.HasIndex("CourseId", "StartsAtUtc")
+                        .HasDatabaseName("IX_COURSE_LIVE_SESSIONS_COURSE_ID_STARTS_AT_UTC");
+
+                    b.ToTable("COURSE_LIVE_SESSIONS", "CATALOG");
                 });
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_OUTCOME", b =>
@@ -2375,6 +2489,58 @@ namespace Siri.Persistence.Migrations
                     b.ToTable("USERS", "IDENTITY");
                 });
 
+            modelBuilder.Entity("Siri.Modules.Identity.Domain.USER_EXTERNAL_LOGIN", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("ID");
+
+                    b.Property<DateTime>("LastLoginAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("LAST_LOGIN_AT_UTC");
+
+                    b.Property<DateTime>("LinkedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("LINKED_AT_UTC");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("PROVIDER");
+
+                    b.Property<string>("ProviderEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("PROVIDER_EMAIL");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("PROVIDER_SUBJECT");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("USER_ID");
+
+                    b.HasKey("Id")
+                        .HasName("PK_USER_EXTERNAL_LOGINS");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("IX_USER_EXTERNAL_LOGINS_USER_ID");
+
+                    b.HasIndex("Provider", "ProviderSubject")
+                        .IsUnique()
+                        .HasDatabaseName("UX_USER_EXTERNAL_LOGINS_PROVIDER_SUBJECT");
+
+                    b.ToTable("USER_EXTERNAL_LOGINS", "IDENTITY");
+                });
+
             modelBuilder.Entity("Siri.Modules.Identity.Domain.USER_SECURITY_TOKEN", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3349,6 +3515,12 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("CREATED_AT_UTC");
 
+                    b.Property<string>("DispatchStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("DISPATCH_STATUS");
+
                     b.Property<Guid>("InstructorId")
                         .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_ID");
@@ -3385,6 +3557,9 @@ namespace Siri.Persistence.Migrations
 
                     b.HasIndex("InstructorId")
                         .HasDatabaseName("IX_ANNOUNCEMENTS_INSTRUCTOR_ID");
+
+                    b.HasIndex("DispatchStatus", "ScheduledAtUtc")
+                        .HasDatabaseName("IX_ANNOUNCEMENTS_DISPATCH_STATUS_SCHEDULED_AT_UTC");
 
                     b.ToTable("ANNOUNCEMENTS", "NOTIFY");
                 });
@@ -3950,6 +4125,22 @@ namespace Siri.Persistence.Migrations
                         .HasConstraintName("FK_COURSE_EPISODES_COURSE_SECTIONS_SECTION_ID");
                 });
 
+            modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_LIVE_SESSION", b =>
+                {
+                    b.HasOne("Siri.Modules.Catalog.Domain.COURSE", null)
+                        .WithMany("LiveSessions")
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_COURSE_LIVE_SESSIONS_COURSES_COURSE_ID");
+
+                    b.HasOne("Siri.Modules.Catalog.Domain.COURSE_EPISODE", null)
+                        .WithMany()
+                        .HasForeignKey("RecordingEpisodeId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("FK_COURSE_LIVE_SESSIONS_COURSE_EPISODES_RECORDING_EPISODE_ID");
+                });
+
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_OUTCOME", b =>
                 {
                     b.HasOne("Siri.Modules.Catalog.Domain.COURSE", null)
@@ -4164,6 +4355,16 @@ namespace Siri.Persistence.Migrations
                         .HasConstraintName("FK_SECURITY_AUDITS_USERS_USER_ID");
                 });
 
+            modelBuilder.Entity("Siri.Modules.Identity.Domain.USER_EXTERNAL_LOGIN", b =>
+                {
+                    b.HasOne("Siri.Modules.Identity.Domain.USER", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("FK_USER_EXTERNAL_LOGINS_USERS_USER_ID");
+                });
+
             modelBuilder.Entity("Siri.Modules.Identity.Domain.USER_SECURITY_TOKEN", b =>
                 {
                     b.HasOne("Siri.Modules.Identity.Domain.USER", null)
@@ -4303,6 +4504,8 @@ namespace Siri.Persistence.Migrations
 
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE", b =>
                 {
+                    b.Navigation("LiveSessions");
+
                     b.Navigation("Outcomes");
 
                     b.Navigation("Requirements");

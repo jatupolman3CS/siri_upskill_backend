@@ -3,15 +3,18 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
 using Siri.Modules.Identity.Features.AnonymizeAccount;
 using Siri.Modules.Identity.Features.ConfirmEmail;
 using Siri.Modules.Identity.Features.DataExport;
 using Siri.Modules.Identity.Features.ForgotPassword;
+using Siri.Modules.Identity.Features.GoogleLogin;
 using Siri.Modules.Identity.Features.Login;
 using Siri.Modules.Identity.Features.Logout;
 using Siri.Modules.Identity.Features.Refresh;
 using Siri.Modules.Identity.Features.Register;
 using Siri.Modules.Identity.Features.ResetPassword;
+using Siri.Modules.Identity.Infrastructure;
 using Siri.Modules.Identity.Infrastructure.Endpoints;
 using Siri.SharedKernel;
 
@@ -94,6 +97,52 @@ public class AuthController : ControllerBase
         RefreshTokenCookie.Set(HttpContext, result.Value.RawRefreshToken, result.Value.RefreshTokenExpiresAtUtc);
 
         return Results.Ok(new LoginResponse(result.Value.AccessToken, result.Value.AccessTokenExpiresAtUtc));
+    }
+
+    [HttpPost("external-login/google")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [EndpointName("IdentityGoogleLogin")]
+    [EndpointSummary("เข้าสู่ระบบด้วย Google (ID token จาก Google Identity Services)")]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IResult> GoogleLogin(
+        [FromBody] GoogleLoginCommand command,
+        [FromServices] GoogleLoginHandler handler,
+        CancellationToken cancellationToken)
+    {
+        var userAgent = HttpContext.Request.Headers.UserAgent.ToString();
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+        var result = await handler.HandleAsync(
+            command,
+            string.IsNullOrWhiteSpace(userAgent) ? null : userAgent,
+            ipAddress,
+            cancellationToken).ConfigureAwait(false);
+
+        if (result.IsFailure)
+        {
+            return result.Error.ToProblemHttpResult(HttpContext);
+        }
+
+        RefreshTokenCookie.Set(HttpContext, result.Value.RawRefreshToken, result.Value.RefreshTokenExpiresAtUtc);
+
+        return Results.Ok(new LoginResponse(result.Value.AccessToken, result.Value.AccessTokenExpiresAtUtc));
+    }
+
+    /// <summary>Public OAuth client ids for the sign-in buttons the web app renders (null = provider off).</summary>
+    [HttpGet("~/api/auth/oauth-clients")]
+    [AllowAnonymous]
+    [EndpointName("AuthOAuthClients")]
+    [EndpointSummary("รายการ OAuth client id สาธารณะสำหรับปุ่มเข้าสู่ระบบด้วยบัญชีภายนอก")]
+    [ProducesResponseType(typeof(OAuthClientsResponse), StatusCodes.Status200OK)]
+    public IResult OAuthClients([FromServices] IOptions<GoogleLoginOptions> google)
+    {
+        var settings = google.Value;
+
+        return Results.Ok(new OAuthClientsResponse(settings.IsEnabled ? new OAuthClient(settings.ClientId.Trim()) : null));
     }
 
     [HttpPost("refresh")]

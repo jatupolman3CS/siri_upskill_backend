@@ -30,7 +30,12 @@ public sealed class AnnouncementTests
         Assert.Equal("Welcome to COURSE", announcement.Title);
         Assert.Equal("This is the announcement body", announcement.Body);
         Assert.True(announcement.SendEmail);
-        Assert.Equal(now, announcement.SentAtUtc);
+        // X-31: nothing has actually been sent at creation time (immediate or scheduled) — dispatch is
+        // now the AnnouncementDispatchJob's job, not Create's. This is a deliberate change from the old
+        // assertion (Assert.Equal(now, announcement.SentAtUtc)), which encoded the bug this task fixes:
+        // SentAtUtc used to be stamped at creation with nothing ever actually delivered.
+        Assert.Null(announcement.SentAtUtc);
+        Assert.Equal(AnnouncementDispatchStatus.Pending, announcement.DispatchStatus);
         Assert.Equal(now, announcement.CreatedAtUtc);
         Assert.Equal(0, announcement.RecipientCount);
     }
@@ -53,6 +58,7 @@ public sealed class AnnouncementTests
 
         Assert.Null(announcement.SentAtUtc);
         Assert.Equal(scheduledAt, announcement.ScheduledAtUtc);
+        Assert.Equal(AnnouncementDispatchStatus.Pending, announcement.DispatchStatus);
     }
 
     [Fact]
@@ -76,6 +82,7 @@ public sealed class AnnouncementTests
 
         Assert.Equal(sendTime, announcement.SentAtUtc);
         Assert.Equal(42, announcement.RecipientCount);
+        Assert.Equal(AnnouncementDispatchStatus.Sent, announcement.DispatchStatus);
     }
 
     [Fact]

@@ -122,9 +122,18 @@ public static class ProductionConfigurationGuard
         }
     }
 
+    /// <summary>
+    /// True when the process is running inside the app's own Docker image (set automatically by the
+    /// official aspnet base image regardless of ASPNETCORE_ENVIRONMENT) — the one reliable signal that
+    /// this is a real deployment (QA/Production) rather than a developer's native Windows machine,
+    /// even if ASPNETCORE_ENVIRONMENT was mistakenly left as "Development" on the deployed container.
+    /// </summary>
+    public static bool IsRunningInContainer(IConfiguration configuration) =>
+        configuration.GetValue("DOTNET_RUNNING_IN_CONTAINER", false);
+
     public static void ValidateDeploymentConfiguration(IConfiguration configuration, IHostEnvironment environment)
     {
-        var runsInContainer = configuration.GetValue("DOTNET_RUNNING_IN_CONTAINER", false);
+        var runsInContainer = IsRunningInContainer(configuration);
         if (environment.IsDevelopment() && !runsInContainer)
         {
             return;

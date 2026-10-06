@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Siri.Integrations.Payment;
 using Siri.Integrations.Payment.Stripe;
 using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Commerce.Application;
@@ -24,10 +25,12 @@ public class StripeWebhookHandlerTests
     private readonly FakePromoCodeRepository _promoCodeRepo = new();
     private readonly FakePaymentOpsQueueRepository _opsQueueRepo = new();
     private readonly FakeCatalogPriceContract _catalogPriceContract = new();
+    private readonly FakeLiveScheduleReader _liveScheduleReader = new();
     private readonly FakeLearningAccessContract _learningAccessContract = new();
     private readonly FakeRevenueSplitContract _revenueSplitContract = new();
     private readonly FakeEmailOutbox _emailOutbox = new();
     private readonly FakeUserContactReader _userContactReader = new();
+    private readonly FakePaymentMethod _paymentMethod = new();
     private readonly FakeClock _clock = new(new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc));
 
     private StripeWebhookHandler CreateHandler(string secret = WebhookSecret)
@@ -46,10 +49,12 @@ public class StripeWebhookHandlerTests
             _promoCodeRepo,
             _opsQueueRepo,
             _catalogPriceContract,
+            _liveScheduleReader,
             _learningAccessContract,
             _revenueSplitContract,
             _emailOutbox,
             _userContactReader,
+            _paymentMethod,
             options,
             _clock,
             NullLogger<StripeWebhookHandler>.Instance);
@@ -185,6 +190,226 @@ public class StripeWebhookHandlerTests
         // The real user email, not a fabricated @example.test fallback derived from the user id.
         Assert.Single(_emailOutbox.Sent);
         Assert.Equal("buyer@example.test", _emailOutbox.Sent[0].ToEmail);
+    }
+
+    // P11-13 (Q13.3): Live/Hybrid courses count AccessDurationDays from the first scheduled live session's
+    // StartsAtUtc, not the payment-confirmation time — otherwise a student who buys weeks before a
+    // scheduled cohort starts loses access time waiting for it.
+
+    [Fact]
+    public async Task HandleAsync_PaymentSucceeded_CourseHasEarliestScheduledSession_ComputesExpiresAtUtcFromSessionStart()
+    {
+        var handler = CreateHandler();
+        var eventId = "evt_p11_13_session";
+        var piId = "pi_p11_13_session";
+        var buyerId = Guid.NewGuid();
+        var courseId = Guid.NewGuid();
+
+        _catalogPriceContract.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), 30);
+
+        var sessionStartsAtUtc = _clock.UtcNow.AddDays(10);
+        _liveScheduleReader.EarliestSessionByCourseId[courseId] =
+            new LiveSessionInfo(Guid.NewGuid(), courseId, "Session 1", sessionStartsAtUtc, sessionStartsAtUtc.AddHours(1), LiveSessionStatus.Scheduled, null);
+
+        var order = ORDER.Create("ORD-P11-13-A", buyerId, 1000m, 0m, 0m, 1000m);
+        order.AddItem(courseId, "COURSE 1", 1000m, 1000m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, piId, 1000m, _clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var payload = BuildStripeEventJson(eventId, "payment_intent.succeeded", piId);
+        var signature = GenerateStripeSignature(payload, WebhookSecret);
+
+        var result = await handler.HandleAsync(payload, signature, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+
+        // Must equal session.StartsAtUtc.AddDays(30), and must NOT equal clock.UtcNow.AddDays(30) — the
+        // two are asserted separately so this test cannot pass by coincidence.
+        var expectedExpiresAtUtc = sessionStartsAtUtc.AddDays(30);
+        var fallbackExpiresAtUtc = _clock.UtcNow.AddDays(30);
+        Assert.NotEqual(expectedExpiresAtUtc, fallbackExpiresAtUtc);
+        Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == courseId && g.ExpiresAtUtc == expectedExpiresAtUtc);
+    }
+
+    [Fact]
+    public async Task HandleAsync_PaymentSucceeded_CourseHasNoScheduledSession_FallsBackToNowPlusAccessDurationDays()
+    {
+        var handler = CreateHandler();
+        var eventId = "evt_p11_13_nosession";
+        var piId = "pi_p11_13_nosession";
+        var buyerId = Guid.NewGuid();
+        var courseId = Guid.NewGuid();
+
+        // No entry in _liveScheduleReader.EarliestSessionByCourseId — covers both "the course is
+        // OnDemand" and "the course is Live/Hybrid but nothing is scheduled yet"; production code cannot
+        // and must not try to tell those two apart (see class comment above), so one test stands in for
+        // both.
+        _catalogPriceContract.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), 30);
+
+        var order = ORDER.Create("ORD-P11-13-B", buyerId, 1000m, 0m, 0m, 1000m);
+        order.AddItem(courseId, "COURSE 1", 1000m, 1000m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, piId, 1000m, _clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var payload = BuildStripeEventJson(eventId, "payment_intent.succeeded", piId);
+        var signature = GenerateStripeSignature(payload, WebhookSecret);
+
+        var result = await handler.HandleAsync(payload, signature, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == courseId && g.ExpiresAtUtc == _clock.UtcNow.AddDays(30));
+    }
+
+    [Fact]
+    public async Task HandleAsync_PaymentSucceeded_NullAccessDurationDays_GrantsLifetimeAccessWithoutQueryingLiveSchedule()
+    {
+        var handler = CreateHandler();
+        var eventId = "evt_p11_13_lifetime";
+        var piId = "pi_p11_13_lifetime";
+        var buyerId = Guid.NewGuid();
+        var courseId = Guid.NewGuid();
+
+        // AccessDurationDays = null (lifetime access) — the short-circuit `AccessDurationDays is { } days`
+        // guard must skip GetEarliestScheduledSessionAsync entirely. Every other member of
+        // FakeLiveScheduleReader throws, so this test would fail loudly if production code ever called
+        // GetSessionsForCourseAsync/GetUpcomingSessionsAsync/GetSessionAsync here. A session is seeded
+        // anyway (GetEarliestScheduledSessionAsync itself would not throw if called) to prove it is
+        // genuinely never consulted — the resulting ExpiresAtUtc stays null either way.
+        _catalogPriceContract.Prices[courseId] = new CoursePriceInfo(courseId, "COURSE 1", 1000m, Guid.NewGuid(), null);
+        _liveScheduleReader.EarliestSessionByCourseId[courseId] =
+            new LiveSessionInfo(Guid.NewGuid(), courseId, "Session 1", _clock.UtcNow.AddDays(10), _clock.UtcNow.AddDays(10).AddHours(1), LiveSessionStatus.Scheduled, null);
+
+        var order = ORDER.Create("ORD-P11-13-C", buyerId, 1000m, 0m, 0m, 1000m);
+        order.AddItem(courseId, "COURSE 1", 1000m, 1000m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, piId, 1000m, _clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var payload = BuildStripeEventJson(eventId, "payment_intent.succeeded", piId);
+        var signature = GenerateStripeSignature(payload, WebhookSecret);
+
+        var result = await handler.HandleAsync(payload, signature, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(_learningAccessContract.Grants, g => g.CourseId == courseId && g.ExpiresAtUtc == null);
+    }
+
+    /// <summary>P11-09 §1.4: charge.balance_transaction.fee is per-PaymentIntent, not per-item, so a
+    /// multi-course order must pro-rate it across items by each item's share of the order total —
+    /// remainder to the last item. 700/1000 and 300/1000 of a 30.00 fee are both exact (21.00/9.00),
+    /// so this also proves the sum equals totalFee exactly, not just approximately.</summary>
+    [Fact]
+    public async Task HandleAsync_PaymentSucceeded_TwoItemsWithChargeFee_AllocatesFeeProportionallyExactly()
+    {
+        _paymentMethod.ChargeFeeToReturn = 30.00m;
+        var handler = CreateHandler();
+        var eventId = "evt_fee_prorate_1";
+        var piId = "pi_fee_prorate_1";
+        var buyerId = Guid.NewGuid();
+        var course1 = Guid.NewGuid();
+        var course2 = Guid.NewGuid();
+        var instructor1 = Guid.NewGuid();
+        var instructor2 = Guid.NewGuid();
+
+        _catalogPriceContract.Prices[course1] = new CoursePriceInfo(course1, "COURSE 1", 700m, instructor1, null);
+        _catalogPriceContract.Prices[course2] = new CoursePriceInfo(course2, "COURSE 2", 300m, instructor2, null);
+
+        var order = ORDER.Create("ORD-FEE-2", buyerId, 1000m, 0m, 0m, 1000m);
+        var item1 = order.AddItem(course1, "COURSE 1", 700m, 700m);
+        var item2 = order.AddItem(course2, "COURSE 2", 300m, 300m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.Card, piId, 1000m, _clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var payload = BuildStripeEventJson(eventId, "payment_intent.succeeded", piId, 100000);
+        var signature = GenerateStripeSignature(payload, WebhookSecret);
+
+        var result = await handler.HandleAsync(payload, signature, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var (_, items) = Assert.Single(_revenueSplitContract.Recorded);
+        var split1 = items.Single(i => i.OrderItemId == item1.ORDER_ITEM_ID);
+        var split2 = items.Single(i => i.OrderItemId == item2.ORDER_ITEM_ID);
+        Assert.Equal(21.00m, split1.PaymentFee);
+        Assert.Equal(9.00m, split2.PaymentFee);
+        Assert.Equal(30.00m, split1.PaymentFee + split2.PaymentFee);
+    }
+
+    [Fact]
+    public async Task HandleAsync_PaymentSucceeded_SingleItemWithChargeFee_AllocatesFullFeeNoRoundingDrift()
+    {
+        _paymentMethod.ChargeFeeToReturn = 25.37m;
+        var handler = CreateHandler();
+        var eventId = "evt_fee_single_1";
+        var piId = "pi_fee_single_1";
+        var buyerId = Guid.NewGuid();
+        var course = Guid.NewGuid();
+        var instructor = Guid.NewGuid();
+
+        _catalogPriceContract.Prices[course] = new CoursePriceInfo(course, "COURSE", 1000m, instructor, null);
+
+        var order = ORDER.Create("ORD-FEE-1", buyerId, 1000m, 0m, 0m, 1000m);
+        var item = order.AddItem(course, "COURSE", 1000m, 1000m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.Card, piId, 1000m, _clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var payload = BuildStripeEventJson(eventId, "payment_intent.succeeded", piId, 100000);
+        var signature = GenerateStripeSignature(payload, WebhookSecret);
+
+        var result = await handler.HandleAsync(payload, signature, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var (_, items) = Assert.Single(_revenueSplitContract.Recorded);
+        var split = Assert.Single(items);
+        Assert.Equal(item.ORDER_ITEM_ID, split.OrderItemId);
+        Assert.Equal(25.37m, split.PaymentFee);
+    }
+
+    /// <summary>Backward-compatible fallback path (PromptPay before this task, and Card whenever the fee
+    /// isn't settled yet): PaymentFee stays null so RevenueSplitContract computes its own
+    /// EstimatedPaymentFeePercent-based estimate — unchanged from pre-P11-09 behavior.</summary>
+    [Fact]
+    public async Task HandleAsync_PaymentSucceeded_NoChargeFeeAvailable_LeavesPaymentFeeNullForContractFallback()
+    {
+        _paymentMethod.ChargeFeeToReturn = null;
+        var handler = CreateHandler();
+        var eventId = "evt_fee_null_1";
+        var piId = "pi_fee_null_1";
+        var buyerId = Guid.NewGuid();
+        var course = Guid.NewGuid();
+
+        _catalogPriceContract.Prices[course] = new CoursePriceInfo(course, "COURSE", 1000m, Guid.NewGuid(), null);
+
+        var order = ORDER.Create("ORD-FEE-NULL", buyerId, 1000m, 0m, 0m, 1000m);
+        order.AddItem(course, "COURSE", 1000m, 1000m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, piId, 1000m, _clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var payload = BuildStripeEventJson(eventId, "payment_intent.succeeded", piId, 100000);
+        var signature = GenerateStripeSignature(payload, WebhookSecret);
+
+        var result = await handler.HandleAsync(payload, signature, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var (_, items) = Assert.Single(_revenueSplitContract.Recorded);
+        var split = Assert.Single(items);
+        Assert.Null(split.PaymentFee);
     }
 
     [Fact]
@@ -470,6 +695,48 @@ public class StripeWebhookHandlerTests
 
             return Task.FromResult(Result.Success());
         }
+    }
+
+    /// <summary>P11-13 (Q13.3): only <see cref="GetEarliestScheduledSessionAsync"/> is used by
+    /// <see cref="StripeWebhookHandler"/> — every other member throws so a test would fail loudly if the
+    /// production code path ever changed to call one of them.</summary>
+    private sealed class FakeLiveScheduleReader : ILiveScheduleReader
+    {
+        public readonly Dictionary<Guid, LiveSessionInfo> EarliestSessionByCourseId = [];
+
+        public Task<IReadOnlyList<LiveSessionInfo>> GetSessionsForCourseAsync(Guid courseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this handler under test — only GetEarliestScheduledSessionAsync is called.");
+
+        public Task<IReadOnlyList<LiveSessionInfo>> GetUpcomingSessionsAsync(DateTime fromUtc, DateTime toUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this handler under test — only GetEarliestScheduledSessionAsync is called.");
+
+        public Task<LiveSessionInfo?> GetSessionAsync(Guid sessionId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by this handler under test — only GetEarliestScheduledSessionAsync is called.");
+
+        public Task<LiveSessionInfo?> GetEarliestScheduledSessionAsync(Guid courseId, CancellationToken cancellationToken) =>
+            Task.FromResult(EarliestSessionByCourseId.TryGetValue(courseId, out var session) ? session : null);
+    }
+
+    /// <summary>Only <see cref="GetChargeFeeAsync"/> is exercised by <c>StripeWebhookHandler</c> —
+    /// every other member throws since this fake is never used for the create/get/cancel/refund flows.</summary>
+    private sealed class FakePaymentMethod : IPaymentMethod
+    {
+        public decimal? ChargeFeeToReturn { get; set; }
+
+        public Task<Result<PaymentIntentResult>> CreatePaymentIntentAsync(CreatePaymentIntentRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by StripeWebhookHandler.");
+
+        public Task<Result<PaymentIntentResult>> GetPaymentIntentAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by StripeWebhookHandler.");
+
+        public Task<Result> CancelPaymentIntentAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by StripeWebhookHandler.");
+
+        public Task<Result<PaymentRefundResult>> CreateRefundAsync(CreateRefundRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by StripeWebhookHandler.");
+
+        public Task<Result<decimal?>> GetChargeFeeAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success(ChargeFeeToReturn));
     }
 
     private sealed class FakeRevenueSplitContract : IRevenueSplitContract

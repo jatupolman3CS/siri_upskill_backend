@@ -225,6 +225,82 @@ commerce.Subscriptions(Id PK, UserId FK, PlanId FK, ProviderSubscriptionId UQ,  
 
 ---
 
+## ส่วนขยาย P11–P12 (Hybrid Live + AI Study — D-21, 2026-09-16 · sketch เดิม · P11-01's ส่วน Catalog **สร้างจริงแล้ว** — ที่เหลือยังไม่สร้าง)
+
+> แบบเต็ม `docs/HYBRID_LIVE.md` §1 · Catalog = PascalCase property/ตาราง UPPERCASE ตาม convention เดิมของโมดูล · `LIVE`/`MEDIA`/`LEARNING` = UPPERCASE ตาม D-17 · ห้าม hard delete/cascade บน invite/join log (เป็นสิทธิ์เรียน+forensics)
+>
+> **P11-01 เสร็จแล้ว (2026-09-16, Claude Code):** `CATALOG.COURSES.DELIVERY_FORMAT` + `CATALOG.COURSE_LIVE_SESSIONS` สร้างจริงตาม sketch ด้านล่างเป๊ะ ผ่าน migration `AddCourseDeliveryFormatAndLiveSessions` (apply ขึ้น DB จริงแล้ว 2026-09-16) — เพิ่ม index ที่ sketch เดิมไม่ได้เขียนไว้ 1 ตัว: `IX(RecordingEpisodeId)` (EF auto-generate ให้ FK ที่ไม่มี index ปิดทับอยู่แล้ว)
+>
+> **✅ Q10/Q13 ตอบแล้ว 2026-09-16 — แก้ sketch ด้านล่างให้ตรง**: Q10=B (ผู้สอนเชื่อม Google เอง) → ตัด `HOST_ACCOUNT`/แนวคิด service-account กลางออก เพิ่ม `LIVE.INSTRUCTOR_GOOGLE_ACCOUNTS` ใหม่ · Q13.1/13.2 → เพิ่ม `EnrollmentDeadlineUtc`/`MaxSeats`/`SeatsUsed` บน `COURSES` (migration ใหม่ **ต่อจาก** P11-01 ไม่ใช่แก้ของเดิม เพราะ P11-01 apply ขึ้น DB จริงแล้ว — ห้ามแก้ migration ที่ apply แล้วตาม `database.md`) · **ไม่รวม** `GOOGLE_ATTENDEE_SYNC_ENABLED` ในบรรทัดด้านล่าง — คอลัมน์นั้นยังเป็นของ P11-04 ตรง ๆ (ไม่ติด Q แล้ว แค่ยังไม่ถึงคิวสร้าง) · **`AI_ENRICHMENT_ENABLED` ตัดออกจากแผนไปเลยในรอบนี้** (P12 เลื่อนทั้งเฟสตาม Q12 — ไม่สร้าง schema ล่วงหน้าให้ฟีเจอร์ที่ยังไม่มีคำสั่งเปิด)
+```
+-- P11 Catalog (แก้ตารางเดิม + ตารางใหม่ 1 ตัว) — migration AddCourseDeliveryFormatAndLiveSessions — สร้างจริงแล้ว, apply แล้ว
+CATALOG.COURSES            + DELIVERY_FORMAT varchar(20) NOT NULL DEFAULT 'OnDemand'   -- OnDemand|Live|Hybrid (string enum)
+CATALOG.COURSE_LIVE_SESSIONS(Id PK uuidv7, CourseId FK→COURSES Cascade, Title(200), Description text NULL,
+                           StartsAtUtc timestamptz(3), EndsAtUtc timestamptz(3), SortOrder,
+                           Status varchar(20),              -- Scheduled|Cancelled (Upcoming/Live/Ended คำนวณจาก IClock ไม่เก็บ)
+                           CancelReason(500) NULL,
+                           RecordingEpisodeId FK→COURSE_EPISODES NoAction NULL,   -- catch-up = ไม่ null + episode Ready
+                           RowVersion bytea (ConcurrencyTokenInterceptor), audit)
+                           IX(CourseId, StartsAtUtc) · IX(StartsAtUtc) WHERE Status='Scheduled' (job หา upcoming) · IX(RecordingEpisodeId) (FK)
+                           -- ไม่ทับกันในคอร์สเดียว/ระยะ 15 นาที–8 ชม. บังคับที่ aggregate (unit test) ไม่ใช่ constraint DB
+
+-- P11-11 Catalog เสร็จแล้ว (2026-09-16, Claude Code, docs/contracts/P11-11-enrollment-deadline-seat-cap.md)
+-- migration AddCourseEnrollmentDeadlineAndSeatCap (ชื่อต่างจาก sketch เดิม "AddCourseEnrollmentPolicy" —
+-- contract ที่ FROZEN ตั้งชื่อไว้ตรง ๆ ยึดตามนั้น) — สร้างจริงตาม sketch ด้านล่างเป๊ะ, additive ล้วน 3
+-- AddColumn ไม่มี shadow property/FK ใหม่ — ยังไม่ apply ขึ้น DB จริง (รอคำสั่ง "migration database")
+CATALOG.COURSES            + ENROLLMENT_DEADLINE_UTC timestamptz(3) NULL   -- null = ไม่ปิดรับสมัคร
+                           + MAX_SEATS int NULL, SEATS_USED int NOT NULL DEFAULT 0   -- null MaxSeats = ไม่จำกัด
+                           -- SEATS_USED เพิ่ม/ลดแบบ atomic ผ่าน ExecuteUpdateAsync จาก Commerce เท่านั้น
+                           -- (ICatalogPriceContract.TryReserveSeatAsync/ReleaseSeatAsync, pattern เดียวกับ
+                           -- PROMO_CODE.REDEEMED_COUNT) — เขียนตอนสร้าง/ยกเลิก/หมดอายุ order เท่านั้น ไม่ลดเมื่อ
+                           -- refund หลังจ่ายเงินแล้ว (ตัดสินใจแล้ว ดูรายละเอียดใน contract §4.5)
+
+-- P11-03 module ใหม่ Siri.Modules.Live (schema LIVE) — migration AddLiveModule — ออกแบบใหม่ตาม Q10=B (ไม่มี host กลาง)
+LIVE.INSTRUCTOR_GOOGLE_ACCOUNTS(INSTRUCTOR_GOOGLE_ACCOUNT_ID PK, INSTRUCTOR_PROFILE_ID UQ (ไม่มี FK ข้าม schema
+                      — เหมือน TrailerMediaAssetId), GOOGLE_EMAIL(320), REFRESH_TOKEN_ENCRYPTED text
+                      (ผ่าน ISensitiveDataProtector — ห้าม plaintext เด็ดขาด), SCOPES(500),
+                      CONNECTED_AT_UTC, LAST_VALIDATED_AT_UTC NULL, REVOKED_AT_UTC NULL, audit)
+LIVE.SESSION_MEETINGS(SESSION_MEETING_ID PK, SESSION_ID UQ (ไม่มี FK ข้าม schema — เหมือน TrailerMediaAssetId),
+                      PROVIDER varchar(20),            -- GoogleMeet|Manual
+                      PROVIDER_EVENT_ID(200) NULL, MEET_URL(500) NULL,
+                      INSTRUCTOR_GOOGLE_ACCOUNT_ID FK→INSTRUCTOR_GOOGLE_ACCOUNTS NoAction NULL,   -- null ถ้า Manual
+                      SYNC_STATUS varchar(20),         -- Pending|Synced|Failed|Deleted|NeedsReconnect
+                      SEQUENCE int NOT NULL DEFAULT 0, -- ICS SEQUENCE เพิ่มทุกครั้งที่แก้เวลา
+                      ATTEMPTS int, NEXT_RETRY_AT_UTC NULL, LAST_SYNC_AT_UTC NULL, ERROR(2000) NULL, audit)
+LIVE.SESSION_INVITES(SESSION_INVITE_ID PK, SESSION_ID, USER_ID, ENROLLMENT_ID,
+                      STATUS varchar(20),              -- Pending|Invited|Cancelled|Skipped
+                      ICS_SENT_AT_UTC NULL, ICS_SEQUENCE int, GOOGLE_ATTENDEE_SYNCED_AT_UTC NULL,
+                      REMINDER_24H_AT_UTC NULL, REMINDER_1H_AT_UTC NULL, ERROR(2000) NULL, audit)
+                      UQ(SESSION_ID, USER_ID) · IX(STATUS) WHERE STATUS='Pending' · IX(USER_ID)
+LIVE.SESSION_JOIN_LOGS(SESSION_JOIN_LOG_ID PK, SESSION_ID, USER_ID, AUTH_SESSION_ID(200) (JWT sid),
+                      JOINED_AT_UTC, IP_ADDRESS(64))   -- append-only เหมือน MEDIA.PLAYBACK_SESSIONS
+                      IX(SESSION_ID, JOINED_AT_UTC) · IX(USER_ID, JOINED_AT_UTC)
+
+-- P11-04 Notification (แก้ตารางเดิม) — migration AddEmailOutboxCalendarPart
+NOTIFY.EMAIL_OUTBOX        + CALENDAR_ICS text NULL, CALENDAR_METHOD varchar(10) NULL   -- REQUEST|CANCEL → MimeKit text/calendar
+CATALOG.COURSES            + GOOGLE_ATTENDEE_SYNC_ENABLED bool NOT NULL DEFAULT false   -- opt-in ต่อคอร์ส (Q11)
+
+-- P11 Commerce: ไม่มีตารางใหม่ (PAYMENT.METHOD รองรับ Card แล้ว) · Config Payment:EnabledMethods
+
+-- P12 (AI Study) — เลื่อนทั้งเฟส (Q12, 2026-09-16) — sketch ด้านล่างยังไม่สร้าง ไม่ผูกกับ P11 เลย เก็บไว้ revisit ได้ทันที
+-- P12 Media (schema MEDIA) — migration AddMediaAiEnrichments
+MEDIA.MEDIA_AI_ENRICHMENTS(MEDIA_AI_ENRICHMENT_ID PK, MEDIA_ASSET_ID FK→MEDIA_ASSETS NoAction UQ,
+                      STATUS varchar(20),              -- Pending|Transcribing|Summarizing|Ready|Failed|Skipped
+                      TRANSCRIPT_LANG(10), TRANSCRIPT_TEXT text NULL, CHAPTERS_JSON jsonb NULL, MOMENTS_JSON jsonb NULL,
+                      SUMMARY_JSON jsonb NULL,         -- {summaryTh, keyPoints[], reviewQuestions[], suggestedTitle}
+                      MODEL(100) NULL, ATTEMPTS int, ERROR(2000) NULL,
+                      TRANSCRIBED_AT_UTC NULL, SUMMARIZED_AT_UTC NULL, audit)
+MEDIA.AI_GENERATION_LOG(AI_GENERATION_LOG_ID bigint identity PK, PURPOSE varchar(40),   -- Summary|WatchPlan|MarketingCopy
+                      MODEL(100), INPUT_TOKENS int, OUTPUT_TOKENS int, COST_USD decimal(10,4),
+                      REF_TYPE(40), REF_ID uuid NULL, REQUESTED_BY_USER_ID uuid NULL, OCCURRED_AT_UTC)
+                      IX(OCCURRED_AT_UTC)              -- budget guard: SUM(COST_USD) เดือนนี้ ก่อนเรียกทุกครั้ง
+
+-- P12 Learning — migration AddStudyPlans
+LEARNING.STUDY_PLANS(STUDY_PLAN_ID PK, ENROLLMENT_ID FK→ENROLLMENTS NoAction UQ, PLAN_JSON jsonb,
+                      SOURCE varchar(20),              -- Llm|RuleBased
+                      GENERATED_AT_UTC, VALID_UNTIL_UTC, PROGRESS_FINGERPRINT(64))   -- invalidate เมื่อ progress เปลี่ยน
+```
+
 ## Index ที่ต้องมีตั้งแต่วันแรก (จาก query pattern จริง)
 ```sql
 IX_Courses_Browse         (Status, CategoryId, PublishedAtUtc DESC) INCLUDE (Title, Slug, Price, RatingAverage, ThumbnailUrl)

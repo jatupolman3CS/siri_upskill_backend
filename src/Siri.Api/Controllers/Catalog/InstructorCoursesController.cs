@@ -16,6 +16,7 @@ using Siri.Modules.Catalog.Features.GetMyCourses;
 using Siri.Modules.Catalog.Features.ReorderCourseEpisodes;
 using Siri.Modules.Catalog.Features.ReorderCourseSections;
 using Siri.Modules.Catalog.Features.SetCourseDeliveryFormat;
+using Siri.Modules.Catalog.Features.SetCourseEnrollmentPolicy;
 using Siri.Modules.Catalog.Features.SubmitCourseForReview;
 using Siri.Modules.Catalog.Features.UpdateCourse;
 using Siri.Modules.Catalog.Features.UpdateCourseEpisode;
@@ -515,6 +516,33 @@ public class InstructorCoursesController : ControllerBase
         [FromRoute] Guid id,
         [FromBody] SetCourseDeliveryFormatCommand command,
         [FromServices] SetCourseDeliveryFormatHandler handler,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await handler.HandleAsync(userId, id, command, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(HttpContext);
+    }
+
+    [HttpPut("{id:guid}/enrollment-policy")]
+    [EndpointName("CatalogSetCourseEnrollmentPolicy")]
+    [EndpointSummary("ตั้งนโยบายปิดรับสมัคร/เพดานที่นั่งของคอร์ส")]
+    [ProducesResponseType(typeof(SetCourseEnrollmentPolicyResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IResult> SetEnrollmentPolicy(
+        [FromRoute] Guid id,
+        [FromBody] SetCourseEnrollmentPolicyCommand command,
+        [FromServices] SetCourseEnrollmentPolicyHandler handler,
         [FromServices] IUserContext userContext,
         CancellationToken cancellationToken)
     {

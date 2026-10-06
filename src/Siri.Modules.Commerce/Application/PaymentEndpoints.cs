@@ -15,6 +15,11 @@ public static class PaymentEndpoints
         // PaymentService.GetByIdAsync resolves the payment's ORDER_ID and returns the same NotFound error
         // when order.USER_ID != caller, so another user's payment id is indistinguishable from one that
         // does not exist. Group default-deny + that check IS the access rule — do not weaken either.
+        endpoints.MapGet("/config", GetConfigAsync)
+            .WithName("CommerceGetPaymentConfig")
+            .WithSummary("ดึง publishable key และวิธีชำระเงินที่เปิดใช้งาน")
+            .Produces<PaymentConfigResponse>(StatusCodes.Status200OK);
+
         endpoints.MapGet("/{paymentId:guid}", GetByIdAsync)
             .WithName("CommerceGetPayment")
             .WithSummary("ดูสถานะการชำระเงิน")
@@ -30,6 +35,8 @@ public static class PaymentEndpoints
 
         return endpoints;
     }
+
+    private static IResult GetConfigAsync(PaymentService paymentService) => Results.Ok(paymentService.GetConfig());
 
     private static async Task<IResult> GetByIdAsync(Guid paymentId, PaymentService paymentService, IUserContext userContext, HttpContext httpContext, CancellationToken cancellationToken)
     {

@@ -106,9 +106,16 @@ push → GitHub Actions:
 
 ## Monitoring & alert
 
+> **อัปเดต 2026-09-21:** Uptime Kuma (`https://kuma.siristudiophoto.com/`) และ .NET Aspire
+> Dashboard (`https://monitor.siristudiophoto.com/`, แทนที่แผน Seq เดิมด้านล่าง) รันอยู่จริงบน
+> VPS แล้ว (shared ข้ามหลายโปรเจ็คบนเครื่องเดียวกัน) — ขั้นตอนตั้งค่าละเอียดอยู่ที่
+> `docs/runbooks/uptime-and-log-monitoring-setup.md` ค้างอยู่ 2 อย่างที่ต้องเจ้าของโปรเจ็คทำเอง
+> (login Kuma เพิ่ม monitor + รันคำสั่งเดียวบน VPS หา OTLP endpoint จริง) — Claude Code ทำแทนไม่ได้
+> ทั้งคู่ (ห้ามกรอกรหัสผ่าน + ไม่มีสิทธิ์ SSH เข้า production โดยตรง)
+
 - Uptime Kuma: เช็ค `/health`, หน้าแรก, และ Bunny playback ตัวอย่าง
 - Netdata หรือ Prometheus+Grafana: CPU / RAM / disk / IO
-- Seq: log + alert เมื่อ error rate พุ่ง
+- ~~Seq~~ .NET Aspire Dashboard: log + trace + metric ผ่าน OTLP (`Observability:OtlpEndpoint`, P0-13)
 - Alert เข้า LINE Notify หรือ Discord webhook
 - ต้อง alert เป็นพิเศษ: disk > 80%, DB > 7 GB (ถ้าใช้ Express), Stripe webhook ล้มเหลว/ตอบไม่ทันติดต่อกัน, ออร์เดอร์ค้างสถานะผิดปกติ (ops queue) > 20 รายการ
 

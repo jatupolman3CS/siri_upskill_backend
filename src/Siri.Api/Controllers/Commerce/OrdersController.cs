@@ -84,4 +84,23 @@ public class OrdersController : ControllerBase
         var result = await orderService.CreateAsync(userId, command, cancellationToken).ConfigureAwait(false);
         return result.IsSuccess ? Results.Created($"/api/commerce/orders/{result.Value.Id}", result.Value) : result.Error.ToProblemHttpResult(HttpContext);
     }
+
+    [HttpPost("{orderId:guid}/cancel")]
+    [EnableRateLimiting("default")]
+    [EndpointName("CommerceCancelOrder")]
+    [EndpointSummary("ยกเลิกคำสั่งซื้อของตัวเองที่ยังไม่ชำระเงิน")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IResult> Cancel(
+        [FromRoute] Guid orderId,
+        [FromServices] OrderService orderService,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId) return Results.Unauthorized();
+
+        var result = await orderService.CancelAsync(userId, orderId, cancellationToken).ConfigureAwait(false);
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(HttpContext);
+    }
 }

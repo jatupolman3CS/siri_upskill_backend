@@ -165,7 +165,7 @@ public sealed class CourseReviewsIntegrationTests : IAsyncLifetime
         var course = COURSE.Create("c1-review", "COURSE 1 Review", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var section = course.AddSection("Sec 1");
         section.AddEpisode("Ep 1", null, false).AttachMedia(Guid.NewGuid(), 600);
-        course.SubmitForReview();
+        course.SubmitForReview(clock);
         course.Publish(clock);
         db.Courses().Add(course);
         await db.SaveChangesAsync();

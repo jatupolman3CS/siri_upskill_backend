@@ -49,6 +49,7 @@ public sealed class CreateAnnouncementHandler(
             announcement.ScheduledAtUtc,
             announcement.SentAtUtc,
             announcement.RecipientCount,
+            announcement.DispatchStatus,
             announcement.CreatedAtUtc));
     }
 }

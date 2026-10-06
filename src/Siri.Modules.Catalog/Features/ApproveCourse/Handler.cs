@@ -36,8 +36,12 @@ public sealed class ApproveCourseHandler(AppDbContext dbContext, IClock clock, I
     {
         // Include Sections/Episodes: COURSE.Publish's own internal "has media" backstop walks that
         // in-memory graph — same reasoning SubmitCourseForReviewHandler's own comment gives.
+        // LiveSessions (P11-01) is a sibling collection of Sections, not a child of it — a separate
+        // .Include, not a .ThenInclude off Sections — needed for the same reason (CanPublishOrSubmit's
+        // HasFutureScheduledLiveSession would otherwise always see an empty collection).
         var course = await dbContext.Courses()
             .Include(c => c.Sections).ThenInclude(s => s.Episodes)
+            .Include(c => c.LiveSessions)
             .FirstOrDefaultAsync(c => c.Id == courseId, cancellationToken)
             .ConfigureAwait(false);
 
@@ -59,7 +63,7 @@ public sealed class ApproveCourseHandler(AppDbContext dbContext, IClock clock, I
         {
             return Result.Failure<ApproveCourseResponse>(DomainError.Validation("The course instructor could not be found."));
         }
-        var mediaReadiness = await CourseMediaReadiness.ValidateAsync(course, ownerUserId.Value, mediaAssets, cancellationToken).ConfigureAwait(false);
+        var mediaReadiness = await CourseMediaReadiness.ValidateAsync(course, ownerUserId.Value, mediaAssets, clock, cancellationToken).ConfigureAwait(false);
         if (mediaReadiness.IsFailure)
         {
             return Result.Failure<ApproveCourseResponse>(mediaReadiness.Error);

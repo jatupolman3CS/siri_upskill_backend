@@ -24,6 +24,8 @@ public static class AppDbContextCatalogExtensions
 
     public static DbSet<COURSE_REQUIREMENT> CourseRequirements(this AppDbContext context) => context.Set<COURSE_REQUIREMENT>();
 
+    public static DbSet<COURSE_LIVE_SESSION> CourseLiveSessions(this AppDbContext context) => context.Set<COURSE_LIVE_SESSION>();
+
     public static DbSet<INSTRUCTOR_PROFILE> InstructorProfiles(this AppDbContext context) => context.Set<INSTRUCTOR_PROFILE>();
 
     public static DbSet<EPISODE_ATTACHMENT> EpisodeAttachments(this AppDbContext context) => context.Set<EPISODE_ATTACHMENT>();

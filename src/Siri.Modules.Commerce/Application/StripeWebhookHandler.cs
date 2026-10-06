@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Siri.Integrations.Payment;
 using Siri.Integrations.Payment.Stripe;
 using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Commerce.Domain;
@@ -24,10 +25,12 @@ public sealed class StripeWebhookHandler
     private readonly IPromoCodeRepository _promoCodeRepository;
     private readonly IPaymentOpsQueueRepository _paymentOpsQueueRepository;
     private readonly ICatalogPriceContract _catalogPriceContract;
+    private readonly ILiveScheduleReader _liveScheduleReader;
     private readonly ILearningAccessContract _learningAccessContract;
     private readonly IRevenueSplitContract _revenueSplitContract;
     private readonly IEmailOutbox _emailOutbox;
     private readonly IUserContactReader _userContactReader;
+    private readonly IPaymentMethod _paymentMethod;
     private readonly StripeOptions _options;
     private readonly IClock _clock;
     private readonly ILogger<StripeWebhookHandler> _logger;
@@ -39,10 +42,12 @@ public sealed class StripeWebhookHandler
         IPromoCodeRepository promoCodeRepository,
         IPaymentOpsQueueRepository paymentOpsQueueRepository,
         ICatalogPriceContract catalogPriceContract,
+        ILiveScheduleReader liveScheduleReader,
         ILearningAccessContract learningAccessContract,
         IRevenueSplitContract revenueSplitContract,
         IEmailOutbox emailOutbox,
         IUserContactReader userContactReader,
+        IPaymentMethod paymentMethod,
         IOptions<StripeOptions> options,
         IClock clock,
         ILogger<StripeWebhookHandler> logger)
@@ -53,10 +58,12 @@ public sealed class StripeWebhookHandler
         _promoCodeRepository = promoCodeRepository;
         _paymentOpsQueueRepository = paymentOpsQueueRepository;
         _catalogPriceContract = catalogPriceContract;
+        _liveScheduleReader = liveScheduleReader;
         _learningAccessContract = learningAccessContract;
         _revenueSplitContract = revenueSplitContract;
         _emailOutbox = emailOutbox;
         _userContactReader = userContactReader;
+        _paymentMethod = paymentMethod;
         _options = options.Value;
         _clock = clock;
         _logger = logger;
@@ -174,7 +181,26 @@ public sealed class StripeWebhookHandler
             return;
         }
 
-        if (payment.STATUS is PaymentStatus.Pending or PaymentStatus.Processing)
+        // The order was already paid by a different PaymentIntent (reload / PromptPay<->Card switch left two
+        // chargeable intents) -> this charge is a duplicate. Flag it for ops/refund instead of silently
+        // marking it Succeeded.
+        if (order.STATUS == OrderStatus.Paid && payment.STATUS != PaymentStatus.Succeeded)
+        {
+            _logger.LogWarning("Order {OrderNo} is already Paid but payment {PaymentId} also succeeded. Adding to payment ops queue.", order.ORDER_NO, payment.PAYMENT_ID);
+            if (payment.STATUS is PaymentStatus.Pending or PaymentStatus.Processing or PaymentStatus.Failed or PaymentStatus.Expired)
+            {
+                payment.MarkSucceeded(_clock);
+            }
+
+            var duplicateOpsQueue = PAYMENT_OPS_QUEUE.Create(payment.PAYMENT_ID, "Duplicate payment succeeded for an already paid order");
+            await _paymentOpsQueueRepository.AddAsync(duplicateOpsQueue, cancellationToken).ConfigureAwait(false);
+            webhookEvent.MarkProcessed("payment.succeeded_after_order_paid", _clock);
+            return;
+        }
+
+        // Failed is included: a card decline marks the payment Failed, but the learner can retry another
+        // card on the same PaymentIntent and succeed.
+        if (payment.STATUS is PaymentStatus.Pending or PaymentStatus.Processing or PaymentStatus.Failed)
         {
             payment.MarkSucceeded(_clock);
         }
@@ -199,15 +225,27 @@ public sealed class StripeWebhookHandler
             // EnrollUserAsync per course. This is the payment-confirmation webhook: money is already
             // captured by Stripe, so granting access reliably in one round trip matters more here than
             // almost anywhere else in the codebase.
-            var enrollmentGrants = courseIds
-                .Select(courseId =>
+            // P11-13 (Q13.3): Live/Hybrid courses count AccessDurationDays from the first scheduled live
+            // session's StartsAtUtc, not the purchase date — async per course, so this can no longer be a
+            // plain LINQ .Select(). GetEarliestScheduledSessionAsync returning null covers both "course is
+            // OnDemand" and "Live/Hybrid but no session scheduled yet" — both fall back to counting from
+            // now, exactly the pre-P11-13 behavior (see docs/contracts/P11-13-access-duration-first-session.md §0.2).
+            var enrollmentGrants = new List<CourseEnrollmentGrant>(courseIds.Count);
+            foreach (var courseId in courseIds)
+            {
+                DateTime? expiresAtUtc = null;
+                if (coursePrices.TryGetValue(courseId, out var enrolledCourseInfo) && enrolledCourseInfo.AccessDurationDays is { } days)
                 {
-                    DateTime? expiresAtUtc = coursePrices.TryGetValue(courseId, out var enrolledCourseInfo) && enrolledCourseInfo.AccessDurationDays is { } days
-                        ? _clock.UtcNow.AddDays(days)
-                        : null;
-                    return new CourseEnrollmentGrant(courseId, order.ORDER_ID, expiresAtUtc);
-                })
-                .ToList();
+                    var earliestSession = await _liveScheduleReader.GetEarliestScheduledSessionAsync(courseId, cancellationToken).ConfigureAwait(false);
+                    // Never count from a session that has already started: late buyers would lose the
+                    // elapsed time (or get an already-expired enrollment).
+                    var accessStartUtc = earliestSession is not null && earliestSession.StartsAtUtc > _clock.UtcNow
+                        ? earliestSession.StartsAtUtc
+                        : _clock.UtcNow;
+                    expiresAtUtc = accessStartUtc.AddDays(days);
+                }
+                enrollmentGrants.Add(new CourseEnrollmentGrant(courseId, order.ORDER_ID, expiresAtUtc));
+            }
 
             var enrollmentResult = await _learningAccessContract.EnrollUserInCoursesAsync(
                 order.USER_ID, "Purchase", enrollmentGrants, cancellationToken).ConfigureAwait(false);
@@ -216,13 +254,55 @@ public sealed class StripeWebhookHandler
                 throw new InvalidOperationException($"Payment fulfillment failed: {enrollmentResult.Error.Code}");
             }
 
-            // 2. Record Revenue Splits for instructors
+            // 2. Record Revenue Splits for instructors. charge.balance_transaction.fee is a single value
+            // for the whole PaymentIntent, but OrderItemSplitInfo is per line item — an order can buy
+            // several courses at once, so the fee must be pro-rated by each item's share of the order
+            // total rather than charged in full to every item (which would multiply the deducted fee
+            // whenever there's more than one item). This applies to PromptPay too, not just Card — it's
+            // just never shown up before because no caller ever passed a non-null PaymentFee.
+            var feeResult = await _paymentMethod.GetChargeFeeAsync(paymentIntent.Id, cancellationToken).ConfigureAwait(false);
+            var totalFee = feeResult.Value; // GetChargeFeeAsync always returns Success — .Value is safe here
+
             var splitItems = new List<OrderItemSplitInfo>();
-            foreach (var item in order.ORDER_ITEMS)
+            var qualifyingItems = order.ORDER_ITEMS
+                .Where(i => i.COURSE_ID.HasValue && coursePrices.ContainsKey(i.COURSE_ID.Value))
+                .ToList();
+
+            if (totalFee is null || order.TOTAL_AMOUNT <= 0m)
             {
-                if (item.COURSE_ID.HasValue && coursePrices.TryGetValue(item.COURSE_ID.Value, out var courseInfo))
+                // No real fee available (not yet settled by Stripe / API call failed) — let
+                // RevenueSplitContract fall back to EstimatedPaymentFeePercent itself (Q4).
+                foreach (var item in qualifyingItems)
                 {
-                    splitItems.Add(new OrderItemSplitInfo(item.ORDER_ITEM_ID, courseInfo.InstructorId, item.LINE_TOTAL));
+                    splitItems.Add(new OrderItemSplitInfo(item.ORDER_ITEM_ID, coursePrices[item.COURSE_ID!.Value].InstructorId, item.LINE_TOTAL));
+                }
+            }
+            else
+            {
+                // Items excluded from the split (no course / course no longer published) keep their own
+                // share of the fee out of the instructors' pool, so it isn't dumped on the last item.
+                var excludedTotal = order.ORDER_ITEMS.Where(i => !qualifyingItems.Contains(i)).Sum(i => i.LINE_TOTAL);
+                var qualifyingFee = totalFee.Value - Math.Round(totalFee.Value * excludedTotal / order.TOTAL_AMOUNT, 2, MidpointRounding.AwayFromZero);
+
+                // Pro-rate the qualifying fee by each item's LINE_TOTAL share of TOTAL_AMOUNT — remainder goes
+                // to the last item (same pattern as platformAmount in RevenueSplitContract) so the sum of
+                // per-item fees always equals qualifyingFee exactly, never just "close" due to rounding.
+                decimal allocatedSoFar = 0m;
+                for (var i = 0; i < qualifyingItems.Count; i++)
+                {
+                    var item = qualifyingItems[i];
+                    var instructorId = coursePrices[item.COURSE_ID!.Value].InstructorId;
+                    decimal itemFee;
+                    if (i == qualifyingItems.Count - 1)
+                    {
+                        itemFee = qualifyingFee - allocatedSoFar;
+                    }
+                    else
+                    {
+                        itemFee = Math.Round(totalFee.Value * item.LINE_TOTAL / order.TOTAL_AMOUNT, 2, MidpointRounding.AwayFromZero);
+                        allocatedSoFar += itemFee;
+                    }
+                    splitItems.Add(new OrderItemSplitInfo(item.ORDER_ITEM_ID, instructorId, item.LINE_TOTAL, itemFee));
                 }
             }
 

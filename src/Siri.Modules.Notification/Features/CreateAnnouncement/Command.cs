@@ -1,3 +1,5 @@
+using Siri.Modules.Notification.Domain;
+
 namespace Siri.Modules.Notification.Features.CreateAnnouncement;
 
 public sealed record CreateAnnouncementCommand(
@@ -17,4 +19,5 @@ public sealed record AnnouncementResponse(
     DateTime? ScheduledAtUtc,
     DateTime? SentAtUtc,
     int RecipientCount,
+    AnnouncementDispatchStatus DispatchStatus,
     DateTime CreatedAtUtc);

@@ -1,4 +1,7 @@
+using Microsoft.Extensions.Options;
 using Siri.Integrations.Payment;
+using Siri.Integrations.Payment.Stripe;
+using Siri.Modules.Commerce;
 using Siri.Modules.Commerce.Application;
 using Siri.Modules.Commerce.Domain;
 using Siri.Modules.Identity.Contracts;
@@ -12,8 +15,16 @@ public class PaymentServiceTests
     private readonly FakeOrderRepository _orderRepo = new();
     private readonly FakePaymentMethod _paymentMethod = new();
     private readonly FakeClock _clock = new(new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc));
+    private readonly PaymentOptions _paymentOptions = new();
 
-    private PaymentService CreateService() => new(_paymentRepo, _orderRepo, _paymentMethod, _clock, new FakeUserContactReader());
+    private PaymentService CreateService() => new(
+        _paymentRepo,
+        _orderRepo,
+        _paymentMethod,
+        _clock,
+        new FakeUserContactReader(),
+        Options.Create(_paymentOptions),
+        Options.Create(new StripeOptions { PublishableKey = "pk_test_fake", SecretKey = "sk_test_fake" }));
 
     [Fact]
     public async Task GetByIdAsync_PaymentNotFound_ReturnsNotFound()
@@ -128,6 +139,79 @@ public class PaymentServiceTests
         Assert.Equal(PaymentStatus.Pending, savedPayment.STATUS);
     }
 
+    /// <summary>Regression test for the actual P11-09 bug: <c>PaymentService.CreateAsync</c> used to
+    /// never forward <c>command.Method</c> into <c>CreatePaymentIntentRequest</c> at all, making
+    /// <see cref="PaymentMethod.Card"/> unreachable end-to-end even though nothing else blocked it.</summary>
+    [Fact]
+    public async Task CreateAsync_CardMethod_ForwardsPaymentMethodTypeCardToProvider()
+    {
+        _paymentOptions.EnabledMethods = [PaymentMethod.PromptPay, PaymentMethod.Card];
+
+        var userId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-01", userId, 1500m, 0m, 0m, 1500m);
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        _paymentMethod.ResultToReturn = Result.Success(new PaymentIntentResult(
+            "pi_stripe_card", "pi_stripe_card_secret", "requires_confirmation", 1500m, "thb", null, null));
+
+        var service = CreateService();
+        var command = new CreatePaymentCommand(order.ORDER_ID, PaymentMethod.Card);
+
+        var result = await service.CreateAsync(userId, command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(PaymentMethodType.Card, _paymentMethod.LastRequest!.Method);
+        Assert.Null(result.Value.QrCodeUrl);
+        Assert.Equal("pi_stripe_card_secret", result.Value.ClientSecret);
+    }
+
+    [Fact]
+    public async Task CreateAsync_PromptPayMethod_ForwardsPaymentMethodTypePromptPayToProvider()
+    {
+        var userId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-01", userId, 1500m, 0m, 0m, 1500m);
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var service = CreateService();
+        var command = new CreatePaymentCommand(order.ORDER_ID, PaymentMethod.PromptPay);
+
+        var result = await service.CreateAsync(userId, command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(PaymentMethodType.PromptPay, _paymentMethod.LastRequest!.Method);
+    }
+
+    [Fact]
+    public async Task CreateAsync_MethodNotInEnabledMethods_ReturnsValidationErrorAndNeverCallsProvider()
+    {
+        _paymentOptions.EnabledMethods = [PaymentMethod.PromptPay]; // Card not enabled
+
+        var userId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-01", userId, 1500m, 0m, 0m, 1500m);
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var service = CreateService();
+        var command = new CreatePaymentCommand(order.ORDER_ID, PaymentMethod.Card);
+
+        var result = await service.CreateAsync(userId, command, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("validation", result.Error.Code);
+        Assert.Contains("Card", result.Error.Message);
+        Assert.Null(_paymentMethod.LastRequest); // Provider never called — fail-fast before the Stripe call
+    }
+
+    [Fact]
+    public void GetConfig_ReturnsPublishableKeyAndEnabledMethods()
+    {
+        _paymentOptions.EnabledMethods = [PaymentMethod.PromptPay, PaymentMethod.Card];
+
+        var config = CreateService().GetConfig();
+
+        Assert.Equal("pk_test_fake", config.PublishableKey);
+        Assert.Equal([PaymentMethod.PromptPay, PaymentMethod.Card], config.EnabledMethods);
+    }
+
     private sealed class FakePaymentRepository : IPaymentRepository
     {
         private readonly List<PAYMENT> _payments = [];
@@ -208,6 +292,9 @@ public class PaymentServiceTests
 
         public Task<Result<PaymentRefundResult>> CreateRefundAsync(CreateRefundRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Success(new PaymentRefundResult("re_test", "succeeded", request.Amount, "thb")));
+
+        public Task<Result<decimal?>> GetChargeFeeAsync(string providerPaymentIntentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success<decimal?>(null));
     }
 
     private sealed class FakeClock(DateTime utcNow) : IClock

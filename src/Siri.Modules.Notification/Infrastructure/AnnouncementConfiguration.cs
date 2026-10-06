@@ -20,9 +20,22 @@ public sealed class AnnouncementConfiguration : IEntityTypeConfiguration<ANNOUNC
         builder.Property(a => a.ScheduledAtUtc).HasPrecision(3);
         builder.Property(a => a.SentAtUtc).HasPrecision(3);
         builder.Property(a => a.RecipientCount).IsRequired();
+
+        // X-31: no .HasDefaultValue() here on purpose — ANNOUNCEMENT.Create() is the only place that
+        // constructs this entity and always sets DispatchStatus explicitly (Pending, every time), so a
+        // model-level default is unnecessary. The one-time backfill for pre-existing rows lives only in
+        // migration AddAnnouncementDispatchStatus's Up() (defaultValue: "Sent" — see that migration's
+        // comment for why "Sent" and not "Pending"). Same convention EmailOutboxStatus already follows.
+        builder.Property(a => a.DispatchStatus)
+            .HasConversion<string>()
+            .HasMaxLength(32)
+            .IsRequired();
+
         builder.Property(a => a.CreatedAtUtc).HasPrecision(3).IsRequired();
 
         builder.HasIndex(a => a.CourseId).HasDatabaseName("IX_ANNOUNCEMENTS_COURSE_ID");
         builder.HasIndex(a => a.InstructorId).HasDatabaseName("IX_ANNOUNCEMENTS_INSTRUCTOR_ID");
+        builder.HasIndex(a => new { a.DispatchStatus, a.ScheduledAtUtc })
+            .HasDatabaseName("IX_ANNOUNCEMENTS_DISPATCH_STATUS_SCHEDULED_AT_UTC");
     }
 }

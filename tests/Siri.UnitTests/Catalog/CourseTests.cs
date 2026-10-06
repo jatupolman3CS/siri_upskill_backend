@@ -241,7 +241,7 @@ public class CourseTests
         var course = CreateDraftCourse();
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
-        course.SubmitForReview();
+        course.SubmitForReview(new FakeClock(DateTime.UtcNow));
         course.Reject("ต้องแก้คำอธิบาย");
 
         course.Publish(new FakeClock(DateTime.UtcNow));
@@ -256,7 +256,7 @@ public class CourseTests
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
 
-        course.SubmitForReview();
+        course.SubmitForReview(new FakeClock(DateTime.UtcNow));
 
         Assert.Equal(CourseStatus.InReview, course.Status);
     }
@@ -267,7 +267,7 @@ public class CourseTests
         var course = CreateDraftCourse();
         course.AddSection("Section 1"); // no episodes at all
 
-        Assert.Throws<InvalidOperationException>(() => course.SubmitForReview());
+        Assert.Throws<InvalidOperationException>(() => course.SubmitForReview(new FakeClock(DateTime.UtcNow)));
         Assert.Equal(CourseStatus.Draft, course.Status);
     }
 
@@ -277,9 +277,9 @@ public class CourseTests
         var course = CreateDraftCourse();
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
-        course.SubmitForReview();
+        course.SubmitForReview(new FakeClock(DateTime.UtcNow));
 
-        Assert.Throws<InvalidOperationException>(() => course.SubmitForReview());
+        Assert.Throws<InvalidOperationException>(() => course.SubmitForReview(new FakeClock(DateTime.UtcNow)));
     }
 
     [Fact]
@@ -290,7 +290,7 @@ public class CourseTests
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
         course.Publish(new FakeClock(DateTime.UtcNow));
 
-        Assert.Throws<InvalidOperationException>(() => course.SubmitForReview());
+        Assert.Throws<InvalidOperationException>(() => course.SubmitForReview(new FakeClock(DateTime.UtcNow)));
     }
 
     [Fact]
@@ -299,10 +299,10 @@ public class CourseTests
         var course = CreateDraftCourse();
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
-        course.SubmitForReview();
+        course.SubmitForReview(new FakeClock(DateTime.UtcNow));
         course.Reject("ต้องแก้คำอธิบาย");
 
-        course.SubmitForReview();
+        course.SubmitForReview(new FakeClock(DateTime.UtcNow));
 
         Assert.Equal(CourseStatus.InReview, course.Status);
         Assert.Null(course.RejectionReason);
@@ -314,7 +314,7 @@ public class CourseTests
         var course = CreateDraftCourse();
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
-        course.SubmitForReview();
+        course.SubmitForReview(new FakeClock(DateTime.UtcNow));
 
         course.Reject("คำอธิบายไม่ครบถ้วน");
 
@@ -337,7 +337,7 @@ public class CourseTests
         var course = CreateDraftCourse();
         var section = course.AddSection("Section 1");
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
-        course.SubmitForReview();
+        course.SubmitForReview(new FakeClock(DateTime.UtcNow));
 
         Assert.Throws<ArgumentException>(() => course.Reject(""));
     }
@@ -369,6 +369,66 @@ public class CourseTests
         course.SetAccessDuration(null);
 
         Assert.Null(course.AccessDurationDays);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void SetEnrollmentPolicy_ZeroOrNegativeMaxSeats_ThrowsArgumentOutOfRangeException(int maxSeats)
+    {
+        var course = CreateDraftCourse();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => course.SetEnrollmentPolicy(null, maxSeats));
+    }
+
+    [Fact]
+    public void SetEnrollmentPolicy_NonUtcDeadline_ThrowsArgumentException()
+    {
+        var course = CreateDraftCourse();
+        var localDeadline = new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Local);
+
+        Assert.Throws<ArgumentException>(() => course.SetEnrollmentPolicy(localDeadline, null));
+    }
+
+    [Fact]
+    public void SetEnrollmentPolicy_NullDeadlineAndNullMaxSeats_MeansNoRestriction()
+    {
+        var course = CreateDraftCourse();
+        course.SetEnrollmentPolicy(new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc), 10);
+
+        course.SetEnrollmentPolicy(null, null);
+
+        Assert.Null(course.EnrollmentDeadlineUtc);
+        Assert.Null(course.MaxSeats);
+    }
+
+    [Fact]
+    public void SetEnrollmentPolicy_ValidUtcDeadlineAndPositiveMaxSeats_SetsBothFields()
+    {
+        var course = CreateDraftCourse();
+        var deadline = new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        course.SetEnrollmentPolicy(deadline, 50);
+
+        Assert.Equal(deadline, course.EnrollmentDeadlineUtc);
+        Assert.Equal(50, course.MaxSeats);
+    }
+
+    [Fact]
+    public void SetEnrollmentPolicy_MaxSeatsBelowCurrentSeatsUsed_DoesNotThrow()
+    {
+        // SeatsUsed is only ever mutated by Commerce's raw ExecuteUpdateAsync (ICatalogPriceContract
+        // .TryReserveSeatAsync), never through any COURSE method — reflection is the only way to get a
+        // non-zero SeatsUsed onto an in-memory instance for this test, same technique already used
+        // elsewhere in this codebase (e.g. OrderExpiryJobTests/PromoCodeTests set CreatedAtUtc this way).
+        var course = CreateDraftCourse();
+        typeof(COURSE).GetProperty(nameof(COURSE.SeatsUsed))!.SetValue(course, 10);
+
+        var exception = Record.Exception(() => course.SetEnrollmentPolicy(null, 1));
+
+        Assert.Null(exception);
+        Assert.Equal(1, course.MaxSeats);
+        Assert.Equal(10, course.SeatsUsed);
     }
 
     [Fact]
@@ -638,5 +698,181 @@ public class CourseTests
         course.SetTrailer(null);
 
         Assert.Null(course.TrailerMediaAssetId);
+    }
+
+    // ---- Publish/SubmitForReview — Live/Hybrid invariant (task P11-01) --------------------------
+    // docs/contracts/P11-01-catalog-live-sessions.md §2.4/§2.7: Live/Hybrid can satisfy the "has media
+    // or a future scheduled session" gate either way — OnDemand's own tests above are unchanged
+    // regression coverage (only the SubmitForReview(clock) signature changed, not the behavior).
+
+    [Theory]
+    [InlineData(DeliveryFormat.Live)]
+    [InlineData(DeliveryFormat.Hybrid)]
+    public void Publish_LiveOrHybridWithFutureScheduledSessionOnly_Succeeds(DeliveryFormat format)
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(format);
+        course.AddLiveSession("Kickoff", null, clock.UtcNow.AddDays(1), clock.UtcNow.AddDays(1).AddHours(1), clock);
+
+        course.Publish(clock);
+
+        Assert.Equal(CourseStatus.Published, course.Status);
+    }
+
+    [Theory]
+    [InlineData(DeliveryFormat.Live)]
+    [InlineData(DeliveryFormat.Hybrid)]
+    public void Publish_LiveOrHybridWithEpisodeMediaOnly_Succeeds(DeliveryFormat format)
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(format);
+        var section = course.AddSection("Section 1");
+        section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
+
+        course.Publish(clock);
+
+        Assert.Equal(CourseStatus.Published, course.Status);
+    }
+
+    [Fact]
+    public void Publish_HybridWithBothFutureSessionAndEpisodeMedia_Succeeds()
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(DeliveryFormat.Hybrid);
+        course.AddLiveSession("Kickoff", null, clock.UtcNow.AddDays(1), clock.UtcNow.AddDays(1).AddHours(1), clock);
+        var section = course.AddSection("Section 1");
+        section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
+
+        course.Publish(clock);
+
+        Assert.Equal(CourseStatus.Published, course.Status);
+    }
+
+    [Theory]
+    [InlineData(DeliveryFormat.Live)]
+    [InlineData(DeliveryFormat.Hybrid)]
+    public void Publish_LiveOrHybridWithOnlyPastSessionAndNoEpisodeMedia_ThrowsInvalidOperationException(DeliveryFormat format)
+    {
+        // A session that is "in the past" relative to now can only be reached by adding it in the
+        // future and then advancing the clock (AddLiveSession itself rejects a past startsAtUtc).
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(format);
+        var start = clock.UtcNow.AddHours(1);
+        var end = start.AddHours(1);
+        course.AddLiveSession("Kickoff", null, start, end, clock);
+        clock.UtcNow = end.AddMinutes(1);
+
+        Assert.Throws<InvalidOperationException>(() => course.Publish(clock));
+        Assert.Equal(CourseStatus.Draft, course.Status);
+    }
+
+    [Theory]
+    [InlineData(DeliveryFormat.Live)]
+    [InlineData(DeliveryFormat.Hybrid)]
+    public void Publish_LiveOrHybridWithOnlyCancelledSessionAndNoEpisodeMedia_ThrowsInvalidOperationException(DeliveryFormat format)
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(format);
+        var session = course.AddLiveSession("Kickoff", null, clock.UtcNow.AddDays(1), clock.UtcNow.AddDays(1).AddHours(1), clock);
+        course.CancelLiveSession(session.Id, null, clock);
+
+        Assert.Throws<InvalidOperationException>(() => course.Publish(clock));
+        Assert.Equal(CourseStatus.Draft, course.Status);
+    }
+
+    [Theory]
+    [InlineData(DeliveryFormat.Live)]
+    [InlineData(DeliveryFormat.Hybrid)]
+    public void SubmitForReview_LiveOrHybridWithFutureScheduledSessionOnly_Succeeds(DeliveryFormat format)
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(format);
+        course.AddLiveSession("Kickoff", null, clock.UtcNow.AddDays(1), clock.UtcNow.AddDays(1).AddHours(1), clock);
+
+        course.SubmitForReview(clock);
+
+        Assert.Equal(CourseStatus.InReview, course.Status);
+    }
+
+    [Theory]
+    [InlineData(DeliveryFormat.Live)]
+    [InlineData(DeliveryFormat.Hybrid)]
+    public void SubmitForReview_LiveOrHybridWithEpisodeMediaOnly_Succeeds(DeliveryFormat format)
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(format);
+        var section = course.AddSection("Section 1");
+        section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
+
+        course.SubmitForReview(clock);
+
+        Assert.Equal(CourseStatus.InReview, course.Status);
+    }
+
+    [Fact]
+    public void SubmitForReview_HybridWithBothFutureSessionAndEpisodeMedia_Succeeds()
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(DeliveryFormat.Hybrid);
+        course.AddLiveSession("Kickoff", null, clock.UtcNow.AddDays(1), clock.UtcNow.AddDays(1).AddHours(1), clock);
+        var section = course.AddSection("Section 1");
+        section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(Guid.NewGuid(), 600);
+
+        course.SubmitForReview(clock);
+
+        Assert.Equal(CourseStatus.InReview, course.Status);
+    }
+
+    [Theory]
+    [InlineData(DeliveryFormat.Live)]
+    [InlineData(DeliveryFormat.Hybrid)]
+    public void SubmitForReview_LiveOrHybridWithOnlyPastSessionAndNoEpisodeMedia_ThrowsInvalidOperationException(DeliveryFormat format)
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(format);
+        var start = clock.UtcNow.AddHours(1);
+        var end = start.AddHours(1);
+        course.AddLiveSession("Kickoff", null, start, end, clock);
+        clock.UtcNow = end.AddMinutes(1);
+
+        Assert.Throws<InvalidOperationException>(() => course.SubmitForReview(clock));
+        Assert.Equal(CourseStatus.Draft, course.Status);
+    }
+
+    [Theory]
+    [InlineData(DeliveryFormat.Live)]
+    [InlineData(DeliveryFormat.Hybrid)]
+    public void SubmitForReview_LiveOrHybridWithOnlyCancelledSessionAndNoEpisodeMedia_ThrowsInvalidOperationException(DeliveryFormat format)
+    {
+        var clock = new FakeClock(new DateTime(2026, 9, 16, 10, 0, 0, DateTimeKind.Utc));
+        var course = CreateDraftCourse();
+        course.SetDeliveryFormat(format);
+        var session = course.AddLiveSession("Kickoff", null, clock.UtcNow.AddDays(1), clock.UtcNow.AddDays(1).AddHours(1), clock);
+        course.CancelLiveSession(session.Id, null, clock);
+
+        Assert.Throws<InvalidOperationException>(() => course.SubmitForReview(clock));
+        Assert.Equal(CourseStatus.Draft, course.Status);
+    }
+
+    [Fact]
+    public void Publish_OnDemandErrorMessage_MatchesPreP11_01TextExactly()
+    {
+        // Regression guard (contract §2.7): the OnDemand error message string must stay byte-identical
+        // to what it was before this task, since it is part of the observable API/domain contract even
+        // though no existing test asserted the literal text before now.
+        var course = CreateDraftCourse();
+
+        var exception = Assert.Throws<InvalidOperationException>(() => course.Publish(new FakeClock(DateTime.UtcNow)));
+
+        Assert.Equal("Cannot publish a course with no episode that has media attached.", exception.Message);
     }
 }

@@ -265,13 +265,13 @@ public sealed class WishlistIntegrationTests : IAsyncLifetime
         var course1 = COURSE.Create("c1-wish", "COURSE 1 Wish", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var s1 = course1.AddSection("Sec 1");
         s1.AddEpisode("Ep 1", null, false).AttachMedia(Guid.NewGuid(), 600);
-        course1.SubmitForReview();
+        course1.SubmitForReview(clock);
         course1.Publish(clock);
 
         var course2 = COURSE.Create("c2-wish", "COURSE 2 Wish", profile.Id, category.Id, CourseLevel.Intermediate, CourseLanguage.Thai, 1290m);
         var s2 = course2.AddSection("Sec 2");
         s2.AddEpisode("Ep 2", null, false).AttachMedia(Guid.NewGuid(), 600);
-        course2.SubmitForReview();
+        course2.SubmitForReview(clock);
         course2.Publish(clock);
 
         db.Courses().AddRange(course1, course2);

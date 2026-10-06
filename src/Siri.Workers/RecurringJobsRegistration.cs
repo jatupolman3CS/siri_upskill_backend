@@ -59,5 +59,11 @@ public static class RecurringJobsRegistration
             "order-expiry",
             job => job.RunAsync(CancellationToken.None),
             Cron.MinuteInterval(2));
+
+        // 8. Drains due course announcements every minute (X-31: nothing ever dispatched these before)
+        recurringJobManager.AddOrUpdate<AnnouncementDispatchJob>(
+            "announcement-dispatch",
+            job => job.RunAsync(CancellationToken.None),
+            Cron.Minutely());
     }
 }

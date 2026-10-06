@@ -20,6 +20,7 @@ public sealed class ANNOUNCEMENT
     public DateTime? ScheduledAtUtc { get; private set; }
     public DateTime? SentAtUtc { get; private set; }
     public int RecipientCount { get; private set; }
+    public AnnouncementDispatchStatus DispatchStatus { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
 
     public static ANNOUNCEMENT Create(
@@ -44,8 +45,9 @@ public sealed class ANNOUNCEMENT
             Body = body,
             SendEmail = sendEmail,
             ScheduledAtUtc = scheduledAtUtc,
-            SentAtUtc = scheduledAtUtc is null ? clock.UtcNow : null,
+            SentAtUtc = null,
             RecipientCount = 0,
+            DispatchStatus = AnnouncementDispatchStatus.Pending,
             CreatedAtUtc = clock.UtcNow,
         };
     }
@@ -55,5 +57,6 @@ public sealed class ANNOUNCEMENT
         ArgumentNullException.ThrowIfNull(clock);
         SentAtUtc = clock.UtcNow;
         RecipientCount = recipientCount;
+        DispatchStatus = AnnouncementDispatchStatus.Sent;
     }
 }

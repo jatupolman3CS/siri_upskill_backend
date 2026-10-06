@@ -75,7 +75,7 @@ public sealed class PAYMENT
     public void MarkSucceeded(IClock clock)
     {
         ArgumentNullException.ThrowIfNull(clock);
-        if (STATUS is not (PaymentStatus.Pending or PaymentStatus.Processing or PaymentStatus.Expired))
+        if (STATUS is not (PaymentStatus.Pending or PaymentStatus.Processing or PaymentStatus.Expired or PaymentStatus.Failed))
         {
             throw new InvalidOperationException($"Cannot mark a payment in {STATUS} status as succeeded.");
         }

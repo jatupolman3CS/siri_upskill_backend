@@ -261,7 +261,7 @@ public sealed class CourseModerationIntegrationTests : IAsyncLifetime
         var publishedCourse = COURSE.Create("course-to-unpublish", "COURSE To Unpublish", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var s1 = publishedCourse.AddSection("Sec 1");
         s1.AddEpisode("Ep 1", null, false).AttachMedia(Guid.NewGuid(), 600);
-        publishedCourse.SubmitForReview();
+        publishedCourse.SubmitForReview(clock);
         publishedCourse.Publish(clock);
 
         var draftCourse = COURSE.Create("draft-course", "Draft COURSE", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);

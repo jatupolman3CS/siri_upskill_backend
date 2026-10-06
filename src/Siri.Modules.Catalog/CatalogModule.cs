@@ -42,6 +42,7 @@ using Siri.Modules.Catalog.Features.ReorderCourseEpisodes;
 using Siri.Modules.Catalog.Features.ReorderCourseSections;
 using Siri.Modules.Catalog.Features.SearchCourses;
 using Siri.Modules.Catalog.Features.SetCourseDeliveryFormat;
+using Siri.Modules.Catalog.Features.SetCourseEnrollmentPolicy;
 using Siri.Modules.Catalog.Features.SubmitCourseForReview;
 using Siri.Modules.Catalog.Features.UnpublishCourse;
 using Siri.Modules.Catalog.Features.UpdateCategory;
@@ -230,6 +231,10 @@ public static class CatalogModule
         services.AddScoped<CancelLiveSessionHandler>();
         services.AddScoped<SetCourseDeliveryFormatHandler>();
 
+        // P11-11: enrollment deadline + seat cap (Q13.1/Q13.2)
+        services.AddScoped<IValidator<SetCourseEnrollmentPolicyCommand>, SetCourseEnrollmentPolicyCommandValidator>();
+        services.AddScoped<SetCourseEnrollmentPolicyHandler>();
+
         // Cross-module contracts
         services.AddScoped<Contracts.ICatalogPriceContract, Infrastructure.Contracts.CatalogPriceContract>();
         services.AddScoped<Contracts.ICourseSummaryReader, Infrastructure.Contracts.CatalogPriceContract>();
@@ -326,6 +331,9 @@ public static class CatalogModule
         instructorCourseGroup.MapUpdateLiveSessionEndpoint();
         instructorCourseGroup.MapCancelLiveSessionEndpoints();
         instructorCourseGroup.MapSetCourseDeliveryFormatEndpoint();
+
+        // P11-11: enrollment deadline + seat cap (Q13.1/Q13.2)
+        instructorCourseGroup.MapSetCourseEnrollmentPolicyEndpoint();
 
         // P1-05: mirrors the /admin/instructors sub-group's shape exactly.
         var courseAdminGroup = group.MapGroup("/admin/courses").RequireAuthorization(AuthorizationPolicyNames.AdminOnly);

@@ -1,4 +1,6 @@
+using Microsoft.Extensions.Options;
 using Siri.Integrations.Payment;
+using Siri.Integrations.Payment.Stripe;
 using Siri.Modules.Commerce.Domain;
 using Siri.Modules.Identity.Contracts;
 using Siri.SharedKernel;
@@ -6,7 +8,7 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Commerce.Application;
 
 /// <summary>
-/// Orchestrates payment creation and status checks. Uses <see cref="IPaymentMethod"/> (Stripe PromptPay adapter)
+/// Orchestrates payment creation and status checks. Uses <see cref="IPaymentMethod"/> (Stripe PromptPay/Card adapter)
 /// and enforces ownership by checking the corresponding <see cref="ORDER.USER_ID"/>.
 /// </summary>
 public sealed class PaymentService
@@ -16,19 +18,25 @@ public sealed class PaymentService
     private readonly IPaymentMethod _paymentMethod;
     private readonly IClock _clock;
     private readonly IUserContactReader _userContactReader;
+    private readonly PaymentOptions _paymentOptions;
+    private readonly StripeOptions _stripeOptions;
 
     public PaymentService(
         IPaymentRepository paymentRepository,
         IOrderRepository orderRepository,
         IPaymentMethod paymentMethod,
         IClock clock,
-        IUserContactReader userContactReader)
+        IUserContactReader userContactReader,
+        IOptions<PaymentOptions> paymentOptions,
+        IOptions<StripeOptions> stripeOptions)
     {
         _paymentRepository = paymentRepository;
         _orderRepository = orderRepository;
         _paymentMethod = paymentMethod;
         _clock = clock;
         _userContactReader = userContactReader;
+        _paymentOptions = paymentOptions.Value;
+        _stripeOptions = stripeOptions.Value;
     }
 
     public async Task<Result<PaymentResponse>> GetByIdAsync(Guid userId, Guid paymentId, CancellationToken cancellationToken)
@@ -66,20 +74,33 @@ public sealed class PaymentService
             return Result.Failure<PaymentResponse>(DomainError.Validation($"ไม่สามารถสร้างการชำระเงินสำหรับคำสั่งซื้อในสถานะ {order.STATUS} ได้"));
         }
 
+        if (!_paymentOptions.EnabledMethods.Contains(command.Method))
+        {
+            return Result.Failure<PaymentResponse>(DomainError.Validation(
+                $"วิธีชำระเงิน {command.Method} ยังไม่เปิดใช้งานในขณะนี้ กรุณาเลือกวิธีอื่น"));
+        }
+
         var customerEmail = await _userContactReader.GetEmailAsync(userId, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(customerEmail))
         {
-            return Result.Failure<PaymentResponse>(DomainError.Validation("A customer email is required for PromptPay."));
+            return Result.Failure<PaymentResponse>(DomainError.Validation("A customer email is required to process payment."));
         }
 
-        // Create and confirm the PromptPay intent so the response contains a scannable QR image.
+        // Create and confirm the PromptPay intent so the response contains a scannable QR image;
+        // for Card, this only creates the PaymentIntent (Confirm=false) — the client confirms via
+        // Stripe.js Payment Element.
         var intentResult = await _paymentMethod.CreatePaymentIntentAsync(
             new CreatePaymentIntentRequest(
                 order.ORDER_ID,
                 order.ORDER_NO,
                 order.TOTAL_AMOUNT,
                 order.CURRENCY,
-                CustomerEmail: customerEmail),
+                CustomerEmail: customerEmail,
+                Method: command.Method switch
+                {
+                    PaymentMethod.Card => PaymentMethodType.Card,
+                    _ => PaymentMethodType.PromptPay,
+                }),
             cancellationToken).ConfigureAwait(false);
 
         if (intentResult.IsFailure)
@@ -113,9 +134,14 @@ public sealed class PaymentService
             intentResult.Value.QrCodeData);
     }
 
+    public PaymentConfigResponse GetConfig() =>
+        new(_stripeOptions.PublishableKey, _paymentOptions.EnabledMethods);
+
     private static PaymentResponse ToResponse(PAYMENT payment) =>
         new(payment.PAYMENT_ID, payment.ORDER_ID, payment.METHOD, payment.AMOUNT, payment.STATUS, payment.CREATED_AT_UTC);
 }
+
+public sealed record PaymentConfigResponse(string PublishableKey, IReadOnlyList<PaymentMethod> EnabledMethods);
 
 public sealed record PaymentResponse(
     Guid Id,

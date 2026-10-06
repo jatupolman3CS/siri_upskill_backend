@@ -239,4 +239,48 @@ public sealed class CatalogPriceContract(AppDbContext dbContext) : ICatalogPrice
 
         return episodes;
     }
+
+    public async Task<IReadOnlyDictionary<Guid, CourseEnrollmentPolicyInfo>> GetEnrollmentPoliciesAsync(
+        IEnumerable<Guid> courseIds,
+        CancellationToken cancellationToken)
+    {
+        var idList = courseIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return new Dictionary<Guid, CourseEnrollmentPolicyInfo>();
+        }
+
+        var policies = await dbContext.Courses()
+            .AsNoTracking()
+            .Where(c => idList.Contains(c.Id))
+            .Select(c => new CourseEnrollmentPolicyInfo(c.Id, c.EnrollmentDeadlineUtc, c.MaxSeats, c.SeatsUsed))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return policies.ToDictionary(p => p.CourseId);
+    }
+
+    // ExecuteUpdateAsync writes straight to the DB, bypassing the change tracker/interceptors entirely
+    // (RowVersion/UpdatedAtUtc/UpdatedBy are not touched) — the same behavior PROMO_CODE.REDEEMED_COUNT
+    // already has (PromoCodeRepository.TryRedeemAsync), not a new bug. Safe because Commerce never
+    // tracks a COURSE entity via EF (no reference to Siri.Modules.Catalog.Domain at all — only through
+    // Contracts/), so there is no tracked entity in the same DbContext that could see a stale value and
+    // overwrite it on a later SaveChangesAsync.
+    public async Task<bool> TryReserveSeatAsync(Guid courseId, CancellationToken cancellationToken)
+    {
+        var affected = await dbContext.Courses()
+            .Where(c => c.Id == courseId && (c.MaxSeats == null || c.SeatsUsed < c.MaxSeats))
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.SeatsUsed, c => c.SeatsUsed + 1), cancellationToken)
+            .ConfigureAwait(false);
+
+        return affected == 1;
+    }
+
+    public async Task ReleaseSeatAsync(Guid courseId, CancellationToken cancellationToken)
+    {
+        await dbContext.Courses()
+            .Where(c => c.Id == courseId && c.SeatsUsed > 0)
+            .ExecuteUpdateAsync(s => s.SetProperty(c => c.SeatsUsed, c => c.SeatsUsed - 1), cancellationToken)
+            .ConfigureAwait(false);
+    }
 }

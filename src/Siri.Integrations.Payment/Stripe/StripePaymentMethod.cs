@@ -45,34 +45,51 @@ public sealed class StripePaymentMethod : IPaymentMethod
 
         if (string.IsNullOrWhiteSpace(request.CustomerEmail))
         {
-            return Result.Failure<PaymentIntentResult>(DomainError.Validation("A customer email is required for PromptPay."));
+            return Result.Failure<PaymentIntentResult>(DomainError.Validation("A customer email is required to process payment."));
         }
 
         // Amount in satang (smallest currency unit for THB: 1 THB = 100 satang)
         var amountInSatang = (long)Math.Round(request.Amount * 100m, MidpointRounding.AwayFromZero);
 
-        var options = new PaymentIntentCreateOptions
-        {
-            Amount = amountInSatang,
-            Currency = request.Currency.ToLowerInvariant(),
-            PaymentMethodTypes = ["promptpay"],
-            Confirm = true,
-            PaymentMethodData = new PaymentIntentPaymentMethodDataOptions
-            {
-                Type = "promptpay",
-                BillingDetails = new PaymentIntentPaymentMethodDataBillingDetailsOptions
-                {
-                    Email = request.CustomerEmail,
-                },
-            },
-            Description = request.Description ?? $"Order {request.OrderNo}",
-            ReceiptEmail = request.CustomerEmail,
-            Metadata = new Dictionary<string, string>
-            {
-                { "orderId", request.OrderId.ToString() },
-                { "orderNo", request.OrderNo }
-            }
-        };
+        var options = request.Method == PaymentMethodType.Card
+            ? new PaymentIntentCreateOptions
+              {
+                  Amount = amountInSatang,
+                  Currency = request.Currency.ToLowerInvariant(),
+                  PaymentMethodTypes = ["card"],
+                  Confirm = false, // client (Stripe.js Payment Element) confirms
+                  // No PaymentMethodData here — client supplies payment method details via confirmPayment()
+                  Description = request.Description ?? $"Order {request.OrderNo}",
+                  ReceiptEmail = request.CustomerEmail,
+                  Metadata = new Dictionary<string, string>
+                  {
+                      { "orderId", request.OrderId.ToString() },
+                      { "orderNo", request.OrderNo }
+                  }
+              }
+            : new PaymentIntentCreateOptions
+              {
+                  // PromptPay path — unchanged from before P11-09 (byte-for-byte), do not touch this branch
+                  Amount = amountInSatang,
+                  Currency = request.Currency.ToLowerInvariant(),
+                  PaymentMethodTypes = ["promptpay"],
+                  Confirm = true,
+                  PaymentMethodData = new PaymentIntentPaymentMethodDataOptions
+                  {
+                      Type = "promptpay",
+                      BillingDetails = new PaymentIntentPaymentMethodDataBillingDetailsOptions
+                      {
+                          Email = request.CustomerEmail,
+                      },
+                  },
+                  Description = request.Description ?? $"Order {request.OrderNo}",
+                  ReceiptEmail = request.CustomerEmail,
+                  Metadata = new Dictionary<string, string>
+                  {
+                      { "orderId", request.OrderId.ToString() },
+                      { "orderNo", request.OrderNo }
+                  }
+              };
 
         var service = new PaymentIntentService(_stripeClient);
         // Reuse the same key across transport retries so an interrupted response cannot create
@@ -206,6 +223,46 @@ public sealed class StripePaymentMethod : IPaymentMethod
         {
             _logger.LogError(ex, "Unexpected error creating refund for PaymentIntent {PaymentIntentId}", request.ProviderPaymentIntentId);
             return Result.Failure<PaymentRefundResult>(new DomainError("payment.unexpected_error", "An unexpected error occurred while processing refund."));
+        }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Deliberately a single Stripe API call with no retry, unlike the other methods on this class:
+    /// this runs inside the same DB transaction as webhook fulfillment
+    /// (<see cref="Siri.Modules.Commerce.Application.StripeWebhookHandler"/>), and retrying (up to
+    /// 3 attempts / ~3.5s worst case via <see cref="ExecuteWithRetryAsync{T}"/>) would hold that
+    /// transaction open far longer than acceptable for a money/entitlement path. A failed lookup falls
+    /// back to <c>Payout:EstimatedPaymentFeePercent</c> (see docs/DECISIONS.md Q4), so a single attempt
+    /// with a null fallback is safe. Also deliberately not sourced from the webhook event payload itself:
+    /// Stripe does not expand nested objects like balance_transaction in event payloads unless "webhook
+    /// endpoint snapshot expansions" are configured out-of-band in the Stripe Dashboard/API, which is not
+    /// set up anywhere in this codebase — a follow-up GET via the same IStripeClient avoids that hidden
+    /// external dependency.
+    /// </remarks>
+    public async Task<Result<decimal?>> GetChargeFeeAsync(string providerPaymentIntentId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerPaymentIntentId);
+        var service = new PaymentIntentService(_stripeClient);
+        try
+        {
+            var intent = await service.GetAsync(
+                providerPaymentIntentId,
+                new PaymentIntentGetOptions { Expand = ["latest_charge.balance_transaction"] },
+                cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            var feeInSatang = intent.LatestCharge?.BalanceTransaction?.Fee;
+            if (feeInSatang is null)
+            {
+                _logger.LogWarning("PaymentIntent {Id}: balance_transaction.fee not yet available; falling back to estimated fee.", providerPaymentIntentId);
+                return Result.Success<decimal?>(null);
+            }
+            return Result.Success<decimal?>(feeInSatang.Value / 100m);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "GetChargeFeeAsync failed for PaymentIntent {Id}; falling back to estimated fee.", providerPaymentIntentId);
+            return Result.Success<decimal?>(null);
         }
     }
 

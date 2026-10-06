@@ -55,10 +55,13 @@ backend/
     Siri.Modules.Community/
     Siri.Modules.Notification/
     Siri.Modules.Analytics/
+    Siri.Modules.Live/               # P11 (D-21): Google Meet meetings, invites, join log — Repository+Service, schema LIVE
     Siri.Integrations.Video/         # IVideoProvider + adapters (Bunny/Mux/Cloudflare)
     Siri.Integrations.Payment/       # IPaymentMethod + Stripe adapter — v1 PromptPay QR ผ่าน Stripe PaymentIntent + webhook (ดู PAYMENT.md)
     Siri.Integrations.Storage/       # IFileStorage (Blob/S3)
     Siri.Integrations.Email/
+    Siri.Integrations.Google/        # P11: ICalendarProvider (Calendar API v3 + Meet via conferenceData) — ยังไม่สร้าง รอ Q10
+    Siri.Integrations.Ai/            # P12: ILlmClient (Anthropic SDK) + budget guard — ยังไม่สร้าง รอ Q12
   tests/
     Siri.UnitTests/
     Siri.IntegrationTests/           # Testcontainers: MSSQL + Redis จริง
@@ -226,3 +229,25 @@ Pipeline: `build → unit test → integration test (Testcontainers) → archite
 Migration ขึ้น prod ด้วย **migration bundle** เท่านั้น ห้าม `Database.Migrate()` ตอน startup
 รายละเอียด infra, backup, hardening, ข้อจำกัด license ของ MSSQL → `DEPLOYMENT.md`
 รายละเอียด flow การชำระเงินและตรวจสลิป → `PAYMENT.md`
+
+---
+
+## 8. Hybrid Live + AI Study (P11/P12 — D-21, 2026-09-16 · ยังเป็นแบบ ไม่มีโค้ด)
+
+แบบเต็มอยู่ที่ **`HYBRID_LIVE.md`** — สรุปเฉพาะที่กระทบ boundary:
+
+```
+ตารางสอน (CATALOG.COURSE_LIVE_SESSIONS)  ← Catalog aggregate (publish invariant + SSR course detail ต้องเห็น)
+       │ ILiveMeetingSink (ประกาศใน Catalog.Contracts, implement โดย Live — แบบเดียวกับ IEpisodeAccessReader)
+       ▼
+Siri.Modules.Live  ──► Siri.Integrations.Google (ICalendarProvider)     job: live-meeting-sync
+       │  อ่าน: Catalog.Contracts.ILiveScheduleReader · Learning.Contracts.GetActiveEnrolledUserIdsAsync · Identity.Contracts.IUserContactReader
+       │  เขียน: Notification.Contracts.IEmailOutbox (+ ICS calendar part)                          job: live-invite-reconcile / live-session-reminders
+       ▼
+POST /api/live/sessions/{id}/join  ← entitlement เดียวกับ playback (HasActiveEnrollmentAsync) + หน้าต่างเวลา + SESSION_JOIN_LOGS
+บันทึกคาบ = COURSE_EPISODE ธรรมดา (RecordingEpisodeId) → playback/progress/quiz/AI ใช้ pipeline เดิมทั้งหมด
+AI (P12): Bunny Transcribe (chapters) → Siri.Integrations.Ai (summary/watch-plan/copy) → MEDIA.MEDIA_AI_ENRICHMENTS · budget ledger
+```
+- ไม่มี reference cycle: Live → Catalog/Learning/Identity/Notification (Contracts) · Catalog **ไม่** reference Live
+- Stripe ยังเป็น PaymentIntent (ไม่ใช่ Checkout Session) · Shaka ยังเป็นผู้เล่น (ไม่ใช่ Bunny Player SDK) — D-21
+- `ModuleAssemblyCatalog.cs` ต้องเพิ่ม `Siri.Modules.Live` ด้วยมือตอนสร้าง

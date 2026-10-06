@@ -55,36 +55,8 @@ public sealed class CreateLiveSessionHandler(
                 DomainError.Conflict($"Cannot add a live session to a course in {course.Status} status."));
         }
 
-        if (command.StartsAtUtc.Kind != DateTimeKind.Utc || command.EndsAtUtc.Kind != DateTimeKind.Utc)
-        {
-            return Result.Failure<LiveSessionResponse>(
-                DomainError.Validation("startsAtUtc and endsAtUtc must be UTC (ISO-8601 with Z suffix)."));
-        }
-
-        if (command.StartsAtUtc <= clock.UtcNow)
-        {
-            return Result.Failure<LiveSessionResponse>(
-                DomainError.Validation("A new live session must start in the future."));
-        }
-
-        var duration = command.EndsAtUtc - command.StartsAtUtc;
-        if (duration < TimeSpan.FromMinutes(15) || duration > TimeSpan.FromHours(8))
-        {
-            return Result.Failure<LiveSessionResponse>(
-                DomainError.Validation("Live session duration must be between 15 minutes and 8 hours."));
-        }
-
-        var overlaps = course.LiveSessions.Any(s =>
-            s.Status == CourseLiveSessionStatus.Scheduled
-            && s.StartsAtUtc < command.EndsAtUtc
-            && command.StartsAtUtc < s.EndsAtUtc);
-
-        if (overlaps)
-        {
-            return Result.Failure<LiveSessionResponse>(
-                DomainError.Conflict("This time overlaps with another scheduled live session in this course."));
-        }
-
+        // Window rules (UTC, future start, 15 min-8 h duration, no overlap) live only in
+        // COURSE.AddLiveSession; their exceptions are mapped to Validation/Conflict below.
         COURSE_LIVE_SESSION session;
         try
         {

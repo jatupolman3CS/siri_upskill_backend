@@ -1,4 +1,5 @@
-﻿using Siri.Persistence.Conventions;
+﻿using System.Diagnostics;
+using Siri.Persistence.Conventions;
 using Siri.SharedKernel;
 
 namespace Siri.Modules.Catalog.Domain;
@@ -43,6 +44,7 @@ public sealed class COURSE : IAuditable, ISoftDelete
     private readonly List<COURSE_SECTION> _sections = [];
     private readonly List<COURSE_OUTCOME> _outcomes = [];
     private readonly List<COURSE_REQUIREMENT> _requirements = [];
+    private readonly List<COURSE_LIVE_SESSION> _liveSessions = [];
 
     /// <summary>EF Core materialization only.</summary>
     private COURSE()
@@ -89,12 +91,38 @@ public sealed class COURSE : IAuditable, ISoftDelete
 
     public CourseStatus Status { get; private set; }
 
+    /// <summary>How this course is delivered — task P11-01 (docs/HYBRID_LIVE.md §1.1). Defaults to
+    /// <see cref="Domain.DeliveryFormat.OnDemand"/>, matching every course created before this task
+    /// existed (migration default, no data-migration script needed — see <c>CourseConfiguration</c>).
+    /// Changed only through <see cref="SetDeliveryFormat"/>, never a bare setter, so its own invariant
+    /// (no switching back to OnDemand while a Scheduled session is still on the books) can never be
+    /// bypassed.</summary>
+    public DeliveryFormat DeliveryFormat { get; private set; } = DeliveryFormat.OnDemand;
+
     public DateTime? PublishedAtUtc { get; private set; }
 
     /// <summary>Why the most recent <see cref="Reject"/> happened — task P1-05's "validation rule +
     /// audit". Cleared by <see cref="SubmitForReview"/>/<see cref="Publish"/> so a fixed-and-resubmitted
     /// course never shows a stale reason from a previous rejection.</summary>
     public string? RejectionReason { get; private set; }
+
+    /// <summary><c>null</c> = enrollment never closes (task P11-11, Q13.1 — docs/contracts/
+    /// P11-11-enrollment-deadline-seat-cap.md). Enforced by <c>Siri.Modules.Commerce.Application
+    /// .OrderService.CreateAsync</c> via <c>ICatalogPriceContract.GetEnrollmentPoliciesAsync</c>, not by
+    /// anything on this aggregate — see <see cref="SetEnrollmentPolicy"/>.</summary>
+    public DateTime? EnrollmentDeadlineUtc { get; private set; }
+
+    /// <summary><c>null</c> = unlimited seats (task P11-11, Q13.2). See <see cref="SetEnrollmentPolicy"/>
+    /// and <see cref="SeatsUsed"/>.</summary>
+    public int? MaxSeats { get; private set; }
+
+    /// <summary>Count of orders that have reserved a seat on this course (task P11-11) — mutated only via
+    /// atomic <c>ExecuteUpdateAsync</c> from Commerce (<c>ICatalogPriceContract.TryReserveSeatAsync</c>/
+    /// <c>ReleaseSeatAsync</c>), never through this aggregate's own change-tracked properties. Kept as a
+    /// property (not a private field) purely so read paths (<c>ICatalogPriceContract
+    /// .GetEnrollmentPoliciesAsync</c>) can project it — <see cref="SetEnrollmentPolicy"/> never touches
+    /// it.</summary>
+    public int SeatsUsed { get; private set; }
 
     // ---- Denormalized, self-maintained (RecalculateEpisodeStats — see class doc comment) --------
     public int TotalDurationSeconds { get; private set; }
@@ -120,6 +148,8 @@ public sealed class COURSE : IAuditable, ISoftDelete
     public IReadOnlyCollection<COURSE_OUTCOME> Outcomes => _outcomes.AsReadOnly();
 
     public IReadOnlyCollection<COURSE_REQUIREMENT> Requirements => _requirements.AsReadOnly();
+
+    public IReadOnlyCollection<COURSE_LIVE_SESSION> LiveSessions => _liveSessions.AsReadOnly();
 
     // ---- ISoftDelete ----------------------------------------------------------------------------
     public bool IsDeleted { get; private set; }
@@ -268,6 +298,30 @@ public sealed class COURSE : IAuditable, ISoftDelete
         AccessDurationDays = accessDurationDays;
     }
 
+    /// <summary>ตั้งนโยบายปิดรับสมัคร/เพดานที่นั่ง (task P11-11, Q13.1/Q13.2 — docs/contracts/
+    /// P11-11-enrollment-deadline-seat-cap.md). ใช้ได้กับคอร์สทุก DeliveryFormat โดยตั้งใจ ไม่ผูกกับ
+    /// Live/Hybrid (ดู contract §1.1). ลด maxSeats ให้ต่ำกว่า SeatsUsed ปัจจุบันได้โดยไม่ throw — แค่หยุดขาย
+    /// ที่นั่งใหม่ ไม่กระทบคนที่ enroll ไปแล้ว (ตัดสินใจแล้ว ไม่ใช่ช่องโหว่ที่ลืมเช็ค). SeatsUsed เองไม่ถูกแตะโดย
+    /// method นี้เลย (แก้ผ่าน ICatalogPriceContract.TryReserveSeatAsync/ReleaseSeatAsync ด้วย raw
+    /// ExecuteUpdateAsync จาก Commerce เท่านั้น — ดู contract §2.4).</summary>
+    public void SetEnrollmentPolicy(DateTime? enrollmentDeadlineUtc, int? maxSeats)
+    {
+        if (enrollmentDeadlineUtc is { Kind: not DateTimeKind.Utc })
+        {
+            throw new ArgumentException(
+                "enrollmentDeadlineUtc must be UTC (database.md: Npgsql throws on non-Utc DateTime).",
+                nameof(enrollmentDeadlineUtc));
+        }
+
+        if (maxSeats is <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxSeats), maxSeats, "maxSeats must be a positive integer, or null for unlimited seats.");
+        }
+
+        EnrollmentDeadlineUtc = enrollmentDeadlineUtc;
+        MaxSeats = maxSeats;
+    }
+
     public void SetSeo(string? seoTitle, string? seoDescription)
     {
         SeoTitle = seoTitle;
@@ -399,6 +453,169 @@ public sealed class COURSE : IAuditable, ISoftDelete
         return episode;
     }
 
+    /// <summary>เปลี่ยนรูปแบบการส่งมอบคอร์ส. ปฏิเสธถ้าคอร์สเป็น Archived (เหตุผลเดียวกับ RemoveSection/RemoveEpisode's
+    /// สถานะที่ห้ามแตะ — แต่ต่างตรงที่ *ไม่* บล็อก Published: ต่างจาก section/episode structure ที่แก้ post-publish
+    /// จะทำลาย progress ของผู้เรียน, การเปลี่ยน DeliveryFormat ของคอร์ส Live/Hybrid ที่กำลังสอนอยู่จริง (เพิ่ม session
+    /// รายสัปดาห์ต่อเนื่อง) เป็น flow ปกติที่ต้องรองรับ — ไม่ใช่ edge case) ปฏิเสธถ้าจะเปลี่ยนกลับเป็น OnDemand ทั้งที่ยังมี
+    /// session Scheduled ค้างอยู่ (ต้อง CancelLiveSession ทุกคาบก่อน — ป้องกัน session ที่ไม่มีความหมายค้างอยู่บนคอร์ส
+    /// ที่ประกาศตัวเองว่าไม่มีตารางสอนแล้ว) ไม่ re-validate Publish invariant ย้อนหลัง (ดู <see cref="CanPublishOrSubmit(IClock)"/>'s
+    /// หมายเหตุ "ทำไมไม่ re-check ตอนเปลี่ยน format").</summary>
+    public void SetDeliveryFormat(DeliveryFormat format)
+    {
+        if (Status == CourseStatus.Archived)
+        {
+            throw new InvalidOperationException($"Cannot change delivery format of a course in {Status} status.");
+        }
+
+        if (format == DeliveryFormat.OnDemand && _liveSessions.Any(s => s.Status == CourseLiveSessionStatus.Scheduled))
+        {
+            throw new InvalidOperationException("Cannot switch to OnDemand while scheduled live sessions exist — cancel them first.");
+        }
+
+        DeliveryFormat = format;
+    }
+
+    /// <summary>เพิ่มคาบสอนสดใหม่. SortOrder คำนวณเองจาก _liveSessions.Count (pattern เดียวกับ AddSection/AddEpisode)
+    /// แต่ใช้จริงแค่เป็น tiebreaker — การเรียงลำดับหลักที่ทุก read model ควรใช้คือ StartsAtUtc ไม่ใช่ SortOrder
+    /// (ต่างจาก section/episode ที่ SortOrder คือลำดับที่ผู้สอนจงใจจัดเอง ตารางสอนสดเรียงตามเวลาธรรมชาติอยู่แล้ว
+    /// ไม่มี endpoint ให้ reorder เอง).</summary>
+    public COURSE_LIVE_SESSION AddLiveSession(string title, string? description, DateTime startsAtUtc, DateTime endsAtUtc, IClock clock)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+
+        if (Status == CourseStatus.Archived)
+        {
+            throw new InvalidOperationException($"Cannot add a live session to a course in {Status} status.");
+        }
+
+        if (DeliveryFormat == DeliveryFormat.OnDemand)
+        {
+            throw new InvalidOperationException("Cannot add a live session to an OnDemand course — change DeliveryFormat first.");
+        }
+
+        ValidateSessionWindow(startsAtUtc, endsAtUtc, excludingSessionId: null);
+
+        if (startsAtUtc <= clock.UtcNow)
+        {
+            throw new ArgumentOutOfRangeException(nameof(startsAtUtc), startsAtUtc, "A new live session must start in the future.");
+        }
+
+        var session = COURSE_LIVE_SESSION.Create(Id, title, description, startsAtUtc, endsAtUtc, _liveSessions.Count);
+        _liveSessions.Add(session);
+        return session;
+    }
+
+    /// <summary>แก้เวลา/ชื่อ/คำอธิบายของคาบที่มีอยู่ (reschedule). ต่างจาก AddLiveSession ตรงที่ *ไม่* บังคับว่า
+    /// startsAtUtc ใหม่ต้องเป็นอนาคต — คาบที่กำลังสอนสดอยู่จริง (StartsAtUtc ผ่านไปแล้วแต่ EndsAtUtc ยังไม่ถึง)
+    /// ต้องแก้ EndsAtUtc ให้ยาวขึ้นได้ (เช่น "ต่อเวลาอีก 30 นาที") — ธุรกิจต้องการ flow นี้จริงตาม
+    /// docs/HYBRID_LIVE.md §1.2's "Live" display state ที่ต้อง toggle ปุ่ม "เข้าห้อง" ตามเวลาจริง ไม่ใช่ตาม
+    /// สมมติฐานว่าคาบที่กำลังสอนอยู่แก้ไม่ได้. Guard เดียวที่มีคือ "คาบที่ EndsAtUtc ผ่านไปแล้วห้ามแก้" (ตาม task
+    /// spec ตรง ๆ).</summary>
+    public void UpdateLiveSession(Guid sessionId, string title, string? description, DateTime startsAtUtc, DateTime endsAtUtc, IClock clock)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+
+        var session = FindLiveSessionOrThrow(sessionId);
+
+        if (session.Status != CourseLiveSessionStatus.Scheduled)
+        {
+            throw new InvalidOperationException($"Cannot update a live session in {session.Status} status.");
+        }
+
+        if (session.EndsAtUtc <= clock.UtcNow)
+        {
+            throw new InvalidOperationException("Cannot update a live session that has already ended.");
+        }
+
+        ValidateSessionWindow(startsAtUtc, endsAtUtc, excludingSessionId: sessionId);
+
+        // A past start stays allowed (a session that is already live may be extended), but the new window
+        // must still end in the future — otherwise a Scheduled session could be moved entirely into the
+        // past, bypassing AddLiveSession's future-only rule.
+        if (endsAtUtc <= clock.UtcNow)
+        {
+            throw new ArgumentOutOfRangeException(nameof(endsAtUtc), endsAtUtc, "A rescheduled live session must end in the future.");
+        }
+
+        session.Reschedule(title, description, startsAtUtc, endsAtUtc);
+    }
+
+    /// <summary>ยกเลิกคาบ (soft — Status→Cancelled, ไม่ hard delete แถวทิ้ง; DELETE endpoint ของ P11-02 ก็แม็ปมาที่
+    /// method นี้เหมือนกัน เพียงแค่ reason เป็น null — ดู §3's หมายเหตุ "DELETE vs POST .../cancel"). reason ว่าง/
+    /// null ได้ (DELETE ไม่บังคับส่ง เหตุผล) — trim แล้วเก็บ null ถ้าว่างเปล่าหลัง trim.</summary>
+    public void CancelLiveSession(Guid sessionId, string? reason, IClock clock)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+
+        var session = FindLiveSessionOrThrow(sessionId);
+
+        if (session.Status != CourseLiveSessionStatus.Scheduled)
+        {
+            throw new InvalidOperationException($"Cannot cancel a live session in {session.Status} status.");
+        }
+
+        if (session.EndsAtUtc <= clock.UtcNow)
+        {
+            throw new InvalidOperationException("Cannot cancel a live session that has already ended.");
+        }
+
+        session.Cancel(reason);
+    }
+
+    /// <summary>ผูกบทเรียนบันทึกเข้ากับคาบ (P11-06 เรียกใช้ — episode ต้องถูกสร้าง/AttachMedia ไปแล้วก่อนโดย
+    /// AttachSessionRecordingHandler ผ่าน COURSE.AddEpisode/AttachEpisodeMedia ที่มีอยู่แล้วจาก P1-02, ก่อนเรียก
+    /// method นี้). ไม่เช็ค session.Status เลยโดยตั้งใจ — แนบบันทึกได้แม้คาบจะ Cancelled ก็ตาม (สอนสดไปแล้วเปลี่ยนใจ
+    /// ยกเลิกคาบที่เหลือ แต่บันทึกของคาบที่สอนไปแล้วยังอัปโหลดได้ปกติ ไม่ใช่ edge case ที่ควรบล็อก) เรียกซ้ำได้
+    /// (overwrite RecordingEpisodeId เดิม — ไม่ throw ถ้ามีอยู่แล้ว, กรณีผู้สอนอัปโหลดผิดไฟล์แล้วอัปใหม่).</summary>
+    public void AttachSessionRecording(Guid sessionId, Guid episodeId)
+    {
+        var session = FindLiveSessionOrThrow(sessionId);
+
+        if (!_sections.SelectMany(s => s.Episodes).Any(e => e.Id == episodeId))
+        {
+            throw new InvalidOperationException($"Episode {episodeId} does not belong to this course.");
+        }
+
+        session.AttachRecording(episodeId);
+    }
+
+    private COURSE_LIVE_SESSION FindLiveSessionOrThrow(Guid sessionId) =>
+        _liveSessions.FirstOrDefault(s => s.Id == sessionId)
+            ?? throw new InvalidOperationException($"Live session {sessionId} was not found on this course.");
+
+    /// <summary>ตรวจ duration (15 นาที–8 ชม.) + ไม่ทับกับคาบ Scheduled อื่นในคอร์สเดียวกัน (Cancelled ไม่นับ —
+    /// เวลาที่คาบถูกยกเลิกไปแล้วว่างให้จองซ้ำได้ปกติ) excludingSessionId กันตัวเองชนตัวเองตอน UpdateLiveSession.
+    /// Overlap = half-open interval เทียบกันตรงไปตรงมา (a.Start &lt; b.End &amp;&amp; b.Start &lt; a.End) — คาบที่
+    /// เวลาต่อกันพอดี (EndsAtUtc ของคาบหนึ่ง == StartsAtUtc ของอีกคาบ) ไม่ถือว่าทับกัน.</summary>
+    private void ValidateSessionWindow(DateTime startsAtUtc, DateTime endsAtUtc, Guid? excludingSessionId)
+    {
+        if (startsAtUtc.Kind != DateTimeKind.Utc || endsAtUtc.Kind != DateTimeKind.Utc)
+        {
+            throw new ArgumentException("startsAtUtc and endsAtUtc must be UTC (database.md: Npgsql throws on non-Utc DateTime).");
+        }
+
+        if (endsAtUtc <= startsAtUtc)
+        {
+            throw new ArgumentException("endsAtUtc must be after startsAtUtc.");
+        }
+
+        var duration = endsAtUtc - startsAtUtc;
+        if (duration < TimeSpan.FromMinutes(15) || duration > TimeSpan.FromHours(8))
+        {
+            throw new ArgumentException("Live session duration must be between 15 minutes and 8 hours.");
+        }
+
+        var overlaps = _liveSessions.Any(s =>
+            s.Id != excludingSessionId &&
+            s.Status == CourseLiveSessionStatus.Scheduled &&
+            s.StartsAtUtc < endsAtUtc && startsAtUtc < s.EndsAtUtc);
+
+        if (overlaps)
+        {
+            throw new InvalidOperationException("This time overlaps with another scheduled live session in this course.");
+        }
+    }
+
     public COURSE_OUTCOME AddOutcome(string text)
     {
         var outcome = COURSE_OUTCOME.Create(Id, text, _outcomes.Count);
@@ -502,9 +719,9 @@ public sealed class COURSE : IAuditable, ISoftDelete
             throw new InvalidOperationException($"Cannot publish a course in {Status} status.");
         }
 
-        if (!HasEpisodeWithMedia())
+        if (!CanPublishOrSubmit(clock))
         {
-            throw new InvalidOperationException("Cannot publish a course with no episode that has media attached.");
+            throw new InvalidOperationException(PublishInvariantMessage());
         }
 
         Status = CourseStatus.Published;
@@ -518,16 +735,18 @@ public sealed class COURSE : IAuditable, ISoftDelete
     /// "has media" invariant <see cref="Publish"/> does, for the same reason: there's no point occupying
     /// an admin's review queue with a course that could never actually be published as-is.
     /// </summary>
-    public void SubmitForReview()
+    public void SubmitForReview(IClock clock)
     {
+        ArgumentNullException.ThrowIfNull(clock);
+
         if (Status is not (CourseStatus.Draft or CourseStatus.Rejected))
         {
             throw new InvalidOperationException($"Cannot submit a course in {Status} status for review.");
         }
 
-        if (!HasEpisodeWithMedia())
+        if (!CanPublishOrSubmit(clock))
         {
-            throw new InvalidOperationException("Cannot submit a course with no episode that has media attached for review.");
+            throw new InvalidOperationException(PublishInvariantMessage());
         }
 
         Status = CourseStatus.InReview;
@@ -577,7 +796,26 @@ public sealed class COURSE : IAuditable, ISoftDelete
         RatingCount = Math.Max(0, ratingCount);
     }
 
+    /// <summary>docs/HYBRID_LIVE.md §1.1's ตาราง — OnDemand ต้องมี episode ที่มี media (เดิม, ไม่เปลี่ยน) ·
+    /// Live/Hybrid ต้องมี "session อนาคตหรือ episode มี media" (อย่างใดอย่างหนึ่งพอ — Hybrid ที่ยังไม่ตั้งตาราง
+    /// สอนสดแต่มี VOD ครบแล้วก็ publish ได้ปกติ, Live ล้วนที่ยังไม่มี episode เลยแต่ตั้งตารางสอนไว้แล้วก็ publish ได้
+    /// เหมือนกัน — "อย่างใดอย่างหนึ่ง" ไม่ใช่ "ทั้งสอง"). แทนที่ HasEpisodeWithMedia() ตัวเดิมที่ยังอยู่เป็น private
+    /// helper ตัวหนึ่งในสอง ไม่ใช่ถูกลบทิ้ง.</summary>
+    private bool CanPublishOrSubmit(IClock clock) => DeliveryFormat switch
+    {
+        DeliveryFormat.OnDemand => HasEpisodeWithMedia(),
+        DeliveryFormat.Live or DeliveryFormat.Hybrid => HasFutureScheduledLiveSession(clock) || HasEpisodeWithMedia(),
+        _ => throw new UnreachableException($"Unknown {nameof(DeliveryFormat)} value: {DeliveryFormat}."),
+    };
+
     private bool HasEpisodeWithMedia() => _sections.SelectMany(s => s.Episodes).Any(e => e.MediaAssetId is not null);
+
+    private bool HasFutureScheduledLiveSession(IClock clock) =>
+        _liveSessions.Any(s => s.Status == CourseLiveSessionStatus.Scheduled && s.StartsAtUtc > clock.UtcNow);
+
+    private string PublishInvariantMessage() => DeliveryFormat == DeliveryFormat.OnDemand
+        ? "Cannot publish a course with no episode that has media attached."
+        : "Cannot publish a Live/Hybrid course with no future scheduled session and no episode that has media attached.";
 
     /// <summary>
     /// The single place <see cref="EpisodeCount"/>/<see cref="TotalDurationSeconds"/> are ever assigned —

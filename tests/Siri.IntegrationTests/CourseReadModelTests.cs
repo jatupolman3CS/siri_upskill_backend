@@ -216,7 +216,7 @@ public sealed class CourseReadModelTests : IAsyncLifetime
         media.MarkReady(media.PROVIDER_ASSET_ID, 600, null, services.GetRequiredService<IClock>());
         dbContext.Set<Siri.Modules.Media.Domain.MEDIA_ASSET>().Add(media);
         section.AddEpisode("Episode 1", null, isFreePreview: false).AttachMedia(media.MEDIA_ASSET_ID, 600);
-        course.SubmitForReview();
+        course.SubmitForReview(services.GetRequiredService<IClock>());
 
         dbContext.Courses().Add(course);
         await dbContext.SaveChangesAsync();

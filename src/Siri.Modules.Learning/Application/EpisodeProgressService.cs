@@ -10,6 +10,7 @@ namespace Siri.Modules.Learning.Application;
 public sealed class EpisodeProgressService(
     IEpisodeProgressRepository episodeProgressRepository,
     IEnrollmentRepository enrollmentRepository,
+    IWatchEventRepository watchEventRepository,
     IClock clock,
     ICatalogPriceContract catalog)
 {
@@ -43,24 +44,66 @@ public sealed class EpisodeProgressService(
         var progress = await episodeProgressRepository.GetByEnrollmentAndEpisodeAsync(
             enrollmentId, episodeId, cancellationToken).ConfigureAwait(false);
 
-        if (progress is null)
+        var shouldUpdateProgress = progress is null
+            || command.IsCompleted
+            || Math.Abs(command.LastPositionSeconds - progress.LAST_POSITION_SECONDS) >= 10;
+
+        EpisodeProgressResponse response;
+        if (shouldUpdateProgress)
         {
-            progress = EPISODE_PROGRESS.Create(
-                enrollmentId,
-                episodeId,
-                command.LastPositionSeconds,
-                command.WatchedSeconds,
-                command.IsCompleted,
-                clock);
-            episodeProgressRepository.Add(progress);
+            if (progress is null)
+            {
+                progress = EPISODE_PROGRESS.Create(
+                    enrollmentId,
+                    episodeId,
+                    command.LastPositionSeconds,
+                    command.WatchedSeconds,
+                    command.IsCompleted,
+                    clock);
+                episodeProgressRepository.Add(progress);
+            }
+            else
+            {
+                progress.Touch(command.LastPositionSeconds, command.WatchedSeconds, command.IsCompleted, clock);
+            }
+
+            response = ToResponse(progress);
         }
         else
         {
-            progress.Touch(command.LastPositionSeconds, command.WatchedSeconds, command.IsCompleted, clock);
+            // Skip touching EPISODE_PROGRESS to keep heartbeat write volume down (docs/TASKS.md
+            // X-29) -- but the caller must still see the position/watched seconds they just
+            // reported, not the stale un-Touch()ed row, or a client that reloads right after a
+            // skipped heartbeat sees resume position drift by up to the 10s skip window. Do NOT
+            // call progress.Touch() here just to reuse ToResponse(): SaveChangesAsync below runs
+            // unconditionally, so any mutation to this tracked entity would be persisted anyway,
+            // defeating the whole point of skipping the write. IsCompleted/CompletedAtUtc always
+            // come from the untouched entity: shouldUpdateProgress is already true whenever
+            // command.IsCompleted is true, so this branch is only reached with
+            // command.IsCompleted == false, and echoing that directly would incorrectly report
+            // an already-completed episode as not completed.
+            response = new EpisodeProgressResponse(
+                progress!.EPISODE_PROGRESS_ID,
+                progress.ENROLLMENT_ID,
+                progress.EPISODE_ID,
+                Math.Max(0, command.LastPositionSeconds),
+                Math.Max(progress.WATCHED_SECONDS, command.WatchedSeconds),
+                progress.IS_COMPLETED,
+                progress.COMPLETED_AT_UTC,
+                progress.UPDATED_AT_UTC);
         }
 
+        var eventType = command.IsCompleted ? WatchEventType.Ended : WatchEventType.Heartbeat;
+        var watchEvent = WATCH_EVENT.Create(
+            enrollmentId,
+            episodeId,
+            eventType,
+            command.LastPositionSeconds,
+            clock);
+        watchEventRepository.Append(watchEvent);
+
         await episodeProgressRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return Result.Success(ToResponse(progress));
+        return Result.Success(response);
     }
 
     /// <summary>Every progress row for one of the caller's own enrollments.</summary>

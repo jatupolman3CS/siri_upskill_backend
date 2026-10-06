@@ -26,6 +26,7 @@ public sealed class GetCourseAnnouncementsHandler(AppDbContext dbContext)
                 a.ScheduledAtUtc,
                 a.SentAtUtc,
                 a.RecipientCount,
+                a.DispatchStatus,
                 a.CreatedAtUtc))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);

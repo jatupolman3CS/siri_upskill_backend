@@ -75,6 +75,27 @@ public sealed class ProductionConfigurationGuardTests
     }
 
     [Fact]
+    public void IsRunningInContainer_WhenFlagSet_ReturnsTrue()
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["DOTNET_RUNNING_IN_CONTAINER"] = "true",
+            })
+            .Build();
+
+        Assert.True(ProductionConfigurationGuard.IsRunningInContainer(config));
+    }
+
+    [Fact]
+    public void IsRunningInContainer_WhenFlagAbsent_ReturnsFalse()
+    {
+        var config = new ConfigurationBuilder().Build();
+
+        Assert.False(ProductionConfigurationGuard.IsRunningInContainer(config));
+    }
+
+    [Fact]
     public void ValidateDeploymentConfiguration_WhenQaUsesServiceHost_DoesNotThrow()
     {
         var config = new ConfigurationBuilder()
@@ -129,7 +150,7 @@ public sealed class ProductionConfigurationGuardTests
             {
                 ["DataProtection:EncryptionKeyBase64"] = validKeyBase64,
                 ["Identity:Jwt:SigningKey"] = "ProductionSecureJwtSigningKey_2026_SiriUpSkill_Secret_Value!",
-                [$"{StripeOptions.SectionName}:SecretKey"] = "sk_test_REDACTED",
+                [$"{StripeOptions.SectionName}:SecretKey"] = "sk_live_REDACTED",
                 [$"{StripeOptions.SectionName}:WebhookSecret"] = "whsec_xxxxxxxxxxxxxxxxxxxxxx",
                 ["Cors:AllowedOrigins:0"] = "https://siriupskill.com",
                 ["Cors:AllowedOrigins:1"] = "https://admin.siriupskill.com",
@@ -184,7 +205,7 @@ public sealed class ProductionConfigurationGuardTests
             {
                 ["DataProtection:EncryptionKeyBase64"] = validKeyBase64,
                 ["Identity:Jwt:SigningKey"] = "wX8hR9mK2pL5vN8qY1tU4xZ7aB0cD3eF4gH6jI9kL1nO4pQ7sT0uV3wX6yZ9aB2c",
-                [$"{StripeOptions.SectionName}:SecretKey"] = "sk_test_REDACTED",
+                [$"{StripeOptions.SectionName}:SecretKey"] = "sk_live_REDACTED",
                 [$"{StripeOptions.SectionName}:WebhookSecret"] = "whsec_suyLpPcKhIGcLh8w2WRsCpFd8x7FnST4",
                 ["Cors:AllowedOrigins:0"] = "https://siriupskill.siristudiophoto.com",
                 ["Cors:AllowedOrigins:1"] = "https://admin.siriupskill.siristudiophoto.com",

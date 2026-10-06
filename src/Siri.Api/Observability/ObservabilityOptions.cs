@@ -32,12 +32,23 @@ public sealed class ObservabilityOptions : IValidatableObject
     public OtlpTransport OtlpProtocol { get; set; } = OtlpTransport.Grpc;
 
     /// <summary>Becomes the OTLP resource's <c>service.name</c> on every signal — what Seq/any
-    /// OTLP backend groups by.</summary>
+    /// OTLP backend groups by. Program.cs appends "-{environment}" (dev/qa/prd) unconditionally
+    /// after binding, per the shared VPS Aspire Dashboard's naming convention
+    /// (&lt;project&gt;-&lt;component&gt;-&lt;env&gt;) — this is the bare "&lt;project&gt;-&lt;component&gt;"
+    /// part only, so the same value works whether this section is left at its default or
+    /// explicitly configured.</summary>
     [Required]
-    public string ServiceName { get; set; } = "Siri.Api";
+    public string ServiceName { get; set; } = "siriupskill-api";
 
     /// <summary>True when an OTLP endpoint is configured for this environment.</summary>
     public bool OtlpExportEnabled => !string.IsNullOrWhiteSpace(OtlpEndpoint);
+
+    /// <summary>Value sent as the collector's <c>x-otlp-api-key</c> header on every export request
+    /// (traces, metrics, logs). Null/blank sends no auth header at all — some collectors (a local
+    /// dev instance) don't require one; the shared VPS-wide Aspire Dashboard does. Not
+    /// <c>[Required]</c> for the same reason <see cref="OtlpEndpoint"/> isn't: a collector without
+    /// auth is a valid configuration, not a misconfiguration.</summary>
+    public string? OtlpApiKey { get; set; }
 
     /// <summary>The validated endpoint as a <see cref="Uri"/>. Only call when
     /// <see cref="OtlpExportEnabled"/> is true.</summary>

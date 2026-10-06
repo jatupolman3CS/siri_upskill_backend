@@ -2,6 +2,7 @@ using Hangfire;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Siri.Integrations.Payment;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Commerce.Application;
 using Siri.Modules.Commerce.Domain;
 using Siri.SharedKernel;
@@ -19,6 +20,7 @@ public sealed class OrderExpiryJob
     private readonly IPaymentRepository _paymentRepository;
     private readonly IPaymentMethod _paymentMethod;
     private readonly IPromoCodeRepository _promoCodeRepository;
+    private readonly ICatalogPriceContract _catalogPriceContract;
     private readonly IClock _clock;
     private readonly OrderExpiryOptions _options;
     private readonly ILogger<OrderExpiryJob> _logger;
@@ -28,6 +30,7 @@ public sealed class OrderExpiryJob
         IPaymentRepository paymentRepository,
         IPaymentMethod paymentMethod,
         IPromoCodeRepository promoCodeRepository,
+        ICatalogPriceContract catalogPriceContract,
         IClock clock,
         IOptions<OrderExpiryOptions> options,
         ILogger<OrderExpiryJob> logger)
@@ -36,6 +39,7 @@ public sealed class OrderExpiryJob
         _paymentRepository = paymentRepository;
         _paymentMethod = paymentMethod;
         _promoCodeRepository = promoCodeRepository;
+        _catalogPriceContract = catalogPriceContract;
         _clock = clock;
         _options = options.Value;
         _logger = logger;
@@ -45,7 +49,7 @@ public sealed class OrderExpiryJob
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         var cutoff = _clock.UtcNow.AddMinutes(-_options.ExpiryMinutes);
-        _logger.LogInformation("Running OrderExpiryJob at {NowUtc}, checking AwaitingPayment orders created on or before {CutoffUtc}", _clock.UtcNow, cutoff);
+        _logger.LogInformation("Running OrderExpiryJob at {NowUtc}, checking Pending/AwaitingPayment orders created on or before {CutoffUtc}", _clock.UtcNow, cutoff);
 
         var expiredOrders = await _orderRepository.GetStaleAwaitingPaymentOrdersAsync(cutoff, _options.BatchSize, cancellationToken).ConfigureAwait(false);
 
@@ -80,9 +84,9 @@ public sealed class OrderExpiryJob
         {
             // Re-fetch inside transaction
             var currentOrder = await _orderRepository.GetByIdAsync(order.ORDER_ID, cancellationToken).ConfigureAwait(false);
-            if (currentOrder is null || currentOrder.STATUS != OrderStatus.AwaitingPayment)
+            if (currentOrder is null || currentOrder.STATUS is not (OrderStatus.AwaitingPayment or OrderStatus.Pending))
             {
-                _logger.LogInformation("Order {OrderNo} is no longer in AwaitingPayment status ({Status}); skipping expiry.", order.ORDER_NO, currentOrder?.STATUS);
+                _logger.LogInformation("Order {OrderNo} is no longer in Pending/AwaitingPayment status ({Status}); skipping expiry.", order.ORDER_NO, currentOrder?.STATUS);
                 return;
             }
 
@@ -107,6 +111,14 @@ public sealed class OrderExpiryJob
             if (currentOrder.PROMO_CODE_ID.HasValue)
             {
                 await _promoCodeRepository.RevertRedemptionAsync(currentOrder.PROMO_CODE_ID.Value, currentOrder.ORDER_ID, cancellationToken).ConfigureAwait(false);
+            }
+
+            // P11-11 §4.4: same seat-release reasoning as OrderService.CancelAsync — an order that
+            // reserved a seat but expired before payment must give it back, atomically with the rest of
+            // this already-wrapped transaction.
+            foreach (var courseId in currentOrder.ORDER_ITEMS.Select(i => i.COURSE_ID).Where(id => id.HasValue).Select(id => id!.Value).Distinct())
+            {
+                await _catalogPriceContract.ReleaseSeatAsync(courseId, cancellationToken).ConfigureAwait(false);
             }
 
             await _orderRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

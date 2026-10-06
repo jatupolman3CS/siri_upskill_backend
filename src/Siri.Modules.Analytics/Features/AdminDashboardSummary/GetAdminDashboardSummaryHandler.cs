@@ -34,17 +34,13 @@ public sealed class GetAdminDashboardSummaryHandler(
         var today = DateOnly.FromDateTime(nowUtc);
         var thirtyDaysAgo = today.AddDays(-30);
 
-        var learnerStatsTask = identityContract.GetLearnerStatsAsync(nowUtc, cancellationToken);
-        var pendingReviewsTask = catalogContract.GetPendingReviewsCountAsync(cancellationToken);
-        var commerceStatsTask = commerceContract.GetCommerceDashboardStatsAsync(nowUtc, cancellationToken);
-        var topCoursesStatsTask = analyticsRepo.GetTopCoursesAsync(thirtyDaysAgo, today, 10, cancellationToken);
-
-        await Task.WhenAll(learnerStatsTask, pendingReviewsTask, commerceStatsTask, topCoursesStatsTask).ConfigureAwait(false);
-
-        var learnerStats = await learnerStatsTask.ConfigureAwait(false);
-        var pendingReviews = await pendingReviewsTask.ConfigureAwait(false);
-        var commerceStats = await commerceStatsTask.ConfigureAwait(false);
-        var topCoursesStats = await topCoursesStatsTask.ConfigureAwait(false);
+        // Sequential on purpose: every contract/repository below runs on the same scoped AppDbContext,
+        // which does not support concurrent operations (Task.WhenAll threw "A second operation was
+        // started on this context instance" and made this endpoint always return 500).
+        var learnerStats = await identityContract.GetLearnerStatsAsync(nowUtc, cancellationToken).ConfigureAwait(false);
+        var pendingReviews = await catalogContract.GetPendingReviewsCountAsync(cancellationToken).ConfigureAwait(false);
+        var commerceStats = await commerceContract.GetCommerceDashboardStatsAsync(nowUtc, cancellationToken).ConfigureAwait(false);
+        var topCoursesStats = await analyticsRepo.GetTopCoursesAsync(thirtyDaysAgo, today, 10, cancellationToken).ConfigureAwait(false);
 
         var courseIds = topCoursesStats.Select(s => s.CourseId).ToList();
         var titles = await catalogContract.GetCourseTitlesAsync(courseIds, cancellationToken).ConfigureAwait(false);

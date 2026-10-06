@@ -26,4 +26,6 @@ public static class AppDbContextIdentityExtensions
     public static DbSet<SECURITY_AUDIT> SecurityAudits(this AppDbContext context) => context.Set<SECURITY_AUDIT>();
 
     public static DbSet<USER_SECURITY_TOKEN> UserSecurityTokens(this AppDbContext context) => context.Set<USER_SECURITY_TOKEN>();
+
+    public static DbSet<USER_EXTERNAL_LOGIN> UserExternalLogins(this AppDbContext context) => context.Set<USER_EXTERNAL_LOGIN>();
 }
