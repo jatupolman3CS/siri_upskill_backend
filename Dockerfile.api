@@ -31,4 +31,9 @@ COPY --from=build /app/publish .
 
 USER $APP_UID
 
-ENTRYPOINT ["dotnet", "Siri.Api.dll"]
+# --urls and --environment are pinned on the command line because it outranks every environment variable.
+# The k8s Service targets container port 9004, and a ConfigMap/Secret copied from a developer's .env
+# (ASPNETCORE_URLS=http://localhost:5190, ASPNETCORE_ENVIRONMENT=Development) would otherwise make the API
+# unreachable (502) and run production in Development mode. This image is therefore Production-only; to run
+# it as another environment, override the ENTRYPOINT explicitly instead of passing env vars.
+ENTRYPOINT ["dotnet", "Siri.Api.dll", "--urls", "http://+:9004", "--environment", "Production"]
