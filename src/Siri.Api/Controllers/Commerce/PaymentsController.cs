@@ -19,8 +19,12 @@ public class PaymentsController : ControllerBase
     [EndpointName("CommerceGetPaymentConfig")]
     [EndpointSummary("ดึง publishable key และวิธีชำระเงินที่เปิดใช้งาน")]
     [ProducesResponseType(typeof(PaymentConfigResponse), StatusCodes.Status200OK)]
-    public IResult GetConfig([FromServices] PaymentService paymentService) =>
-        Results.Ok(paymentService.GetConfig());
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public IResult GetConfig([FromServices] PaymentService paymentService)
+    {
+        var result = paymentService.GetConfig();
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(HttpContext);
+    }
 
     [HttpGet("{paymentId:guid}")]
     [EndpointName("CommerceGetPayment")]
@@ -45,6 +49,7 @@ public class PaymentsController : ControllerBase
     [EndpointSummary("เริ่มการชำระเงินสำหรับคำสั่งซื้อ")]
     [ProducesResponseType(typeof(PaymentResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IResult> Create(
         [FromBody] CreatePaymentCommand command,
         [FromServices] PaymentService paymentService,

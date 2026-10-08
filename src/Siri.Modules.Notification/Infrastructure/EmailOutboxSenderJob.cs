@@ -54,7 +54,7 @@ public sealed class EmailOutboxSenderJob(
             cancellationToken.ThrowIfCancellationRequested();
 
             var result = await emailSender
-                .SendAsync(new EmailMessage(message.ToEmail, message.Subject, message.BodyHtml), cancellationToken)
+                .SendAsync(ToEmailMessage(message), cancellationToken)
                 .ConfigureAwait(false);
 
             if (result.IsSuccess)
@@ -75,5 +75,20 @@ public sealed class EmailOutboxSenderJob(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Maps one outbox row onto the message the sender delivers. The iCalendar part (P11-04) is passed
+    /// through untouched when the row has one — the <c>METHOD</c> and the document travel together; a row with only
+    /// one of the two (impossible through <see cref="EMAIL_OUTBOX_MESSAGE.Enqueue(string, string, string, string?, string?, string?)"/>)
+    /// is sent as an ordinary email rather than as a malformed calendar.</summary>
+    public static EmailMessage ToEmailMessage(EMAIL_OUTBOX_MESSAGE message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+
+        var calendar = message.CalendarMethod is { } method && message.CalendarIcs is { } ics
+            ? new EmailCalendarContent(method, ics)
+            : null;
+
+        return new EmailMessage(message.ToEmail, message.Subject, message.BodyHtml, calendar);
     }
 }

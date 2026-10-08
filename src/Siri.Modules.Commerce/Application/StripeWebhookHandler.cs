@@ -80,10 +80,13 @@ public sealed class StripeWebhookHandler
             return Result.Failure<string>(DomainError.Validation("Missing Stripe-Signature header."));
         }
 
-        if (string.IsNullOrWhiteSpace(_options.WebhookSecret))
+        // A missing/placeholder signing secret must reject every event: a committed placeholder is
+        // publicly known, so signatures made with it would be forgeable. 503 (not 4xx) because this is
+        // an operator misconfiguration and Stripe should keep retrying until it is fixed.
+        if (!_options.HasWebhookSecret)
         {
-            _logger.LogError("Stripe:WebhookSecret is not configured.");
-            return Result.Failure<string>(DomainError.Validation("Webhook secret is not configured."));
+            _logger.LogError("{Setting} is not configured.", $"{StripeOptions.SectionName}:{nameof(StripeOptions.WebhookSecret)}");
+            return Result.Failure<string>(PaymentProviderErrors.ProviderNotConfigured());
         }
 
         Event stripeEvent;

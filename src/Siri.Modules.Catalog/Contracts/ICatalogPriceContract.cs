@@ -9,7 +9,10 @@ namespace Siri.Modules.Catalog.Contracts;
 /// </summary>
 public sealed record CoursePriceInfo(Guid CourseId, string Title, decimal Price, Guid InstructorId, int? AccessDurationDays);
 
-public sealed record CourseEpisodeInfo(Guid EpisodeId, Guid CourseId, string Title, int SortOrder);
+/// <param name="DurationSeconds">The episode's real media duration (<c>COURSE_EPISODE.DurationSeconds</c>), or
+/// <c>null</c> when no media with a known duration is attached yet. Analytics uses it to turn watched seconds
+/// into real watch time / watch percentages — <c>null</c> means "unknown", never "zero".</param>
+public sealed record CourseEpisodeInfo(Guid EpisodeId, Guid CourseId, string Title, int SortOrder, int? DurationSeconds = null);
 
 /// <summary>Task P11-11 (Q13.1/Q13.2 — docs/contracts/P11-11-enrollment-deadline-seat-cap.md §2.4).
 /// <paramref name="EnrollmentDeadlineUtc"/> <c>null</c> = never closes; <paramref name="MaxSeats"/>

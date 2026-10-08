@@ -3,6 +3,7 @@
 > **สถานะ:** DESIGN (2026-09-16) · ต้นทาง: `docs/external-specs/SIRI-UPSKILL-Hybrid-Live-Platform-Spec-2026-09-16.md`
 > · การ reconcile กับ decision เดิมอยู่ที่ `docs/DECISIONS.md` **D-21** · task อยู่ที่ `docs/TASKS.md` **§P11 / §P12**
 > · เอกสารนี้คือ "แบบ" ระดับระบบ — contract ต่อ task (FROZEN) จะออกทีละใบที่ `docs/contracts/P11-xx-*.md` เมื่อคำถาม Q10–Q13 ปิด
+> · **อัปเดต 2026-10-06:** contract `P11-03`/`P11-04`/`P11-05`/`P11-06`/`P11-10`/`P11-12` + `P11-FE-live-dto-appendix.md` **FROZEN แล้ว** — ถ้าขัดกับ §2.1–§2.6/§4/§5 ด้านล่าง **ให้ยึด contract** (ที่เปลี่ยนสำคัญ: `POST …/google/connect` แทน `GET` redirect · ผู้สอนวางลิงก์เองได้โดยไม่ต้องมี Google (`PUT …/meeting-link`) · publish gate ต้องมีห้องใช้ได้ · อีเมลวันซื้อ = 1 ฉบับต่อคอร์ส + ICS PUBLISH หลาย VEVENT · ไม่มี raw meetUrl ในอีเมล/ICS · join gate คืน 404 เดียวกันทุกกรณีไม่มีสิทธิ์ · refund = เพดานยอดคืน)
 
 ## 0. หลักการออกแบบ — ต่อยอด ไม่รื้อ
 

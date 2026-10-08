@@ -74,6 +74,11 @@ public sealed class RevenueSplitRepository(AppDbContext dbContext) : IRevenueSpl
             .SumAsync(r => (decimal?)r.INSTRUCTOR_AMOUNT, cancellationToken)
             .ConfigureAwait(false) ?? 0m;
 
+    public async Task<decimal> GetNetInstructorAmountForPeriodAsync(Guid instructorId, string periodKey, CancellationToken cancellationToken) =>
+        await RevenueSplitQueries.NetForInstructorPeriod(Query(), instructorId, periodKey)
+            .SumAsync(r => (decimal?)r.INSTRUCTOR_AMOUNT, cancellationToken)
+            .ConfigureAwait(false) ?? 0m;
+
     public void Add(REVENUE_SPLIT revenueSplit) => dbContext.RevenueSplits().Add(revenueSplit);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);

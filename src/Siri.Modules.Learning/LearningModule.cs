@@ -1,5 +1,6 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Siri.Modules.Learning.Application;
 using Siri.Modules.Learning.Infrastructure;
@@ -24,6 +25,18 @@ public static class LearningModule
     /// <summary>Registers the Learning module's services (handlers, options, infrastructure) into the container.</summary>
     public static IServiceCollection AddLearningModule(this IServiceCollection services)
     {
+        // Certificate PDFs embed a QR code that must point at the REAL public site (no built-in domain).
+        // Bound from the host's IConfiguration via DI so this method's signature (and every host/test that
+        // calls it) stays unchanged. A missing value does not stop the host from booting — the certificate
+        // PDF endpoints answer 503 certificate.public_url_not_configured and ProductionConfigurationGuard
+        // refuses to start Production without it.
+        services.AddOptions<CertificateOptions>()
+            .Configure<IConfiguration>((options, configuration) =>
+            {
+                configuration.GetSection(CertificateOptions.SectionName).Bind(options);
+                options.PublicBaseUrl = CertificateOptions.ResolvePublicBaseUrl(options.PublicBaseUrl, configuration);
+            });
+
         // --- Quiz/Assignment cluster (Repository+Service — docs/DECISIONS.md D-17) ---
         services.AddScoped<IQuizRepository, QuizRepository>();
         services.AddScoped<QuizService>();
@@ -62,6 +75,8 @@ public static class LearningModule
         services.AddScoped<Contracts.ILearningAccessContract, Infrastructure.Contracts.LearningAccessContract>();
         services.AddScoped<Catalog.Contracts.IEpisodeAccessReader, Infrastructure.Contracts.LearningAccessContract>();
         services.AddScoped<Catalog.Contracts.ILearningEnrollmentChecker, Infrastructure.Contracts.LearningAccessContract>();
+        // Catalog's recount of COURSES.ENROLLMENT_COUNT asks here how many enrollments of a course count (it never reads Learning's tables).
+        services.AddScoped<Catalog.Contracts.ILearningEnrollmentCounter, Infrastructure.Contracts.LearningEnrollmentCounter>();
         services.AddScoped<Contracts.ILearningAnalyticsContract, Infrastructure.Contracts.LearningAnalyticsContract>();
         services.AddScoped<Notification.Contracts.IAnnouncementRecipientResolver, Infrastructure.Contracts.AnnouncementRecipientResolver>();
 

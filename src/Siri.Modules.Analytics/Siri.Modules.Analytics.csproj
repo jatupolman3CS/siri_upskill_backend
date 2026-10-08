@@ -7,6 +7,9 @@
     <ProjectReference Include="..\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
     <ProjectReference Include="..\Siri.Modules.Commerce\Siri.Modules.Commerce.csproj" />
     <ProjectReference Include="..\Siri.Modules.Learning\Siri.Modules.Learning.csproj" />
+    <!-- P11-10: instructor dashboard reads live-attendance facts (Live.Contracts) and net revenue (Payout.Contracts) only through their Contracts. -->
+    <ProjectReference Include="..\Siri.Modules.Live\Siri.Modules.Live.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Payout\Siri.Modules.Payout.csproj" />
   </ItemGroup>
 
   <ItemGroup>

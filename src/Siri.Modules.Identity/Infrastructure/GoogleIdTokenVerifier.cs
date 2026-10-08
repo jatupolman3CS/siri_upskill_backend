@@ -7,8 +7,10 @@ using Siri.SharedKernel;
 
 namespace Siri.Modules.Identity.Infrastructure;
 
-/// <summary>What a verified Google ID token says about the person signing in.</summary>
-public sealed record GoogleIdentity(string Subject, string Email, bool EmailVerified, string? Name);
+/// <summary>What a verified Google ID token says about the person signing in. <paramref name="Picture"/>
+/// is the token's optional <c>picture</c> claim (profile image URL) — passed through untouched, so the
+/// consumer must still decide whether it is acceptable (see <c>USER.SetAvatarIfMissing</c>).</summary>
+public sealed record GoogleIdentity(string Subject, string Email, bool EmailVerified, string? Name, string? Picture = null);
 
 public interface IGoogleIdTokenVerifier
 {
@@ -134,7 +136,7 @@ public sealed class GoogleIdTokenVerifier(
                 _ => false,
             };
 
-        return new GoogleIdentity(subject, email, emailVerified, ReadString(claims, "name"));
+        return new GoogleIdentity(subject, email, emailVerified, ReadString(claims, "name"), ReadString(claims, "picture"));
     }
 
     private static string? ReadString(IDictionary<string, object> claims, string name) =>

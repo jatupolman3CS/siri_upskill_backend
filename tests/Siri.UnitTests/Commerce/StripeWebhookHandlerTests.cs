@@ -102,6 +102,25 @@ public class StripeWebhookHandlerTests
         Assert.Equal("validation", result.Error.Code);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("CHANGE_ME_DEV_ONLY_whsec_placeholder_key")]
+    public async Task HandleAsync_WebhookSecretMissingOrPlaceholder_RejectsEvenWithSignatureMadeFromIt(string secret)
+    {
+        // A placeholder secret is publicly known (it was committed in appsettings), so a "valid"
+        // signature computed from it proves nothing — the event must be refused with 503-mapped
+        // payment.provider_not_configured and never processed.
+        var handler = CreateHandler(secret);
+        var payload = BuildStripeEventJson("evt_placeholder_1", "payment_intent.succeeded", "pi_1");
+        var forgedSignature = GenerateStripeSignature(payload, string.IsNullOrWhiteSpace(secret) ? "x" : secret);
+
+        var result = await handler.HandleAsync(payload, forgedSignature, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(PaymentProviderErrors.ProviderNotConfiguredCode, result.Error.Code);
+    }
+
     [Fact]
     public async Task HandleAsync_InvalidSignature_ReturnsValidationError()
     {

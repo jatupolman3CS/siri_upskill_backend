@@ -40,6 +40,7 @@ public class InstructorPayoutController : ControllerBase
     [ProducesResponseType(typeof(InstructorPayoutAccountResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IResult> CreatePayoutAccount(
         [FromBody] CreateInstructorPayoutAccountCommand command,
         [FromServices] InstructorPayoutAccountService service,

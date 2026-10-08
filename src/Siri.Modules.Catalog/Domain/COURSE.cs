@@ -23,8 +23,11 @@ namespace Siri.Modules.Catalog.Domain;
 /// All five stats columns are denormalized (DATABASE.md: "ห้าม UPDATE ตรงจาก handler อื่น ให้ผ่าน
 /// updater ที่เดียว"), but they split into two groups with different owners. <see cref="RatingAverage"/>/
 /// <see cref="RatingCount"/>/<see cref="EnrollmentCount"/> depend on data this aggregate does not own
-/// (reviews live in Community, enrollments in Learning) — no method here touches them; they wait for the
-/// future cross-module <c>CourseStatsUpdater</c> and stay at their zero defaults until then.
+/// (reviews, enrollments in Learning) — no method here writes <see cref="EnrollmentCount"/>: its one writer is
+/// <c>Siri.Modules.Catalog.Application.CourseEnrollmentCountUpdater</c> (set-based <c>ExecuteUpdate</c>, called by
+/// Learning on enrollment transitions and by the hourly <c>course-enrollment-recount</c> job — see
+/// <c>ICourseEnrollmentCountUpdater</c> for what the number means). The rating pair is written by
+/// <see cref="UpdateRatingStats"/> through the review handler / <c>CourseStatsUpdater</c>.
 /// <see cref="EpisodeCount"/>/<see cref="TotalDurationSeconds"/> are different: everything they depend on
 /// (<see cref="Sections"/> and each section's episodes) is already owned by this aggregate, so there is
 /// no reason to wait for a cross-module updater — <see cref="RecalculateEpisodeStats"/> is the single
@@ -124,12 +127,20 @@ public sealed class COURSE : IAuditable, ISoftDelete
     /// it.</summary>
     public int SeatsUsed { get; private set; }
 
+    /// <summary>Instructor opt-in (task P11-04, docs/contracts/P11-04-live-invites-ics-reminders.md §2.3/§6):
+    /// when <c>true</c>, learners invited to this course's live sessions are also added as attendees of the
+    /// instructor's Google Calendar event, so a Meet link forwarded to someone else has to ask to be
+    /// admitted. Defaults to <c>false</c> — it sends learners' e-mail addresses to Google, so it must be a
+    /// deliberate choice. Changed only through <see cref="SetGoogleAttendeeSync"/>; read by Live through
+    /// <c>ILiveScheduleReader</c> (<c>LiveSessionContext.GoogleAttendeeSyncEnabled</c>).</summary>
+    public bool GoogleAttendeeSyncEnabled { get; private set; }
+
     // ---- Denormalized, self-maintained (RecalculateEpisodeStats — see class doc comment) --------
     public int TotalDurationSeconds { get; private set; }
 
     public int EpisodeCount { get; private set; }
 
-    // ---- Denormalized, CourseStatsUpdater-only (cross-module — see class doc comment) ------------
+    // ---- Denormalized, updater-only (cross-module — see class doc comment) ------------------------
     public decimal RatingAverage { get; private set; }
 
     public int RatingCount { get; private set; }
@@ -320,6 +331,20 @@ public sealed class COURSE : IAuditable, ISoftDelete
 
         EnrollmentDeadlineUtc = enrollmentDeadlineUtc;
         MaxSeats = maxSeats;
+    }
+
+    /// <summary>Turns the Google Calendar attendee sync (<see cref="GoogleAttendeeSyncEnabled"/>) on or off.
+    /// Rejected for an <see cref="CourseStatus.Archived"/> course (same guard as <see cref="SetDeliveryFormat"/>);
+    /// deliberately not tied to <see cref="DeliveryFormat"/> — a course may be switched to Live later and the
+    /// flag simply has no effect until it has live sessions.</summary>
+    public void SetGoogleAttendeeSync(bool enabled)
+    {
+        if (Status == CourseStatus.Archived)
+        {
+            throw new InvalidOperationException($"Cannot change Google attendee sync of a course in {Status} status.");
+        }
+
+        GoogleAttendeeSyncEnabled = enabled;
     }
 
     public void SetSeo(string? seoTitle, string? seoDescription)

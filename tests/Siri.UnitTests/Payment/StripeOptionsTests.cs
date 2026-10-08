@@ -1,28 +1,26 @@
-using System.ComponentModel.DataAnnotations;
 using Siri.Integrations.Payment.Stripe;
 
 namespace Siri.UnitTests.Payment;
 
 public class StripeOptionsTests
 {
-    private static List<ValidationResult> Validate(StripeOptions options)
-    {
-        var results = new List<ValidationResult>();
-        Validator.TryValidateObject(options, new ValidationContext(options), results, validateAllProperties: true);
-        return results;
-    }
-
     [Fact]
-    public void Defaults_FailValidation_RequiredKeysMissing()
+    public void Defaults_AreEmpty_AndNothingIsConfigured()
     {
+        // Real data only: no fake default keys. An unconfigured host still boots (nothing is
+        // [Required]) but every Stripe feature reports "not configured".
         var options = new StripeOptions();
-        var errors = Validate(options);
 
-        Assert.True(errors.Count >= 2, $"Expected at least 2 validation errors but got {errors.Count}");
+        Assert.Equal(string.Empty, options.SecretKey);
+        Assert.Equal(string.Empty, options.PublishableKey);
+        Assert.Equal(string.Empty, options.WebhookSecret);
+        Assert.False(options.HasSecretKey);
+        Assert.False(options.HasPublishableKey);
+        Assert.False(options.HasWebhookSecret);
     }
 
     [Fact]
-    public void ValidKeys_PassesValidation()
+    public void ValidKeys_AreAllConfigured()
     {
         var options = new StripeOptions
         {
@@ -31,7 +29,32 @@ public class StripeOptionsTests
             WebhookSecret = "whsec_12345",
         };
 
-        Assert.Empty(Validate(options));
+        Assert.True(options.HasSecretKey);
+        Assert.True(options.HasPublishableKey);
+        Assert.True(options.HasWebhookSecret);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    [InlineData("CHANGE_ME_DEV_ONLY_sk_test_placeholder_key")]
+    [InlineData("change_me_whsec")]
+    public void IsConfigured_EmptyOrChangeMeMarker_IsFalse(string? value)
+    {
+        Assert.False(StripeOptions.IsConfigured(value));
+    }
+
+    [Theory]
+    [InlineData("sk_test_12345")]
+    [InlineData("sk_live_abc")]
+    [InlineData("whsec_abc")]
+    // Test-fixture style values used by integration tests must stay "configured" — only the committed
+    // CHANGE_ME markers are rejected, not any value that merely mentions "placeholder".
+    [InlineData("sk_test_placeholder_key_for_testing_purposes_only")]
+    public void IsConfigured_RealLookingValue_IsTrue(string value)
+    {
+        Assert.True(StripeOptions.IsConfigured(value));
     }
 
     [Fact]
@@ -43,7 +66,8 @@ public class StripeOptionsTests
             PublishableKey = "pk_test_12345",
         };
 
-        Assert.Empty(Validate(options));
+        Assert.True(options.HasSecretKey);
+        Assert.False(options.HasWebhookSecret);
         Assert.Equal(string.Empty, options.WebhookSecret);
     }
 

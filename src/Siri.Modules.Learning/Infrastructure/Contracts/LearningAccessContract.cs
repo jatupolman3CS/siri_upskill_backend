@@ -10,7 +10,8 @@ namespace Siri.Modules.Learning.Infrastructure.Contracts;
 public sealed class LearningAccessContract(
     IEnrollmentRepository enrollmentRepository,
     ICatalogPriceContract catalogPriceContract,
-    IClock clock) : ILearningAccessContract, IEpisodeAccessReader, ILearningEnrollmentChecker
+    IClock clock,
+    ICourseEnrollmentCountUpdater courseEnrollmentCountUpdater) : ILearningAccessContract, IEpisodeAccessReader, ILearningEnrollmentChecker
 {
     public async Task<bool> CanUserAccessEpisodeAsync(
         Guid userId,
@@ -125,8 +126,12 @@ public sealed class LearningAccessContract(
 
             // Expired or revoked: reactivate for the new purchase (progress is preserved by design —
             // see ENROLLMENT.Reactivate's own doc comment).
+            var previousStatus = existing.STATUS;
             existing.Reactivate(orderId, expiresAtUtc, clock);
             await enrollmentRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            // Runs inside the caller's transaction (a payment fulfilment): the count and the enrollment commit or roll back together.
+            await EnrollmentCountRules.ReportAsync(courseEnrollmentCountUpdater, courseId, EnrollmentCountRules.DeltaForGrant(previousStatus), cancellationToken).ConfigureAwait(false);
             return Result.Success();
         }
 
@@ -134,6 +139,7 @@ public sealed class LearningAccessContract(
         var enrollment = ENROLLMENT.Create(userId, courseId, orderId, parsedSource, expiresAtUtc, clock);
         enrollmentRepository.Add(enrollment);
         await enrollmentRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await EnrollmentCountRules.ReportAsync(courseEnrollmentCountUpdater, courseId, EnrollmentCountRules.DeltaForGrant(previousStatus: null), cancellationToken).ConfigureAwait(false);
 
         return Result.Success();
     }
@@ -171,6 +177,9 @@ public sealed class LearningAccessContract(
 
         var parsedSource = Enum.TryParse<EnrollmentSource>(source, true, out var s) ? s : EnrollmentSource.Purchase;
 
+        // Per-course change to the course's enrollment count (EnrollmentCountRules): only a real transition counts, so the idempotent no-op above never does.
+        var countDeltas = new SortedDictionary<Guid, int>();
+
         foreach (var grant in grants)
         {
             if (existingByCourseId.TryGetValue(grant.CourseId, out var existing))
@@ -184,20 +193,33 @@ public sealed class LearningAccessContract(
 
                 // Expired or revoked: reactivate for the new purchase (progress is preserved by design —
                 // see ENROLLMENT.Reactivate's own doc comment).
+                var previousStatus = existing.STATUS;
                 existing.Reactivate(grant.OrderId, grant.ExpiresAtUtc, clock);
+                AddDelta(countDeltas, grant.CourseId, EnrollmentCountRules.DeltaForGrant(previousStatus));
             }
             else
             {
                 var enrollment = ENROLLMENT.Create(userId, grant.CourseId, grant.OrderId, parsedSource, grant.ExpiresAtUtc, clock);
                 enrollmentRepository.Add(enrollment);
+                AddDelta(countDeltas, grant.CourseId, EnrollmentCountRules.DeltaForGrant(previousStatus: null));
             }
         }
 
         // One SaveChangesAsync for the whole batch instead of one per course.
         await enrollmentRepository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
+        // Inside the caller's transaction (a payment fulfilment): the counts and the enrollments commit or roll back together. Ascending course id — every
+        // multi-course transaction takes the course rows in the same order, so two overlapping bundles can never deadlock on them.
+        foreach (var (courseId, delta) in countDeltas)
+        {
+            await EnrollmentCountRules.ReportAsync(courseEnrollmentCountUpdater, courseId, delta, cancellationToken).ConfigureAwait(false);
+        }
+
         return Result.Success();
     }
+
+    private static void AddDelta(SortedDictionary<Guid, int> deltas, Guid courseId, int delta) =>
+        deltas[courseId] = deltas.GetValueOrDefault(courseId) + delta;
 
     public async Task<IReadOnlySet<Guid>> GetActiveEnrolledUserIdsAsync(Guid courseId, CancellationToken cancellationToken)
     {
@@ -216,5 +238,23 @@ public sealed class LearningAccessContract(
             .ConfigureAwait(false);
 
         return userIds.ToHashSet();
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetActiveEnrolledCourseIdsAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        if (userId == Guid.Empty)
+        {
+            return [];
+        }
+
+        // One query, the same "active" rule as HasActiveEnrollmentAsync/GetActiveEnrolledUserIdsAsync. UNIQUE (USER_ID, COURSE_ID) means no duplicates.
+        var now = clock.UtcNow;
+        return await enrollmentRepository.Query()
+            .Where(e => e.USER_ID == userId
+                && e.STATUS == EnrollmentStatus.Active
+                && (!e.EXPIRES_AT_UTC.HasValue || e.EXPIRES_AT_UTC.Value > now))
+            .Select(e => e.COURSE_ID)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
     }
 }

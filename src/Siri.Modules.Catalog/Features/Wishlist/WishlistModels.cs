@@ -9,7 +9,7 @@ public sealed record WishlistCourseItemResponse(
     decimal Price,
     decimal? ComparePrice,
     string Currency,
-    string InstructorName,
+    string? InstructorName,
     decimal RatingAverage,
     int RatingCount,
     DateTime WishlistedAtUtc);

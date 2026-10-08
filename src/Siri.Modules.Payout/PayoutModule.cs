@@ -37,6 +37,7 @@ public static class PayoutModule
 
         // Cross-module contracts
         services.AddScoped<Contracts.IRevenueSplitContract, Infrastructure.Contracts.RevenueSplitContract>();
+        services.AddScoped<Contracts.IInstructorRevenueReader, Infrastructure.Contracts.InstructorRevenueReader>(); // P11-10
 
         if (configuration is not null)
         {

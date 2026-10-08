@@ -50,11 +50,17 @@ public sealed class PaymentConfigIntegrationTests : IAsyncLifetime
         await _factory.DisposeAsync();
     }
 
+    /// <summary>The shipped appsettings deliberately carry no Stripe keys (real data only), so tests that
+    /// need a configured Stripe set a test-shaped publishable key explicitly.</summary>
+    private const string ConfiguredPublishableKey = "pk_test_integration_config_only";
+
     [Fact]
     public async Task GetConfig_DefaultConfiguration_ReturnsPromptPayOnlyAndPublishableKey()
     {
-        var client = _factory.CreateClient();
-        var accessToken = await LoginAsNewUserAsync(_factory.Services, client);
+        await using var configuredFactory = _factory.WithWebHostBuilder(builder =>
+            builder.UseSetting("Payment:Stripe:PublishableKey", ConfiguredPublishableKey));
+        var client = configuredFactory.CreateClient();
+        var accessToken = await LoginAsNewUserAsync(configuredFactory.Services, client);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         var response = await client.GetAsync("/api/commerce/payments/config");
@@ -62,8 +68,27 @@ public sealed class PaymentConfigIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<PaymentConfigResponse>(JsonOptions);
         Assert.NotNull(body);
-        Assert.False(string.IsNullOrWhiteSpace(body.PublishableKey));
+        Assert.Equal(ConfiguredPublishableKey, body.PublishableKey);
         Assert.Equal(["PromptPay"], body.EnabledMethods.Select(m => m.ToString()));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("CHANGE_ME_DEV_ONLY_pk_test_placeholder_key")]
+    public async Task GetConfig_StripeNotConfigured_Returns503ProblemDetailsInsteadOfAFakeKey(string publishableKey)
+    {
+        await using var unconfiguredFactory = _factory.WithWebHostBuilder(builder =>
+            builder.UseSetting("Payment:Stripe:PublishableKey", publishableKey));
+        var client = unconfiguredFactory.CreateClient();
+        var accessToken = await LoginAsNewUserAsync(unconfiguredFactory.Services, client);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await client.GetAsync("/api/commerce/payments/config");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("payment.provider_not_configured", problem.RootElement.GetProperty("errorCode").GetString());
+        Assert.False(problem.RootElement.TryGetProperty("publishableKey", out _));
     }
 
     [Fact]
@@ -83,6 +108,7 @@ public sealed class PaymentConfigIntegrationTests : IAsyncLifetime
         {
             builder.UseSetting("Payment:EnabledMethods:0", "PromptPay");
             builder.UseSetting("Payment:EnabledMethods:1", "Card");
+            builder.UseSetting("Payment:Stripe:PublishableKey", ConfiguredPublishableKey);
         });
 
         var client = cardFactory.CreateClient();

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Siri.Api.Configuration;
 using Siri.Modules.Analytics.Features.AdminDashboardSummary;
 using Siri.Modules.Analytics.Features.InstructorAnalytics;
 using Siri.SharedKernel;
@@ -28,6 +30,7 @@ public class AnalyticsController : ControllerBase
 
     [HttpGet("instructor/dashboard/summary")]
     [Authorize(Policy = AuthorizationPolicyNames.InstructorOnly)]
+    [EnableRateLimiting(RateLimiterConfiguration.LiveUserPolicyName)] // P11-10: per-user — the summary now reads several modules
     [EndpointName("GetInstructorAnalyticsSummary")]
     [EndpointSummary("ดึงข้อมูลสถิติและการวิเคราะห์สำหรับผู้สอน")]
     [ProducesResponseType(typeof(InstructorAnalyticsResponse), StatusCodes.Status200OK)]

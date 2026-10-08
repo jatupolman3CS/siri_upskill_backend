@@ -36,6 +36,18 @@ public sealed class EMAIL_OUTBOX_MESSAGE
     /// <summary>Total attempts allowed (including the first) before giving up permanently.</summary>
     public const int MaxAttempts = 5;
 
+    /// <summary>iCalendar <c>METHOD</c> values an outbox email may carry (RFC 5546) — also the exact
+    /// strings stored in <see cref="CalendarMethod"/>.</summary>
+    public const string CalendarMethodRequest = "REQUEST";
+
+    public const string CalendarMethodCancel = "CANCEL";
+
+    public const string CalendarMethodPublish = "PUBLISH";
+
+    /// <summary>Upper bound on <see cref="CalendarIcs"/> (characters) — a batch invite of ≤50 VEVENTs is far
+    /// below this; the cap just keeps a runaway builder from filling the table.</summary>
+    public const int CalendarIcsMaxLength = 200_000;
+
     /// <summary>Bound on <see cref="LastError"/> — see <c>EmailOutboxMessageConfiguration</c>'s
     /// matching <c>HasMaxLength</c>. Exception messages get truncated to this, never the full
     /// stack trace (security.md: error text stored here is for internal diagnostics only).</summary>
@@ -73,16 +85,39 @@ public sealed class EMAIL_OUTBOX_MESSAGE
 
     public string? LastError { get; private set; }
 
+    /// <summary>The iCalendar (RFC 5545) document attached to this email as a <c>text/calendar</c> part, or
+    /// <c>null</c> for an ordinary email (task P11-04, docs/contracts/P11-04-live-invites-ics-reminders.md
+    /// §2.1). Always set together with <see cref="CalendarMethod"/>. The builder of the document is
+    /// responsible for keeping meeting-room URLs out of it — this entity only stores what it is given.</summary>
+    public string? CalendarIcs { get; private set; }
+
+    /// <summary>The iCalendar <c>METHOD</c> of <see cref="CalendarIcs"/> — one of
+    /// <see cref="CalendarMethodRequest"/>, <see cref="CalendarMethodCancel"/> or
+    /// <see cref="CalendarMethodPublish"/>; <c>null</c> exactly when <see cref="CalendarIcs"/> is.</summary>
+    public string? CalendarMethod { get; private set; }
+
     /// <summary>
     /// Queues a new email for delivery, in <see cref="EmailOutboxStatus.Pending"/> with zero
     /// attempts. <paramref name="toEmail"/> is stored exactly as given — address validation/
     /// normalization is the caller's concern; this entity only owns the outbox lifecycle.
     /// </summary>
-    public static EMAIL_OUTBOX_MESSAGE Enqueue(string toEmail, string subject, string bodyHtml, string? templateKey)
+    public static EMAIL_OUTBOX_MESSAGE Enqueue(string toEmail, string subject, string bodyHtml, string? templateKey) =>
+        Enqueue(toEmail, subject, bodyHtml, templateKey, calendarMethod: null, calendarIcs: null);
+
+    /// <summary>
+    /// Same as the four-argument overload, optionally attaching an iCalendar part. The two calendar
+    /// arguments must be given together or not at all; when given, <paramref name="calendarMethod"/> must
+    /// be exactly <c>REQUEST</c>, <c>CANCEL</c> or <c>PUBLISH</c> and <paramref name="calendarIcs"/> must be a
+    /// non-empty iCalendar document (at most <see cref="CalendarIcsMaxLength"/> characters) that starts with
+    /// <c>BEGIN:VCALENDAR</c>.
+    /// </summary>
+    public static EMAIL_OUTBOX_MESSAGE Enqueue(
+        string toEmail, string subject, string bodyHtml, string? templateKey, string? calendarMethod, string? calendarIcs)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(toEmail);
         ArgumentException.ThrowIfNullOrWhiteSpace(subject);
         ArgumentException.ThrowIfNullOrWhiteSpace(bodyHtml);
+        ValidateCalendarPart(calendarMethod, calendarIcs);
 
         return new EMAIL_OUTBOX_MESSAGE
         {
@@ -91,9 +126,46 @@ public sealed class EMAIL_OUTBOX_MESSAGE
             Subject = subject,
             BodyHtml = bodyHtml,
             TemplateKey = templateKey,
+            CalendarMethod = calendarMethod,
+            CalendarIcs = calendarIcs,
             Status = EmailOutboxStatus.Pending,
             Attempts = 0,
         };
+    }
+
+    private static void ValidateCalendarPart(string? calendarMethod, string? calendarIcs)
+    {
+        if (calendarMethod is null && calendarIcs is null)
+        {
+            return;
+        }
+
+        if (calendarMethod is null || calendarIcs is null)
+        {
+            throw new ArgumentException("A calendar method and its iCalendar content must be given together.");
+        }
+
+        if (calendarMethod is not (CalendarMethodRequest or CalendarMethodCancel or CalendarMethodPublish))
+        {
+            throw new ArgumentException(
+                $"Calendar method must be {CalendarMethodRequest}, {CalendarMethodCancel} or {CalendarMethodPublish}.",
+                nameof(calendarMethod));
+        }
+
+        if (string.IsNullOrWhiteSpace(calendarIcs))
+        {
+            throw new ArgumentException("Calendar content cannot be empty.", nameof(calendarIcs));
+        }
+
+        if (calendarIcs.Length > CalendarIcsMaxLength)
+        {
+            throw new ArgumentException($"Calendar content must be at most {CalendarIcsMaxLength} characters.", nameof(calendarIcs));
+        }
+
+        if (!calendarIcs.StartsWith("BEGIN:VCALENDAR", StringComparison.Ordinal))
+        {
+            throw new ArgumentException("Calendar content must start with BEGIN:VCALENDAR.", nameof(calendarIcs));
+        }
     }
 
     /// <summary>Records a successful delivery. Idempotent if already <see cref="EmailOutboxStatus.Sent"/>.</summary>

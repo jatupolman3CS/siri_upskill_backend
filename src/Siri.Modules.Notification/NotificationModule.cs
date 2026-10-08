@@ -23,9 +23,16 @@ public static class NotificationModule
     {
         services.AddEmailIntegration(configuration);
 
+        // The real support inbox for contact-form messages (no built-in address). Blank = messages are saved
+        // but no team email is queued (see ContactOptions).
+        services.AddOptions<ContactOptions>()
+            .Bind(configuration.GetSection(ContactOptions.SectionName))
+            .ValidateOnStart();
+
         services.AddScoped<EmailOutboxSenderJob>();
         services.AddScoped<AnnouncementDispatchJob>();
         services.AddScoped<IEmailOutbox, EmailOutbox>();
+        services.AddScoped<IUserNotificationOutbox, UserNotificationOutbox>();
 
         // Handlers
         services.AddScoped<CreateAnnouncementHandler>();

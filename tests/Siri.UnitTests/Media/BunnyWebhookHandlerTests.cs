@@ -81,6 +81,30 @@ public sealed class BunnyWebhookHandlerTests
         Assert.Equal(0, _provider.Calls);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("CHANGE_ME_DEV_ONLY_bunny_readonly_api_key")]
+    public async Task Signature_ReadOnlyKeyMissingOrPlaceholder_RejectsEvenWithSignatureMadeFromIt(string key)
+    {
+        // A committed placeholder is a publicly-known HMAC key, so "valid" signatures made with it must
+        // never be accepted — the handler refuses outright (503-mapped provider_not_configured).
+        _repo.Add(_asset);
+        var handler = new BunnyWebhookHandler(_repo, _provider, Options.Create(new VideoProviderOptions
+        {
+            LibraryId = "12345", ReadOnlyApiKey = key,
+        }), _clock, NullLogger<BunnyWebhookHandler>.Instance);
+        var body = Body();
+        var signature = Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(key), body));
+
+        var result = await handler.HandleSignedWebhookAsync(body, "v1", "hmac-sha256", signature, default);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(VideoProviderErrors.ProviderNotConfiguredCode, result.Error.Code);
+        Assert.Equal(MediaAssetStatus.Uploading, _asset.STATUS);
+        Assert.Equal(0, _provider.Calls);
+    }
+
     [Fact]
     public async Task Signature_WhitespaceChanged_RejectsTampering()
     {

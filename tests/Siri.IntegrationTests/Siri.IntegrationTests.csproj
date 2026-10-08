@@ -26,6 +26,7 @@
          reachable transitively through Siri.Api below, but explicit for the same reason every other
          reference in this file is: don't rely on an incidental transitive path. -->
     <ProjectReference Include="..\..\src\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Live\Siri.Modules.Live.csproj" />
     <!-- P0-22: AuthorizationPolicyHttpTests exercises Siri.Api.Authorization.AuthorizationPolicyExtensions
          (AdminOnly/InstructorOnly) over real HTTP — same host-project-reference pattern Program.cs's
          trailing `public partial class Program;` comment anticipates for WebApplicationFactory-style

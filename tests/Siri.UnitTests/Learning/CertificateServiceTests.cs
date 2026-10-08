@@ -102,7 +102,7 @@ public sealed class CertificateServiceTests
         enrollment.Complete(clock);
         enrollmentRepo.Add(enrollment);
 
-        var service = new CertificateService(certRepo, enrollmentRepo, catalog, identity, clock);
+        var service = CertificateServiceFactory.Create(certRepo, enrollmentRepo, catalog, identity, clock);
         var command = new IssueCertificateCommand(enrollment.ENROLLMENT_ID, "storage/certs/cert-1.pdf");
 
         var result = await service.CreateAsync(command, CancellationToken.None);
@@ -132,7 +132,7 @@ public sealed class CertificateServiceTests
         var cert = CERTIFICATE.Create(enrollment.ENROLLMENT_ID, "CERT-2026-ABCDEF12", "VERIFY123456", null, clock);
         certRepo.Add(cert);
 
-        var service = new CertificateService(certRepo, enrollmentRepo, catalog, identity, clock);
+        var service = CertificateServiceFactory.Create(certRepo, enrollmentRepo, catalog, identity, clock);
 
         var result = await service.VerifyByCodeAsync("VERIFY123456", CancellationToken.None);
 
@@ -162,7 +162,7 @@ public sealed class CertificateServiceTests
         var cert = CERTIFICATE.Create(enrollment.ENROLLMENT_ID, "CERT-2026-ABCDEF12", "VERIFY123456", null, clock);
         certRepo.Add(cert);
 
-        var service = new CertificateService(certRepo, enrollmentRepo, catalog, identity, clock);
+        var service = CertificateServiceFactory.Create(certRepo, enrollmentRepo, catalog, identity, clock);
 
         var result = await service.GeneratePdfAsync(cert.CERTIFICATE_ID, userId, false, CancellationToken.None);
 
@@ -190,7 +190,7 @@ public sealed class CertificateServiceTests
         var cert = CERTIFICATE.Create(Guid.NewGuid(), "CERT-2026-ABCDEF12", "VERIFY123456", null, clock);
         certRepo.Add(cert);
 
-        var service = new CertificateService(certRepo, enrollmentRepo, catalog, identity, clock);
+        var service = CertificateServiceFactory.Create(certRepo, enrollmentRepo, catalog, identity, clock);
 
         var revokeResult = await service.RevokeAsync(cert.CERTIFICATE_ID, CancellationToken.None);
         Assert.True(revokeResult.IsSuccess);

@@ -1,7 +1,9 @@
 using Hangfire;
 using Siri.Modules.Analytics.Infrastructure;
+using Siri.Modules.Catalog.Infrastructure;
 using Siri.Modules.Commerce.Infrastructure;
 using Siri.Modules.Identity.Infrastructure;
+using Siri.Modules.Live.Infrastructure;
 using Siri.Modules.Media.Infrastructure;
 using Siri.Modules.Notification.Infrastructure;
 
@@ -65,5 +67,33 @@ public static class RecurringJobsRegistration
             "announcement-dispatch",
             job => job.RunAsync(CancellationToken.None),
             Cron.Minutely());
+
+        // 9. Builds/patches/deletes the online room behind every live session (P11-03: Google Calendar event with a
+        // Meet room, or waits for a manually pasted link) and adopts sessions that lack a meeting row
+        recurringJobManager.AddOrUpdate<LiveMeetingSyncJob>(
+            "live-meeting-sync",
+            job => job.RunAsync(CancellationToken.None),
+            Cron.Minutely());
+
+        // 10. Reconciles who has been told about which upcoming live session (P11-04): purchase-day invite + calendar
+        // file, new/moved/cancelled sessions, lost access. Diff-based, so it needs no hook in the payment flow
+        recurringJobManager.AddOrUpdate<LiveInviteReconcileJob>(
+            "live-invite-reconcile",
+            job => job.RunAsync(CancellationToken.None),
+            Cron.MinuteInterval(2));
+
+        // 11. 24-hour and 1-hour reminders to invited learners and instructors, and the "room not ready" warning (P11-04)
+        recurringJobManager.AddOrUpdate<LiveSessionRemindersJob>(
+            "live-session-reminders",
+            job => job.RunAsync(CancellationToken.None),
+            Cron.MinuteInterval(5));
+
+        // 12. Recounts COURSES.ENROLLMENT_COUNT from the enrollments themselves and repairs any course that differs (paged, row-locked per
+        // correction): fills in rows that predate the counter's writer and heals drift within the hour. Learning keeps the count current
+        // between runs by calling Catalog's ICourseEnrollmentCountUpdater on every enrollment transition.
+        recurringJobManager.AddOrUpdate<CourseEnrollmentRecountJob>(
+            "course-enrollment-recount",
+            job => job.RunAsync(CancellationToken.None),
+            Cron.Hourly());
     }
 }

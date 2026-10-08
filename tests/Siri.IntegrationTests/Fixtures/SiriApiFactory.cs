@@ -52,10 +52,14 @@ public sealed class SiriApiFactory : WebApplicationFactory<Program>
     public const string EnvironmentName = "IntegrationTest";
 
     private readonly ContainersFixture _containers;
+    private readonly IReadOnlyDictionary<string, string?> _extraSettings;
 
-    public SiriApiFactory(ContainersFixture containers)
+    /// <param name="extraSettings">Additional configuration for tests that need a non-default feature setup (for example
+    /// <c>Live:Provider=Logging</c>). Applied with the same <c>UseSetting</c> mechanism as everything else here, after the defaults.</param>
+    public SiriApiFactory(ContainersFixture containers, IReadOnlyDictionary<string, string?>? extraSettings = null)
     {
         _containers = containers;
+        _extraSettings = extraSettings ?? new Dictionary<string, string?>();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -75,6 +79,11 @@ public sealed class SiriApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Identity:Jwt:SigningKey", new string('k', 64));
         builder.UseSetting("Identity:Jwt:AccessTokenLifetimeMinutes", "15");
         builder.UseSetting("Email:Provider", "Log"); // never a real SMTP send
+
+        foreach (var (key, value) in _extraSettings)
+        {
+            builder.UseSetting(key, value);
+        }
 
         builder.ConfigureServices((context, _) =>
         {

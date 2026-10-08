@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Payout.Domain;
 using Siri.SharedKernel;
 
@@ -6,18 +7,31 @@ namespace Siri.Modules.Payout.Application;
 
 /// <summary>
 /// Business logic for <see cref="INSTRUCTOR_PAYOUT_ACCOUNT"/>, backing <c>InstructorPayoutAccountEndpoints</c>.
+/// <para>
+/// An account is keyed by the instructor <b>profile</b> id (<c>CATALOG.INSTRUCTOR_PROFILES.Id</c>) — the same key <c>REVENUE_SPLITS.INSTRUCTOR_ID</c> and
+/// <c>PAYOUT_BATCH_ITEMS.INSTRUCTOR_ID</c> carry, so payout-batch creation can match splits to a verified account. The "current user" methods take the
+/// authenticated <b>user</b> id and resolve their own profile id first; the admin methods (<see cref="GetByInstructorIdAsync"/>, <see cref="VerifyAsync"/>)
+/// take the profile id exactly as the admin sees it on batch items.
+/// </para>
 /// </summary>
 public sealed class InstructorPayoutAccountService(
     IInstructorPayoutAccountRepository repository,
     ISensitiveDataProtector dataProtector,
-    IClock clock)
+    IClock clock,
+    IInstructorProfileReader instructorProfiles)
 {
     public async Task<Result<InstructorPayoutAccountResponse>> CreateForCurrentUserAsync(
         Guid userId, CreateInstructorPayoutAccountCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var existing = await repository.GetByInstructorIdAsync(userId, cancellationToken).ConfigureAwait(false);
+        var instructorProfileId = await instructorProfiles.GetProfileIdByUserIdAsync(userId, cancellationToken).ConfigureAwait(false);
+        if (instructorProfileId is not { } profileId)
+        {
+            return Result.Failure<InstructorPayoutAccountResponse>(DomainError.Forbidden("เฉพาะผู้สอนที่สมัครเป็นผู้สอนแล้วเท่านั้นที่ลงทะเบียนบัญชีรับเงินได้"));
+        }
+
+        var existing = await repository.GetByInstructorIdAsync(profileId, cancellationToken).ConfigureAwait(false);
         if (existing is not null)
         {
             return Result.Failure<InstructorPayoutAccountResponse>(DomainError.Conflict("มีข้อมูลบัญชีธนาคารสำหรับผู้สอนนี้แล้ว"));
@@ -27,7 +41,7 @@ public sealed class InstructorPayoutAccountService(
         var taxIdEncrypted = command.TaxId is not null ? dataProtector.Encrypt(command.TaxId) : null;
 
         var account = INSTRUCTOR_PAYOUT_ACCOUNT.Create(
-            userId,
+            profileId,
             command.BankCode,
             accountNoEncrypted,
             command.AccountName,
@@ -42,7 +56,11 @@ public sealed class InstructorPayoutAccountService(
 
     public async Task<Result<InstructorPayoutAccountResponse>> GetForCurrentUserAsync(Guid userId, CancellationToken cancellationToken)
     {
-        var account = await repository.GetByInstructorIdAsync(userId, cancellationToken).ConfigureAwait(false);
+        // A user without an instructor profile has no account — the same "not found" as an instructor who never registered one.
+        var instructorProfileId = await instructorProfiles.GetProfileIdByUserIdAsync(userId, cancellationToken).ConfigureAwait(false);
+        var account = instructorProfileId is { } profileId
+            ? await repository.GetByInstructorIdAsync(profileId, cancellationToken).ConfigureAwait(false)
+            : null;
         if (account is null)
         {
             return Result.Failure<InstructorPayoutAccountResponse>(DomainError.NotFound("ไม่พบข้อมูลบัญชีธนาคาร"));

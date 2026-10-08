@@ -6,13 +6,16 @@ using Siri.SharedKernel;
 namespace Siri.Modules.Learning.Application;
 
 /// <summary>
-/// Business logic for <see cref="ENROLLMENT"/>, backing <c>EnrollmentEndpoints</c>.
+/// Business logic for <see cref="ENROLLMENT"/>, backing <c>EnrollmentEndpoints</c>. Every transition that starts or stops an enrollment counting
+/// (<see cref="EnrollmentCountRules"/>) tells Catalog's <see cref="ICourseEnrollmentCountUpdater"/> after the enrollment is saved — Catalog owns the counter, this
+/// module only reports the change.
 /// </summary>
 public sealed class EnrollmentService(
     IEnrollmentRepository repository,
     ICertificateRepository certificateRepository,
     IClock clock,
-    ICourseSummaryReader courseSummaryReader)
+    ICourseSummaryReader courseSummaryReader,
+    ICourseEnrollmentCountUpdater courseEnrollmentCountUpdater)
 {
     public async Task<Result<EnrollmentResponse>> CreateAsync(CreateEnrollmentCommand command, CancellationToken cancellationToken)
     {
@@ -27,8 +30,10 @@ public sealed class EnrollmentService(
 
         if (existing is not null)
         {
+            var previousStatus = existing.STATUS;
             existing.Reactivate(command.OrderId, command.ExpiresAtUtc, clock);
             await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await EnrollmentCountRules.ReportAsync(courseEnrollmentCountUpdater, existing.COURSE_ID, EnrollmentCountRules.DeltaForGrant(previousStatus), cancellationToken).ConfigureAwait(false);
             return Result.Success(await ToResponseAsync(existing, cancellationToken).ConfigureAwait(false));
         }
 
@@ -42,6 +47,7 @@ public sealed class EnrollmentService(
 
         repository.Add(enrollment);
         await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await EnrollmentCountRules.ReportAsync(courseEnrollmentCountUpdater, enrollment.COURSE_ID, EnrollmentCountRules.DeltaForGrant(previousStatus: null), cancellationToken).ConfigureAwait(false);
 
         return Result.Success(await ToResponseAsync(enrollment, cancellationToken).ConfigureAwait(false));
     }
@@ -149,8 +155,10 @@ public sealed class EnrollmentService(
             return Result.Failure<EnrollmentResponse>(DomainError.NotFound("ไม่พบข้อมูลการลงทะเบียน"));
         }
 
+        var previousStatus = enrollment.STATUS;
         enrollment.Revoke();
         await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await EnrollmentCountRules.ReportAsync(courseEnrollmentCountUpdater, enrollment.COURSE_ID, EnrollmentCountRules.DeltaForRevoke(previousStatus), cancellationToken).ConfigureAwait(false);
 
         return Result.Success(await ToResponseAsync(enrollment, cancellationToken).ConfigureAwait(false));
     }

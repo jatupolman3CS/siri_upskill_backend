@@ -72,6 +72,7 @@ public sealed class ContactIntegrationTests : IAsyncLifetime
             ["Identity:Jwt:SigningKey"] = TestSigningKey,
             ["Identity:Jwt:AccessTokenLifetimeMinutes"] = "15",
             ["Email:Provider"] = "Log",
+            ["Notification:Contact:SupportEmail"] = "support@contact.example.test",
         });
 
         builder.Services
@@ -146,7 +147,42 @@ public sealed class ContactIntegrationTests : IAsyncLifetime
 
         var outbox = await db.EmailOutboxMessages().FirstOrDefaultAsync(e => e.TemplateKey == "contact-notification");
         Assert.NotNull(outbox);
-        Assert.Equal("support@siriupskill.com", outbox.ToEmail);
+        Assert.Equal("support@contact.example.test", outbox.ToEmail);
+    }
+
+    [Fact]
+    public async Task SubmitContactMessage_NoSupportInboxConfigured_SavesMessageButQueuesNoEmailToAMadeUpAddress()
+    {
+        // IOptions<T>.Value is a process-wide singleton instance, so blanking it here is visible to the handler;
+        // restored in finally so other tests in this class keep their configured inbox.
+        var contactOptions = _app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ContactOptions>>().Value;
+        var configuredInbox = contactOptions.SupportEmail;
+        contactOptions.SupportEmail = string.Empty;
+
+        var unique = Guid.NewGuid().ToString("N");
+        try
+        {
+            var command = new SubmitContactMessageCommand(
+                Name: "Somchai Jaidee",
+                Email: $"nobox-{unique}@example.test",
+                Subject: $"No inbox configured {unique}",
+                Message: "Hello, nobody is configured to receive this by email.",
+                BotField: null);
+
+            var response = await _client.PostAsJsonAsync("/api/contact", command, JsonOptions);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            using var scope = _app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            Assert.NotNull(await db.ContactMessages().FirstOrDefaultAsync(c => c.Subject == $"No inbox configured {unique}"));
+            Assert.False(await db.EmailOutboxMessages().AnyAsync(e => e.Subject.Contains($"No inbox configured {unique}")));
+        }
+        finally
+        {
+            contactOptions.SupportEmail = configuredInbox;
+        }
     }
 
     [Fact]

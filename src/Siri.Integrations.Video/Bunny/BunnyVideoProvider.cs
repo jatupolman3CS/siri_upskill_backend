@@ -19,6 +19,11 @@ namespace Siri.Integrations.Video.Bunny;
 /// Retry/backoff for transient failures is handled manually (3 attempts, exponential backoff) rather
 /// than pulling in Polly — keeping the dependency footprint small for this integration project.
 /// </para>
+/// <para>
+/// Real data only: when the Bunny settings are missing or still placeholders every operation returns a
+/// <c>Result.Failure</c> (HTTP 503 at the API) — there is no mock video id, fake upload URL or public
+/// test stream fallback.
+/// </para>
 /// </summary>
 public sealed class BunnyVideoProvider : IVideoProvider
 {
@@ -51,11 +56,9 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// <inheritdoc/>
     public async Task<Result<VideoAsset>> CreateVideoAsync(string title, CancellationToken cancellationToken)
     {
-        if (_options.ApiKey.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase) ||
-            _options.LibraryId == "000000")
+        if (ApiNotConfigured() is { } notConfigured)
         {
-            var mockId = $"mock-{Guid.NewGuid():N}";
-            return Result.Success(new VideoAsset(mockId, title));
+            return Result.Failure<VideoAsset>(notConfigured);
         }
 
         var url = $"{BunnyApiBaseUrl}/library/{_options.LibraryId}/videos";
@@ -87,11 +90,9 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// <inheritdoc/>
     public Task<Result<VideoUploadUrl>> GetUploadUrlAsync(string providerVideoId, CancellationToken cancellationToken)
     {
-        if (providerVideoId.StartsWith("mock-", StringComparison.OrdinalIgnoreCase) ||
-            _options.ApiKey.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+        if (ApiNotConfigured() is { } notConfigured)
         {
-            var mockExpiresAt = DateTime.UtcNow.AddHours(4);
-            return Task.FromResult(Result.Success(new VideoUploadUrl($"mock://tusupload/{providerVideoId}", mockExpiresAt)));
+            return Task.FromResult(Result.Failure<VideoUploadUrl>(notConfigured));
         }
 
         // Bunny Stream uses TUS protocol for uploads. The upload URL is constructed from:
@@ -120,10 +121,9 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// <inheritdoc/>
     public async Task<Result<VideoStatus>> GetStatusAsync(string providerVideoId, CancellationToken cancellationToken)
     {
-        if (providerVideoId.StartsWith("mock-", StringComparison.OrdinalIgnoreCase) ||
-            _options.ApiKey.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+        if (ApiNotConfigured() is { } notConfigured)
         {
-            return Result.Success(new VideoStatus(providerVideoId, VideoProcessingStatus.Ready, TimeSpan.FromMinutes(10)));
+            return Result.Failure<VideoStatus>(notConfigured);
         }
 
         var url = $"{BunnyApiBaseUrl}/library/{_options.LibraryId}/videos/{providerVideoId}";
@@ -157,10 +157,9 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// <inheritdoc/>
     public async Task<Result> DeleteVideoAsync(string providerVideoId, CancellationToken cancellationToken)
     {
-        if (providerVideoId.StartsWith("mock-", StringComparison.OrdinalIgnoreCase) ||
-            _options.ApiKey.StartsWith("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+        if (ApiNotConfigured() is { } notConfigured)
         {
-            return Result.Success();
+            return Result.Failure(notConfigured);
         }
 
         var url = $"{BunnyApiBaseUrl}/library/{_options.LibraryId}/videos/{providerVideoId}";
@@ -189,26 +188,18 @@ public sealed class BunnyVideoProvider : IVideoProvider
         TimeSpan timeToLive,
         CancellationToken cancellationToken)
     {
-        // If requesting a mock video or Bunny credentials are not yet configured in local dev,
-        // return a reliable standard multi-bitrate HLS test stream for instant verification.
-        const string fallbackHlsStreamUrl = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
-
-        if (providerVideoId.StartsWith("mock-", StringComparison.OrdinalIgnoreCase))
+        // Signing is a pure local HMAC, so only the playback settings matter (not the API key). Two
+        // codes (rather than one) so callers/tests can tell which half is absent; both map to HTTP 503
+        // via the "_not_configured" suffix. Which setting is missing is logged, never returned.
+        var missing = _options.GetMissingPlaybackSettings();
+        if (missing.Count > 0)
         {
-            var mockExpiresAt = DateTime.UtcNow.Add(timeToLive);
-            return Task.FromResult(Result.Success(new SignedPlaybackUrl(fallbackHlsStreamUrl, mockExpiresAt)));
-        }
+            _logger.LogError("Cannot sign a playback URL: missing/placeholder settings {MissingSettings}.", missing);
 
-        if (string.IsNullOrWhiteSpace(_options.CdnHostname) || _options.CdnHostname.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
-        {
-            return Task.FromResult(Result.Failure<SignedPlaybackUrl>(
-                new DomainError("video.cdn_not_configured", "Video CDN hostname is not configured.")));
-        }
-
-        if (string.IsNullOrWhiteSpace(_options.TokenAuthenticationKey) || _options.TokenAuthenticationKey.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
-        {
-            return Task.FromResult(Result.Failure<SignedPlaybackUrl>(
-                new DomainError("video.token_auth_not_configured", "Video token authentication key is not configured.")));
+            var cdnMissing = VideoProviderOptions.IsPlaceholder(_options.CdnHostname);
+            return Task.FromResult(Result.Failure<SignedPlaybackUrl>(cdnMissing
+                ? new DomainError("video.cdn_not_configured", "Video CDN hostname is not configured.")
+                : new DomainError("video.token_auth_not_configured", "Video token authentication key is not configured.")));
         }
 
         var expiresAt = DateTime.UtcNow.Add(timeToLive);
@@ -245,6 +236,23 @@ public sealed class BunnyVideoProvider : IVideoProvider
 
         // HLS resolves child playlists/segments relative to the manifest; a query token would be lost.
         return $"https://{_options.CdnHostname}/bcdn_token={token}&expires={expirationTimestamp}&token_path={Uri.EscapeDataString(tokenPath)}{playlistPath}";
+    }
+
+    /// <summary>
+    /// Management-API calls (create/status/delete/TUS upload) need a real library id + API key. A
+    /// missing or placeholder value is an operator misconfiguration: fail loudly with a 503-mapped
+    /// error instead of fabricating a "mock-…" video or a fake upload URL.
+    /// </summary>
+    private DomainError? ApiNotConfigured()
+    {
+        var missing = _options.GetMissingApiSettings();
+        if (missing.Count == 0)
+        {
+            return null;
+        }
+
+        _logger.LogError("Bunny Stream API call refused: missing/placeholder settings {MissingSettings}.", missing);
+        return VideoProviderErrors.ProviderNotConfigured();
     }
 
     private HttpClient CreateClient()

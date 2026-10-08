@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Siri.Api.Configuration;
 using Siri.Modules.Catalog.Features.AttachEpisodeMedia;
 using Siri.Modules.Catalog.Features.AutosaveCourse;
 using Siri.Modules.Catalog.Features.CreateCourse;
@@ -12,11 +14,13 @@ using Siri.Modules.Catalog.Features.DeleteCourseEpisode;
 using Siri.Modules.Catalog.Features.DeleteCourseSection;
 using Siri.Modules.Catalog.Features.GetCourse;
 using Siri.Modules.Catalog.Features.GetCourseBuilder;
+using Siri.Modules.Catalog.Features.GetCourseLiveSchedule;
 using Siri.Modules.Catalog.Features.GetMyCourses;
 using Siri.Modules.Catalog.Features.ReorderCourseEpisodes;
 using Siri.Modules.Catalog.Features.ReorderCourseSections;
 using Siri.Modules.Catalog.Features.SetCourseDeliveryFormat;
 using Siri.Modules.Catalog.Features.SetCourseEnrollmentPolicy;
+using Siri.Modules.Catalog.Features.SetCourseLiveSettings;
 using Siri.Modules.Catalog.Features.SubmitCourseForReview;
 using Siri.Modules.Catalog.Features.UpdateCourse;
 using Siri.Modules.Catalog.Features.UpdateCourseEpisode;
@@ -195,6 +199,32 @@ public class InstructorCoursesController : ControllerBase
         }
 
         var result = await handler.HandleAsync(userId, id, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(HttpContext);
+    }
+
+    [HttpGet("{courseId:guid}/live-schedule")]
+    [EnableRateLimiting(RateLimiterConfiguration.LiveUserPolicyName)]
+    [EndpointName("CatalogGetCourseLiveSchedule")]
+    [EndpointSummary("ดูตารางสอนสด รูปแบบคอร์ส และนโยบายการรับสมัครของคอร์สตัวเอง (ไม่คืนลิงก์ห้อง)")]
+    [ProducesResponseType(typeof(CourseLiveScheduleResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IResult> GetCourseLiveSchedule(
+        [FromRoute] Guid courseId,
+        [FromServices] GetCourseLiveScheduleHandler handler,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await handler.HandleAsync(userId, courseId, cancellationToken).ConfigureAwait(false);
 
         return result.IsSuccess
             ? Results.Ok(result.Value)
@@ -552,6 +582,35 @@ public class InstructorCoursesController : ControllerBase
         }
 
         var result = await handler.HandleAsync(userId, id, command, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(HttpContext);
+    }
+
+    [HttpPut("{courseId:guid}/live-settings")]
+    [EnableRateLimiting(RateLimiterConfiguration.LiveUserPolicyName)]
+    [EndpointName("CatalogSetCourseLiveSettings")]
+    [EndpointSummary("เปิด/ปิดการเพิ่มผู้เรียนเป็นผู้เข้าร่วมใน Google Calendar ของคาบสอนสด (ต้องเปิดเอง — ส่งอีเมลผู้เรียนไป Google)")]
+    [ProducesResponseType(typeof(SetCourseLiveSettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IResult> SetLiveSettings(
+        [FromRoute] Guid courseId,
+        [FromBody] SetCourseLiveSettingsCommand command,
+        [FromServices] SetCourseLiveSettingsHandler handler,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await handler.HandleAsync(userId, courseId, command, cancellationToken).ConfigureAwait(false);
 
         return result.IsSuccess
             ? Results.Ok(result.Value)

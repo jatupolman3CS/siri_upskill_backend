@@ -29,7 +29,7 @@ public class DatabaseIdentifierLengthTests
         // AppDomain.CurrentDomain.GetAssemblies() for IEntityTypeConfiguration implementations —
         // .NET loads assemblies lazily, and a half-loaded model would make this test vacuous.
         var moduleCount = ModuleAssemblyCatalog.Modules.Count;
-        Assert.Equal(10, moduleCount);
+        Assert.Equal(11, moduleCount);
 
         // A connection string is required to build the model but is never opened: only Model metadata
         // is read here, so this test needs no database and no Docker.

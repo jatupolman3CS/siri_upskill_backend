@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Identity.Contracts;
 using Siri.Modules.Learning.Domain;
@@ -9,14 +10,25 @@ namespace Siri.Modules.Learning.Application;
 
 /// <summary>
 /// Business logic for <see cref="CERTIFICATE"/>, backing <c>CertificateEndpoints</c>.
+/// <para>
+/// Real data only: the learner name and course title printed on a certificate come from the account
+/// (<see cref="IUserContactReader"/>) and the course (<see cref="ICatalogPriceContract"/>); if either cannot
+/// be resolved the operation fails with a clear <see cref="DomainError"/> rather than printing a generic
+/// stand-in, and the QR code's verify URL is built from <see cref="CertificateOptions.PublicBaseUrl"/> (never
+/// a hardcoded domain).
+/// </para>
 /// </summary>
 public sealed class CertificateService(
     ICertificateRepository certificateRepository,
     IEnrollmentRepository enrollmentRepository,
     ICatalogPriceContract catalogPriceContract,
     IUserContactReader userContactReader,
+    IOptions<CertificateOptions> certificateOptions,
     IClock clock)
 {
+    /// <summary>Ends in the shared <c>_not_configured</c> suffix, so it maps to HTTP 503.</summary>
+    public const string PublicUrlNotConfiguredCode = "certificate.public_url_not_configured";
+
     public async Task<Result<CertificateResponse>> CreateAsync(IssueCertificateCommand command, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -98,12 +110,11 @@ public sealed class CertificateService(
             return Result.Failure<CertificateDetailResponse>(DomainError.NotFound("ไม่พบใบประกาศนียบัตร"));
         }
 
-        var contact = await userContactReader.GetUserContactInfoAsync(enrollment.USER_ID, cancellationToken).ConfigureAwait(false);
-        var titles = await catalogPriceContract.GetCourseTitlesAsync([enrollment.COURSE_ID], cancellationToken).ConfigureAwait(false);
-
-        var learnerName = contact.DisplayName ?? contact.Email ?? "ผู้เรียน Siri UpSkill";
-        titles.TryGetValue(enrollment.COURSE_ID, out var courseTitle);
-        courseTitle ??= "คอร์สเรียนออนไลน์";
+        var identity = await ResolveLearnerAndCourseAsync(enrollment, cancellationToken).ConfigureAwait(false);
+        if (identity.IsFailure)
+        {
+            return Result.Failure<CertificateDetailResponse>(identity.Error);
+        }
 
         var verifyUrl = $"/certificates/verify/{cert.VERIFY_CODE}";
 
@@ -115,8 +126,8 @@ public sealed class CertificateService(
             cert.ISSUED_AT_UTC,
             cert.PDF_STORAGE_KEY,
             cert.REVOKED_AT_UTC,
-            learnerName,
-            courseTitle,
+            identity.Value.LearnerName,
+            identity.Value.CourseTitle,
             verifyUrl));
     }
 
@@ -179,27 +190,7 @@ public sealed class CertificateService(
             return Result.Failure<(byte[], string)>(DomainError.Forbidden("คุณไม่มีสิทธิ์เข้าถึงใบประกาศนียบัตรนี้"));
         }
 
-        var contact = await userContactReader.GetUserContactInfoAsync(enrollment.USER_ID, cancellationToken).ConfigureAwait(false);
-        var titles = await catalogPriceContract.GetCourseTitlesAsync([enrollment.COURSE_ID], cancellationToken).ConfigureAwait(false);
-
-        var learnerName = contact.DisplayName ?? contact.Email ?? "ผู้เรียน Siri UpSkill";
-        titles.TryGetValue(enrollment.COURSE_ID, out var courseTitle);
-        courseTitle ??= "คอร์สเรียนออนไลน์";
-
-        var verifyUrl = $"https://siriupskill.com/certificates/verify/{cert.VERIFY_CODE}";
-
-        var pdfData = new CertificatePdfData(
-            learnerName,
-            courseTitle,
-            cert.SERIAL_NO,
-            cert.VERIFY_CODE,
-            cert.ISSUED_AT_UTC,
-            verifyUrl);
-
-        var bytes = CertificatePdfGenerator.GeneratePdf(pdfData);
-        var fileName = $"Certificate-{cert.SERIAL_NO}.pdf";
-
-        return Result.Success((bytes, fileName));
+        return await RenderPdfAsync(cert, enrollment, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<Result<(byte[] Bytes, string FileName)>> GeneratePdfByVerifyCodeAsync(
@@ -218,27 +209,80 @@ public sealed class CertificateService(
             return Result.Failure<(byte[], string)>(DomainError.NotFound("ไม่พบข้อมูลการลงทะเบียนเรียน"));
         }
 
-        var contact = await userContactReader.GetUserContactInfoAsync(enrollment.USER_ID, cancellationToken).ConfigureAwait(false);
-        var titles = await catalogPriceContract.GetCourseTitlesAsync([enrollment.COURSE_ID], cancellationToken).ConfigureAwait(false);
+        return await RenderPdfAsync(cert, enrollment, cancellationToken).ConfigureAwait(false);
+    }
 
-        var learnerName = contact.DisplayName ?? contact.Email ?? "ผู้เรียน Siri UpSkill";
-        titles.TryGetValue(enrollment.COURSE_ID, out var courseTitle);
-        courseTitle ??= "คอร์สเรียนออนไลน์";
+    private async Task<Result<(byte[] Bytes, string FileName)>> RenderPdfAsync(
+        CERTIFICATE cert,
+        ENROLLMENT enrollment,
+        CancellationToken cancellationToken)
+    {
+        var data = await BuildPdfDataAsync(cert, enrollment, cancellationToken).ConfigureAwait(false);
+        if (data.IsFailure)
+        {
+            return Result.Failure<(byte[] Bytes, string FileName)>(data.Error);
+        }
 
-        var verifyUrl = $"https://siriupskill.com/certificates/verify/{cert.VERIFY_CODE}";
+        var bytes = CertificatePdfGenerator.GeneratePdf(data.Value);
+        return Result.Success((bytes, $"Certificate-{cert.SERIAL_NO}.pdf"));
+    }
 
-        var pdfData = new CertificatePdfData(
-            learnerName,
-            courseTitle,
+    /// <summary>Everything printed on the certificate PDF, before rendering — kept separate from the
+    /// renderer so the real learner name / course title / QR URL can be asserted without parsing PDF
+    /// bytes.</summary>
+    internal async Task<Result<CertificatePdfData>> BuildPdfDataAsync(
+        CERTIFICATE cert,
+        ENROLLMENT enrollment,
+        CancellationToken cancellationToken)
+    {
+        var identity = await ResolveLearnerAndCourseAsync(enrollment, cancellationToken).ConfigureAwait(false);
+        if (identity.IsFailure)
+        {
+            return Result.Failure<CertificatePdfData>(identity.Error);
+        }
+
+        var baseUrl = certificateOptions.Value.GetNormalizedPublicBaseUrl();
+        if (baseUrl is null)
+        {
+            return Result.Failure<CertificatePdfData>(new DomainError(
+                PublicUrlNotConfiguredCode,
+                "Certificate public URL is not configured."));
+        }
+
+        return Result.Success(new CertificatePdfData(
+            identity.Value.LearnerName,
+            identity.Value.CourseTitle,
             cert.SERIAL_NO,
             cert.VERIFY_CODE,
             cert.ISSUED_AT_UTC,
-            verifyUrl);
+            $"{baseUrl}/certificates/verify/{cert.VERIFY_CODE}"));
+    }
 
-        var bytes = CertificatePdfGenerator.GeneratePdf(pdfData);
-        var fileName = $"Certificate-{cert.SERIAL_NO}.pdf";
+    /// <summary>
+    /// The learner name (real display name, falling back to the real email) and the real course title. A
+    /// certificate is a legal-style document, so an unresolvable learner or course fails the operation
+    /// instead of printing a generic stand-in.
+    /// </summary>
+    private async Task<Result<(string LearnerName, string CourseTitle)>> ResolveLearnerAndCourseAsync(
+        ENROLLMENT enrollment,
+        CancellationToken cancellationToken)
+    {
+        var contact = await userContactReader.GetUserContactInfoAsync(enrollment.USER_ID, cancellationToken).ConfigureAwait(false);
+        var learnerName = !string.IsNullOrWhiteSpace(contact.DisplayName) ? contact.DisplayName.Trim() : contact.Email?.Trim();
+        if (string.IsNullOrWhiteSpace(learnerName))
+        {
+            return Result.Failure<(string LearnerName, string CourseTitle)>(
+                DomainError.NotFound("ไม่พบข้อมูลผู้เรียนสำหรับใบประกาศนียบัตรนี้"));
+        }
 
-        return Result.Success((bytes, fileName));
+        var titles = await catalogPriceContract.GetCourseTitlesAsync([enrollment.COURSE_ID], cancellationToken).ConfigureAwait(false);
+        if (!titles.TryGetValue(enrollment.COURSE_ID, out var courseTitle) || string.IsNullOrWhiteSpace(courseTitle))
+        {
+            return Result.Failure<(string LearnerName, string CourseTitle)>(
+                DomainError.NotFound("ไม่พบข้อมูลคอร์สสำหรับใบประกาศนียบัตรนี้"));
+        }
+
+        return Result.Success((learnerName, courseTitle.Trim()));
     }
 
     public async Task<Result<CertificateResponse>> RevokeAsync(Guid certificateId, CancellationToken cancellationToken)
@@ -278,7 +322,9 @@ public sealed class CertificateService(
             var contact = await userContactReader.GetUserContactInfoAsync(enrollment.USER_ID, cancellationToken).ConfigureAwait(false);
             var titles = await catalogPriceContract.GetCourseTitlesAsync([enrollment.COURSE_ID], cancellationToken).ConfigureAwait(false);
 
-            learnerName = contact.DisplayName ?? contact.Email;
+            // This lookup is PUBLIC (anyone holding a verify code): never fall back to the learner's email —
+            // an unresolvable display name is reported as null, not replaced with something else.
+            learnerName = string.IsNullOrWhiteSpace(contact.DisplayName) ? null : contact.DisplayName;
             titles.TryGetValue(enrollment.COURSE_ID, out courseTitle);
         }
 

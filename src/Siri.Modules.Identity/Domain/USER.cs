@@ -17,6 +17,11 @@ namespace Siri.Modules.Identity.Domain;
 /// </summary>
 public sealed class USER : IAuditable
 {
+    /// <summary>Column width of <see cref="AvatarUrl"/> (<c>UserConfiguration</c> maps it with this exact
+    /// value) — a candidate longer than this is refused by <see cref="SetAvatarIfMissing"/> rather than
+    /// being truncated into a broken URL or failing the INSERT/UPDATE.</summary>
+    public const int AvatarUrlMaxLength = 1000;
+
     private readonly List<ROLE> _roles = [];
 
     /// <summary>EF Core materialization only — never used to build a usable instance from code.</summary>
@@ -220,6 +225,42 @@ public sealed class USER : IAuditable
         }
 
         PasswordHash = newPasswordHash;
+    }
+
+    /// <summary>
+    /// Fills <see cref="AvatarUrl"/> from an identity provider's profile picture (Google's ID-token
+    /// <c>picture</c> claim) <b>only when the account has no avatar yet</b> — an avatar that is already
+    /// set (a previous sign-in, or one the user chose) is never overwritten, and a deleted/anonymized
+    /// account never gets personal data written back into it (<see cref="Anonymize"/> nulls it on purpose).
+    /// <para>
+    /// The candidate must be an absolute <c>https</c> URL without embedded credentials and at most
+    /// <see cref="AvatarUrlMaxLength"/> characters (the column width). Anything else — <c>http</c>,
+    /// <c>javascript:</c>/<c>data:</c> schemes, relative paths, whitespace-only text — is ignored rather
+    /// than throwing, because a provider sending an unusable picture must never fail the sign-in itself.
+    /// </para>
+    /// </summary>
+    /// <returns><c>true</c> when the avatar was set by this call; <c>false</c> when it was left untouched.</returns>
+    public bool SetAvatarIfMissing(string? candidateUrl)
+    {
+        if (Status == UserStatus.Deleted || !string.IsNullOrWhiteSpace(AvatarUrl))
+        {
+            return false;
+        }
+
+        var trimmed = candidateUrl?.Trim();
+        if (string.IsNullOrEmpty(trimmed)
+            || trimmed.Length > AvatarUrlMaxLength
+            || !Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttps
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || trimmed.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
+        {
+            return false;
+        }
+
+        AvatarUrl = trimmed;
+
+        return true;
     }
 
     public void EnableTwoFactor() => TwoFactorEnabled = true;

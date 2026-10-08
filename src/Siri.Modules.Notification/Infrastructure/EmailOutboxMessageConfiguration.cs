@@ -38,6 +38,12 @@ public sealed class EmailOutboxMessageConfiguration : IEntityTypeConfiguration<E
 
         builder.Property(m => m.LastError).HasMaxLength(2000);
 
+        // P11-04 (docs/contracts/P11-04-live-invites-ics-reminders.md §2.1): optional iCalendar part —
+        // additive nullable columns, existing rows are plain emails. The ICS document is unbounded text
+        // (a batch invite carries up to ~50 VEVENTs); METHOD is REQUEST|CANCEL|PUBLISH.
+        builder.Property(m => m.CalendarIcs).HasColumnType("text");
+        builder.Property(m => m.CalendarMethod).HasMaxLength(10);
+
         // Supports the sender job's exact due-message query (Infrastructure/EmailOutboxSenderJob.cs):
         // Status == Pending OR (Status == Failed AND NextRetryAtUtc <= now). Status leads the index
         // so both branches of the OR can seek on it; NextRetryAtUtc as the second key column then

@@ -29,6 +29,30 @@ public sealed class PayoutOptionsGuardTests
     }
 
     [Fact]
+    public void GetPayerInfoProblems_ValidOptions_ReturnsNoProblems()
+    {
+        Assert.Empty(PayoutOptionsGuard.GetPayerInfoProblems(ValidOptions()));
+    }
+
+    [Fact]
+    public void GetPayerInfoProblems_AllPlaceholders_ReportsEachSettingWithoutThrowing()
+    {
+        var options = new PayoutOptions
+        {
+            PayerCompanyName = PayoutOptionsGuard.PlaceholderPayerCompanyName,
+            PayerTaxId = PayoutOptionsGuard.PlaceholderPayerTaxId,
+            PayerAddress = "CHANGE_ME",
+        };
+
+        var problems = PayoutOptionsGuard.GetPayerInfoProblems(options);
+
+        Assert.Equal(3, problems.Count);
+        Assert.Contains(problems, p => p.Contains("Payout:PayerCompanyName", StringComparison.Ordinal));
+        Assert.Contains(problems, p => p.Contains("Payout:PayerTaxId", StringComparison.Ordinal));
+        Assert.Contains(problems, p => p.Contains("Payout:PayerAddress", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void EnsureRealPayerInfoConfigured_NullOptions_ThrowsArgumentNullException()
     {
         Assert.Throws<ArgumentNullException>(() => PayoutOptionsGuard.EnsureRealPayerInfoConfigured(null!));

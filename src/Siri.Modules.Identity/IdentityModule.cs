@@ -10,6 +10,7 @@ using Siri.Modules.Identity.Features.Admin;
 using Siri.Modules.Identity.Features.AnonymizeAccount;
 using Siri.Modules.Identity.Features.DataExport;
 using Siri.Modules.Identity.Features.ForgotPassword;
+using Siri.Modules.Identity.Features.GetMe;
 using Siri.Modules.Identity.Features.GoogleLogin;
 using Siri.Modules.Identity.Features.ListSessions;
 using Siri.Modules.Identity.Features.Login;
@@ -155,6 +156,7 @@ public static class IdentityModule
         services.AddScoped<RevokeAllSessionsHandler>();
         services.AddScoped<DataExportHandler>();
         services.AddScoped<AnonymizeAccountHandler>();
+        services.AddScoped<GetMeHandler>();
 
         // Admin ops handlers (P6-06)
         services.AddScoped<Features.Admin.GetAdminUsers.GetAdminUsersHandler>();

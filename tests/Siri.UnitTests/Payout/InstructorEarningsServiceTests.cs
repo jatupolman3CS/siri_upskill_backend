@@ -56,6 +56,7 @@ public sealed class InstructorEarningsServiceTests
     {
         public readonly Dictionary<Guid, PAYOUT_BATCH> Batches = [];
         public readonly List<InstructorPayoutHistoryItem> HistoryItems = [];
+        public readonly List<Guid> HistoryRequestedFor = [];
 
         public Task<PAYOUT_BATCH?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(Batches.TryGetValue(id, out var batch) ? batch : null);
@@ -69,47 +70,141 @@ public sealed class InstructorEarningsServiceTests
             Guid instructorId,
             int page,
             int pageSize,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<InstructorPayoutHistoryItem>>(HistoryItems);
+            CancellationToken cancellationToken)
+        {
+            HistoryRequestedFor.Add(instructorId);
+            return Task.FromResult<IReadOnlyList<InstructorPayoutHistoryItem>>(HistoryItems);
+        }
 
-        public Task<int> CountPayoutHistoryForInstructorAsync(Guid instructorId, CancellationToken cancellationToken) =>
-            Task.FromResult(HistoryItems.Count);
+        public Task<int> CountPayoutHistoryForInstructorAsync(Guid instructorId, CancellationToken cancellationToken)
+        {
+            HistoryRequestedFor.Add(instructorId);
+            return Task.FromResult(HistoryItems.Count);
+        }
 
         public void Add(PAYOUT_BATCH batch) => Batches[batch.PAYOUT_BATCH_ID] = batch;
 
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
+    private static InstructorPayoutHistoryItem HistoryItem() => new(
+        Guid.NewGuid(),
+        "2026-07",
+        5000m,
+        4850m,
+        150m,
+        DateTime.UtcNow,
+        PayoutBatchItemStatus.Transferred.ToString(),
+        DateTime.UtcNow);
+
     [Fact]
-    public async Task GetEarningsSummaryAsync_CalculatesMetricsCorrectly()
+    public async Task GetEarningsSummaryAsync_CalculatesMetricsCorrectly_ForTheProfileOfTheCallingUser()
     {
         var splitRepo = new FakeRevenueSplitRepository();
         var batchRepo = new FakePayoutBatchRepository();
+        var profiles = new FakeInstructorProfileReader();
 
-        var instructorId = Guid.NewGuid();
+        // The money is keyed by the instructor PROFILE id; the caller arrives as a (different) USER id.
+        var userId = Guid.NewGuid();
+        var profileId = profiles.Map(userId, Guid.NewGuid());
 
-        var split1 = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorId, 1000m, 30m, 291m, 679m, 70m, "2026-08");
-        var split2 = REVENUE_SPLIT.Create(Guid.NewGuid(), instructorId, 2000m, 60m, 582m, 1358m, 70m, "2026-08");
-        splitRepo.Add(split1);
-        splitRepo.Add(split2);
+        splitRepo.Add(REVENUE_SPLIT.Create(Guid.NewGuid(), profileId, 1000m, 30m, 291m, 679m, 70m, "2026-08"));
+        splitRepo.Add(REVENUE_SPLIT.Create(Guid.NewGuid(), profileId, 2000m, 60m, 582m, 1358m, 70m, "2026-08"));
+        batchRepo.HistoryItems.Add(HistoryItem());
 
-        batchRepo.HistoryItems.Add(new InstructorPayoutHistoryItem(
-            Guid.NewGuid(),
-            "2026-07",
-            5000m,
-            4850m,
-            150m,
-            DateTime.UtcNow,
-            PayoutBatchItemStatus.Transferred.ToString(),
-            DateTime.UtcNow));
-
-        var service = new InstructorEarningsService(splitRepo, batchRepo);
-        var summary = await service.GetEarningsSummaryAsync(instructorId, CancellationToken.None);
+        var service = new InstructorEarningsService(splitRepo, batchRepo, profiles);
+        var summary = await service.GetEarningsSummaryAsync(userId, CancellationToken.None);
 
         Assert.Equal(679m + 1358m, summary.CumulativeEarnings);
         Assert.Equal(679m + 1358m, summary.EstimatedNextPayoutAmount);
         Assert.Equal(4850m, summary.LatestPayoutAmount);
         Assert.Single(summary.History);
         Assert.Equal(4850m, summary.History[0].NetAmount);
+        Assert.Equal(new[] { profileId }, batchRepo.HistoryRequestedFor.Distinct()); // the payout history is read for the profile, not the user id
+    }
+
+    [Fact]
+    public async Task GetEarningsSummaryAsync_NeverReadsMoneyKeyedByTheUserId()
+    {
+        var splitRepo = new FakeRevenueSplitRepository();
+        var batchRepo = new FakePayoutBatchRepository();
+        var profiles = new FakeInstructorProfileReader();
+
+        var userId = Guid.NewGuid();
+        profiles.Map(userId, Guid.NewGuid());
+
+        // A row whose instructor id equals the caller USER id is not theirs by any contract and must not be summed.
+        splitRepo.Add(REVENUE_SPLIT.Create(Guid.NewGuid(), userId, 1000m, 30m, 291m, 679m, 70m, "2026-08"));
+
+        var summary = await new InstructorEarningsService(splitRepo, batchRepo, profiles).GetEarningsSummaryAsync(userId, CancellationToken.None);
+
+        Assert.Equal(0m, summary.CumulativeEarnings);
+        Assert.Equal(0m, summary.EstimatedNextPayoutAmount);
+    }
+
+    [Fact]
+    public async Task GetEarningsSummaryAsync_InstructorBSeesOnlyTheirOwnProfilesMoney()
+    {
+        var splitRepo = new FakeRevenueSplitRepository();
+        var batchRepo = new FakePayoutBatchRepository();
+        var profiles = new FakeInstructorProfileReader();
+
+        var userA = Guid.NewGuid();
+        var userB = Guid.NewGuid();
+        var profileA = profiles.Map(userA, Guid.NewGuid());
+        var profileB = profiles.Map(userB, Guid.NewGuid());
+        splitRepo.Add(REVENUE_SPLIT.Create(Guid.NewGuid(), profileA, 90_000m, 0m, 27_000m, 63_000m, 70m, "2026-08"));
+        splitRepo.Add(REVENUE_SPLIT.Create(Guid.NewGuid(), profileB, 1000m, 0m, 300m, 700m, 70m, "2026-08"));
+
+        var summary = await new InstructorEarningsService(splitRepo, batchRepo, profiles).GetEarningsSummaryAsync(userB, CancellationToken.None);
+
+        Assert.Equal(700m, summary.CumulativeEarnings);
+    }
+
+    [Fact]
+    public async Task GetEarningsSummaryAsync_UserWithoutProfile_IsZeroAndAsksForNoPayoutHistory()
+    {
+        var splitRepo = new FakeRevenueSplitRepository();
+        var batchRepo = new FakePayoutBatchRepository();
+        batchRepo.HistoryItems.Add(HistoryItem());
+
+        var summary = await new InstructorEarningsService(splitRepo, batchRepo, new FakeInstructorProfileReader())
+            .GetEarningsSummaryAsync(Guid.NewGuid(), CancellationToken.None);
+
+        Assert.Equal(0m, summary.CumulativeEarnings);
+        Assert.Equal(0m, summary.LatestPayoutAmount);
+        Assert.Equal(0m, summary.EstimatedNextPayoutAmount);
+        Assert.Empty(summary.History);
+        Assert.Empty(batchRepo.HistoryRequestedFor);
+    }
+
+    [Fact]
+    public async Task GetPayoutHistoryAsync_ReadsTheHistoryOfTheCallersProfile()
+    {
+        var batchRepo = new FakePayoutBatchRepository();
+        batchRepo.HistoryItems.Add(HistoryItem());
+        var profiles = new FakeInstructorProfileReader();
+        var userId = Guid.NewGuid();
+        var profileId = profiles.Map(userId, Guid.NewGuid());
+
+        var page = await new InstructorEarningsService(new FakeRevenueSplitRepository(), batchRepo, profiles)
+            .GetPayoutHistoryAsync(userId, 1, 20, CancellationToken.None);
+
+        Assert.Single(page.Items);
+        Assert.Equal(new[] { profileId }, batchRepo.HistoryRequestedFor.Distinct());
+    }
+
+    [Fact]
+    public async Task GetPayoutHistoryAsync_UserWithoutProfile_GetsAnEmptyPage()
+    {
+        var batchRepo = new FakePayoutBatchRepository();
+        batchRepo.HistoryItems.Add(HistoryItem());
+
+        var page = await new InstructorEarningsService(new FakeRevenueSplitRepository(), batchRepo, new FakeInstructorProfileReader())
+            .GetPayoutHistoryAsync(Guid.NewGuid(), 1, 20, CancellationToken.None);
+
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.TotalCount);
+        Assert.Empty(batchRepo.HistoryRequestedFor);
     }
 }

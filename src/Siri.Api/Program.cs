@@ -28,6 +28,7 @@ using Siri.Modules.Identity;
 using Siri.Modules.Identity.Infrastructure;
 using Siri.Modules.Identity.Infrastructure.Seeding;
 using Siri.Modules.Learning;
+using Siri.Modules.Live;
 using Siri.Modules.Media;
 using Siri.Modules.Media.Infrastructure.Seeding;
 using Siri.Modules.Notification;
@@ -177,46 +178,9 @@ try
         });
     });
 
-    builder.Services.AddRateLimiter(options =>
-    {
-        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-
-        // "auth": applied via .RequireRateLimiting("auth") on Identity's Register/ConfirmEmail (P0-15)
-        // and now Login/Refresh (P0-16) too. Still global/unpartitioned (not per-IP/per-key), so it
-        // throttles each endpoint as a whole rather than each caller individually — partitioning is a
-        // separate, cross-cutting change since it would affect every endpoint already on this policy.
-        options.AddFixedWindowLimiter("auth", limiter =>
-        {
-            limiter.Window = TimeSpan.FromMinutes(1);
-            // Local navigation and reloads share this limiter with login and token refresh.
-            limiter.PermitLimit = builder.Environment.IsDevelopment() ? 100 : 5;
-            limiter.QueueLimit = 0;
-        });
-
-        // "default": not yet applied to any endpoint — reserved for non-auth public endpoints
-        // (browse/catalog) once they need one, per ARCHITECTURE.md §2 "Rate limit".
-        options.AddFixedWindowLimiter("default", limiter =>
-        {
-            limiter.Window = TimeSpan.FromMinutes(1);
-            limiter.PermitLimit = 100;
-            limiter.QueueLimit = 0;
-        });
-
-        // "webhook": applied via .RequireRateLimiting("webhook") on payment webhook endpoints (P3-04).
-        options.AddFixedWindowLimiter("webhook", limiter =>
-        {
-            limiter.Window = TimeSpan.FromMinutes(1);
-            limiter.PermitLimit = 120;
-            limiter.QueueLimit = 0;
-        });
-
-        // "heartbeat": applied to playback progress heartbeat endpoints (X-29). Partitioned per user
-        // so that concurrent learners never exhaust a global quota. 6 requests per 30 seconds allows
-        // the normal 15s interval (2 requests/30s) plus bursts from seek/resume events.
-        options.AddPolicy<string>(
-            RateLimiterConfiguration.HeartbeatPolicyName,
-            RateLimiterConfiguration.CreateHeartbeatPartition);
-    });
+    // Policies, per-user partitions and the 429 response (ProblemDetails + Retry-After + Cache-Control: no-store, never an empty body)
+    // live in RateLimiterConfiguration.Configure so a unit/integration test can exercise the exact production configuration.
+    builder.Services.AddRateLimiter(options => RateLimiterConfiguration.Configure(options, builder.Environment.IsDevelopment()));
 
     builder.Services.AddHealthChecks();
 
@@ -346,6 +310,7 @@ try
         .AddCmsModule()
         .AddCommunityModule()
         .AddNotificationModule(builder.Configuration)
+        .AddLiveModule(builder.Configuration)
         .AddAnalyticsModule();
 
     builder.Services.AddControllers(options =>
@@ -386,6 +351,18 @@ try
         {
             Log.Fatal("Seeding is strictly forbidden in Production environment.");
             throw new InvalidOperationException("Seeding is strictly forbidden in Production environment.");
+        }
+
+        // The seeders fabricate accounts, courses and media (sample data by design). Real-data-only
+        // environments (QA, staging, ...) must never receive them by accident, so anything other than
+        // Development needs an explicit, deliberate flag.
+        if (!app.Environment.IsDevelopment() && !args.Contains("--allow-non-development-seed", StringComparer.OrdinalIgnoreCase))
+        {
+            const string message =
+                "Seeding writes SAMPLE data and runs only in the Development environment. " +
+                "Pass --allow-non-development-seed to override this explicitly (never in Production).";
+            Log.Fatal(message);
+            throw new InvalidOperationException(message);
         }
 
         await using var seedScope = app.Services.CreateAsyncScope();

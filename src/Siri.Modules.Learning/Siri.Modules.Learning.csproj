@@ -14,6 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lets unit tests assert on the real data CertificateService prints (BuildPdfDataAsync) without
+         parsing compressed PDF bytes. -->
+    <InternalsVisibleTo Include="Siri.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Needed for IEndpointRouteBuilder/IServiceCollection endpoint-mapping extension points in
          {Module}Module.cs. Modules stay class libraries (not Sdk.Web) — this only pulls in the
          ASP.NET Core types, not a web host. -->

@@ -10,6 +10,19 @@ public sealed record ReceiptPdfItem(
     decimal UnitPrice,
     decimal LineTotal);
 
+/// <summary>
+/// The seller printed in the receipt header — always the real, configured legal entity
+/// (<see cref="ReceiptSellerOptions"/>). <see cref="BranchLabel"/>, <see cref="ContactEmail"/> and
+/// <see cref="Website"/> are optional and omitted from the page when null/blank.
+/// </summary>
+public sealed record ReceiptSellerInfo(
+    string CompanyName,
+    string? BranchLabel,
+    string TaxId,
+    string Address,
+    string? ContactEmail,
+    string? Website);
+
 public sealed record ReceiptPdfData(
     string DocumentTitle,
     string DocumentNumber,
@@ -23,7 +36,8 @@ public sealed record ReceiptPdfData(
     decimal SubtotalAmount,
     decimal DiscountAmount,
     decimal TaxAmount,
-    decimal TotalAmount);
+    decimal TotalAmount,
+    ReceiptSellerInfo Seller);
 
 public static class ReceiptPdfGenerator
 {
@@ -54,11 +68,32 @@ public static class ReceiptPdfGenerator
                         // Company Info
                         row.RelativeItem(3).Column(c =>
                         {
+                            // Seller identity is the configured legal entity — never a built-in company.
+                            var seller = data.Seller;
+                            var sellerName = string.IsNullOrWhiteSpace(seller.BranchLabel)
+                                ? seller.CompanyName
+                                : $"{seller.CompanyName} ({seller.BranchLabel})";
+
                             c.Item().Text("SIRI UPSKILL ACADEMY").FontSize(16).Bold().FontColor(Colors.Blue.Darken3);
-                            c.Item().Text("บริษัท สิริ อัพสกิล จำกัด (สำนักงานใหญ่)").FontSize(10).SemiBold();
-                            c.Item().Text("เลขประจำตัวผู้เสียภาษี: 0105567012345").FontSize(8).FontColor(Colors.Grey.Darken1);
-                            c.Item().Text("999 ถนนพญาไท แขวงวังใหม่ เขตปทุมวัน กรุงเทพฯ 10330").FontSize(8).FontColor(Colors.Grey.Darken1);
-                            c.Item().Text("อีเมล: support@siriupskill.com | เว็บไซต์: www.siriupskill.com").FontSize(8).FontColor(Colors.Grey.Darken1);
+                            c.Item().Text(sellerName).FontSize(10).SemiBold();
+                            c.Item().Text($"เลขประจำตัวผู้เสียภาษี: {seller.TaxId}").FontSize(8).FontColor(Colors.Grey.Darken1);
+                            c.Item().Text(seller.Address).FontSize(8).FontColor(Colors.Grey.Darken1);
+
+                            var contactParts = new List<string>();
+                            if (!string.IsNullOrWhiteSpace(seller.ContactEmail))
+                            {
+                                contactParts.Add($"อีเมล: {seller.ContactEmail}");
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(seller.Website))
+                            {
+                                contactParts.Add($"เว็บไซต์: {seller.Website}");
+                            }
+
+                            if (contactParts.Count > 0)
+                            {
+                                c.Item().Text(string.Join(" | ", contactParts)).FontSize(8).FontColor(Colors.Grey.Darken1);
+                            }
                         });
 
                         // Document Title & Metadata

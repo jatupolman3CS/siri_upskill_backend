@@ -14,6 +14,7 @@
     <ProjectReference Include="..\Siri.Modules.Community\Siri.Modules.Community.csproj" />
     <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
     <ProjectReference Include="..\Siri.Modules.Analytics\Siri.Modules.Analytics.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Live\Siri.Modules.Live.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Siri.Integrations.Video;
 using Siri.Modules.Media.Application;
 using Siri.Modules.Media.Domain;
@@ -42,6 +43,7 @@ public sealed class MediaAssetServiceTests
         public bool CreateSuccess = true;
         public string CreatedVideoId = "bunny-vid-999";
         public bool DeleteCalled;
+        public Result DeleteResult = Result.Success();
         public VideoProcessingStatus Status { get; set; } = VideoProcessingStatus.Ready;
         public int StatusCalls { get; private set; }
 
@@ -68,7 +70,7 @@ public sealed class MediaAssetServiceTests
         public Task<Result> DeleteVideoAsync(string providerVideoId, CancellationToken cancellationToken)
         {
             DeleteCalled = true;
-            return Task.FromResult(Result.Success());
+            return Task.FromResult(DeleteResult);
         }
 
         public Task<Result<SignedPlaybackUrl>> GetSignedPlaybackUrlAsync(
@@ -87,7 +89,7 @@ public sealed class MediaAssetServiceTests
         var repo = new FakeMediaAssetRepository();
         var provider = new FakeVideoProvider();
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new MediaAssetService(repo, provider, clock);
+        var service = new MediaAssetService(repo, provider, clock, NullLogger<MediaAssetService>.Instance);
 
         var uploaderId = Guid.NewGuid();
         var result = await service.CreateAsync(uploaderId, new CreateMediaAssetCommand("My Video Lesson"), CancellationToken.None);
@@ -105,7 +107,7 @@ public sealed class MediaAssetServiceTests
         var repo = new FakeMediaAssetRepository();
         var provider = new FakeVideoProvider();
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new MediaAssetService(repo, provider, clock);
+        var service = new MediaAssetService(repo, provider, clock, NullLogger<MediaAssetService>.Instance);
 
         var ownerId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
@@ -129,7 +131,7 @@ public sealed class MediaAssetServiceTests
         var repo = new FakeMediaAssetRepository();
         var provider = new FakeVideoProvider { Status = providerStatus };
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new MediaAssetService(repo, provider, clock);
+        var service = new MediaAssetService(repo, provider, clock, NullLogger<MediaAssetService>.Instance);
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
         repo.Add(asset);
 
@@ -148,7 +150,7 @@ public sealed class MediaAssetServiceTests
         var repo = new FakeMediaAssetRepository();
         var provider = new FakeVideoProvider { Status = VideoProcessingStatus.Uploading };
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new MediaAssetService(repo, provider, clock);
+        var service = new MediaAssetService(repo, provider, clock, NullLogger<MediaAssetService>.Instance);
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
         asset.MarkReady("vid-1", 120, null, clock);
         repo.Add(asset);
@@ -165,7 +167,7 @@ public sealed class MediaAssetServiceTests
         var repo = new FakeMediaAssetRepository();
         var provider = new FakeVideoProvider();
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new MediaAssetService(repo, provider, clock);
+        var service = new MediaAssetService(repo, provider, clock, NullLogger<MediaAssetService>.Instance);
 
         var ownerId = Guid.NewGuid();
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", ownerId, true);
@@ -176,5 +178,67 @@ public sealed class MediaAssetServiceTests
         Assert.True(result.IsSuccess);
         Assert.True(provider.DeleteCalled);
         Assert.Empty(repo.Assets);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenProviderDeleteFails_ReturnsProviderErrorAndKeepsAsset()
+    {
+        var repo = new FakeMediaAssetRepository();
+        var providerError = new DomainError("video.provider_not_configured", "Video provider is not configured.");
+        var provider = new FakeVideoProvider { DeleteResult = Result.Failure(providerError) };
+        var service = new MediaAssetService(repo, provider, new FakeClock(DateTime.UtcNow), NullLogger<MediaAssetService>.Instance);
+
+        var ownerId = Guid.NewGuid();
+        var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", ownerId, true);
+        repo.Add(asset);
+
+        var result = await service.DeleteAsync(ownerId, asset.MEDIA_ASSET_ID, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(providerError, result.Error);
+        Assert.True(provider.DeleteCalled);
+        // The row must survive so the orphaned provider video stays discoverable and the delete retriable.
+        Assert.Single(repo.Assets);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_ProviderFailsThenSucceeds_SecondAttemptRemovesAsset()
+    {
+        var repo = new FakeMediaAssetRepository();
+        var provider = new FakeVideoProvider
+        {
+            DeleteResult = Result.Failure(new DomainError("video.provider_error", "Bunny is down.")),
+        };
+        var service = new MediaAssetService(repo, provider, new FakeClock(DateTime.UtcNow), NullLogger<MediaAssetService>.Instance);
+
+        var ownerId = Guid.NewGuid();
+        var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", ownerId, true);
+        repo.Add(asset);
+
+        var first = await service.DeleteAsync(ownerId, asset.MEDIA_ASSET_ID, CancellationToken.None);
+        provider.DeleteResult = Result.Success();
+        var second = await service.DeleteAsync(ownerId, asset.MEDIA_ASSET_ID, CancellationToken.None);
+
+        Assert.True(first.IsFailure);
+        Assert.True(second.IsSuccess);
+        Assert.Empty(repo.Assets);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WithDifferentUser_ReturnsForbiddenWithoutTouchingProvider()
+    {
+        var repo = new FakeMediaAssetRepository();
+        var provider = new FakeVideoProvider();
+        var service = new MediaAssetService(repo, provider, new FakeClock(DateTime.UtcNow), NullLogger<MediaAssetService>.Instance);
+
+        var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
+        repo.Add(asset);
+
+        var result = await service.DeleteAsync(Guid.NewGuid(), asset.MEDIA_ASSET_ID, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("forbidden", result.Error.Code);
+        Assert.False(provider.DeleteCalled);
+        Assert.Single(repo.Assets);
     }
 }

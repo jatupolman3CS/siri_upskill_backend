@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Siri.Integrations.Video;
 using Siri.Modules.Media.Domain;
 using Siri.SharedKernel;
@@ -11,7 +12,8 @@ namespace Siri.Modules.Media.Application;
 public sealed class MediaAssetService(
     IMediaAssetRepository repository,
     IVideoProvider videoProvider,
-    IClock clock)
+    IClock clock,
+    ILogger<MediaAssetService> logger)
 {
     public const int DefaultPageSize = 20;
     public const int MaxPageSize = 100;
@@ -133,7 +135,20 @@ public sealed class MediaAssetService(
             return Result.Failure(DomainError.Forbidden("You do not own this media asset."));
         }
 
-        await videoProvider.DeleteVideoAsync(asset.PROVIDER_ASSET_ID, cancellationToken).ConfigureAwait(false);
+        // The provider copy is removed FIRST and its outcome decides what happens next. Removing only the
+        // database row while the provider still hosts (and bills for) the DRM-protected video would orphan
+        // that video with no record left to find it again — so a failed provider delete (misconfiguration,
+        // outage, rejected request) aborts here, keeps the row, and tells the caller the truth. The call is
+        // safe to retry: BunnyVideoProvider.DeleteVideoAsync already treats "video not found" as success,
+        // so a retry after a half-finished attempt (provider deleted, DB save failed) converges.
+        var providerDelete = await videoProvider.DeleteVideoAsync(asset.PROVIDER_ASSET_ID, cancellationToken).ConfigureAwait(false);
+        if (providerDelete.IsFailure)
+        {
+            logger.LogWarning(
+                "Media asset {MediaAssetId} was NOT deleted: the video provider refused to delete {Provider} video {ProviderAssetId} ({ErrorCode}).",
+                asset.MEDIA_ASSET_ID, asset.PROVIDER, asset.PROVIDER_ASSET_ID, providerDelete.Error.Code);
+            return Result.Failure(providerDelete.Error);
+        }
 
         repository.Remove(asset);
         await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

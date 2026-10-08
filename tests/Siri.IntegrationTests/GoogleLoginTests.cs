@@ -118,6 +118,78 @@ public sealed class GoogleLoginTests : IAsyncLifetime
         Assert.True(await db.RefreshTokens().AnyAsync(t => t.UserId == user.Id && t.RevokedAtUtc == null));
     }
 
+    private async Task<string?> AvatarOfAsync(string email)
+    {
+        await using var scope = _serviceProvider.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var normalized = email.ToUpperInvariant();
+
+        return (await db.Users().AsNoTracking().SingleAsync(u => u.NormalizedEmail == normalized)).AvatarUrl;
+    }
+
+    [Fact]
+    public async Task SignIn_NewGoogleUserWithHttpsPicture_StoresItAsTheAvatar()
+    {
+        var email = NewEmail();
+        const string picture = "https://lh3.googleusercontent.com/a/new-user=s96-c";
+
+        var result = await SignInAsync(new GoogleIdentity($"sub-{Guid.NewGuid():N}", email, true, "Pic Person", picture));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(picture, await AvatarOfAsync(email));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("http://lh3.googleusercontent.com/a/insecure")]
+    [InlineData("javascript:alert(1)")]
+    public async Task SignIn_NewGoogleUserWithMissingOrUnusablePicture_StillSucceedsWithNoAvatar(string? picture)
+    {
+        var email = NewEmail();
+
+        var result = await SignInAsync(new GoogleIdentity($"sub-{Guid.NewGuid():N}", email, true, "No Pic", picture));
+
+        Assert.True(result.IsSuccess); // a bad picture must never fail the sign-in itself
+        Assert.Null(await AvatarOfAsync(email));
+    }
+
+    [Fact]
+    public async Task SignIn_ReturningUserWithoutAvatar_GetsItFilledOnTheNextSignIn()
+    {
+        var email = NewEmail();
+        var subject = $"sub-{Guid.NewGuid():N}";
+        Assert.True((await SignInAsync(new GoogleIdentity(subject, email, true, "Later Pic", null))).IsSuccess);
+        Assert.Null(await AvatarOfAsync(email));
+
+        const string picture = "https://lh3.googleusercontent.com/a/later=s96-c";
+        Assert.True((await SignInAsync(new GoogleIdentity(subject, email, true, "Later Pic", picture))).IsSuccess);
+
+        Assert.Equal(picture, await AvatarOfAsync(email));
+    }
+
+    [Fact]
+    public async Task SignIn_UserWhoAlreadyHasAnAvatar_NeverGetsItOverwrittenByGoogle()
+    {
+        var email = NewEmail();
+        const string original = "https://cdn.example.test/chosen-by-user.png";
+        await using (var seedScope = _serviceProvider.CreateAsyncScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var clock = seedScope.ServiceProvider.GetRequiredService<IClock>();
+            var user = USER.Register(email, email.ToUpperInvariant(), "placeholder", "Has Avatar");
+            user.ConfirmEmail(clock);
+            Assert.True(user.SetAvatarIfMissing(original));
+            db.Users().Add(user);
+            await db.SaveChangesAsync();
+        }
+
+        var result = await SignInAsync(new GoogleIdentity(
+            $"sub-{Guid.NewGuid():N}", email, true, "Has Avatar", "https://lh3.googleusercontent.com/a/other=s96-c"));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(original, await AvatarOfAsync(email));
+    }
+
     [Fact]
     public async Task SignIn_SecondTimeWithSameGoogleAccount_ReusesTheUserInsteadOfCreatingAnother()
     {

@@ -26,7 +26,7 @@ public sealed record CourseReviewItemResponse(
     Guid Id,
     Guid CourseId,
     Guid UserId,
-    string UserName,
+    string? UserName,
     int Rating,
     string? Comment,
     DateTime CreatedAtUtc);
@@ -94,7 +94,7 @@ public sealed class GetCourseReviewsHandler(
                 r.Id,
                 r.CourseId,
                 r.UserId,
-                contact.DisplayName ?? "ผู้เรียน",
+                string.IsNullOrWhiteSpace(contact.DisplayName) ? null : contact.DisplayName,
                 r.Rating,
                 r.Comment,
                 r.CreatedAtUtc);

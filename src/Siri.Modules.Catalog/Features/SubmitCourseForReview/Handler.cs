@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -24,7 +25,11 @@ namespace Siri.Modules.Catalog.Features.SubmitCourseForReview;
 /// own doc comment gives for why it needed the same extension.
 /// </para>
 /// </summary>
-public sealed class SubmitCourseForReviewHandler(AppDbContext dbContext, IMediaAssetContract mediaAssets, IClock clock)
+public sealed class SubmitCourseForReviewHandler(
+    AppDbContext dbContext,
+    IMediaAssetContract mediaAssets,
+    IClock clock,
+    ILiveMeetingReadinessReader liveMeetingReadiness)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
     private static readonly DomainError NotOwnerError = DomainError.Forbidden("คุณไม่มีสิทธิ์ส่งคอร์สนี้เข้าตรวจสอบ");
@@ -89,6 +94,13 @@ public sealed class SubmitCourseForReviewHandler(AppDbContext dbContext, IMediaA
         if (mediaReadiness.IsFailure)
         {
             return Result.Failure<SubmitCourseForReviewResponse>(mediaReadiness.Error);
+        }
+
+        // P11-03: every future scheduled class of a Live/Hybrid course must already have a usable online room.
+        var meetingReadiness = await LiveMeetingReadinessGate.ValidateAsync(course, liveMeetingReadiness, clock, cancellationToken).ConfigureAwait(false);
+        if (meetingReadiness.IsFailure)
+        {
+            return Result.Failure<SubmitCourseForReviewResponse>(meetingReadiness.Error);
         }
 
         course.SubmitForReview(clock);

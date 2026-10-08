@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Siri.Modules.Catalog.Features;
 using Siri.Modules.Catalog.Features.ApplyAsInstructor;
 using Siri.Modules.Catalog.Features.ApproveCourse;
@@ -209,15 +210,24 @@ public static class CatalogModule
         services.AddScoped<Features.Wishlist.AddToWishlistHandler>();
         services.AddScoped<Features.Wishlist.RemoveFromWishlistHandler>();
 
-        // Virus scanner seam (P4-03)
-        services.AddSingleton<Contracts.IAttachmentVirusScanner, Infrastructure.NullAttachmentVirusScanner>();
+        // Virus scanner seam (P4-03). No scanning engine is integrated yet, so this default never claims a
+        // file is clean: Attachments:VirusScan:Mode=Required (default) refuses the upload, Disabled is an
+        // explicit, logged opt-in (Production refuses to boot with it). Register a real engine over this
+        // to replace it.
+        services.AddOptions<AttachmentVirusScanOptions>()
+            .Bind(configuration.GetSection(AttachmentVirusScanOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<Contracts.IAttachmentVirusScanner, Infrastructure.UnconfiguredAttachmentVirusScanner>();
 
-        // P11-01: live-session cross-module seams. ILiveMeetingSink has no real implementation yet
-        // (Siri.Modules.Live, task P11-03) — NullLiveMeetingSink lets P11-02's handlers call it safely
-        // from day one; Siri.Modules.Live will register its own implementation over this once it exists.
+        // P11-01/P11-03: live-session cross-module seams. ILiveMeetingSink / ILiveMeetingReadinessReader are
+        // implemented by Siri.Modules.Live (registered Scoped there with a plain AddScoped, which wins as the
+        // last registration); the Null defaults below use TryAdd* so hosts/tests that do not load Live still work
+        // and the result does not depend on whether AddCatalogModule or AddLiveModule runs first.
         // ILiveScheduleReader IS implemented here (Catalog owns the schedule data) — see
         // LiveScheduleReader's own doc comment.
-        services.AddSingleton<Contracts.ILiveMeetingSink, Infrastructure.NullLiveMeetingSink>();
+        services.TryAddSingleton<Contracts.ILiveMeetingSink, Infrastructure.NullLiveMeetingSink>();
+        services.TryAddScoped<Contracts.ILiveMeetingReadinessReader, Infrastructure.NullLiveMeetingReadinessReader>();
         services.AddScoped<Contracts.ILiveScheduleReader, Infrastructure.LiveScheduleReader>();
 
         // P11-02: Instructor live-session API
@@ -230,20 +240,37 @@ public static class CatalogModule
         services.AddScoped<UpdateLiveSessionHandler>();
         services.AddScoped<CancelLiveSessionHandler>();
         services.AddScoped<SetCourseDeliveryFormatHandler>();
+        services.AddScoped<Features.GetCourseLiveSchedule.GetCourseLiveScheduleHandler>(); // P11-05 §4.5
 
         // P11-11: enrollment deadline + seat cap (Q13.1/Q13.2)
         services.AddScoped<IValidator<SetCourseEnrollmentPolicyCommand>, SetCourseEnrollmentPolicyCommandValidator>();
         services.AddScoped<SetCourseEnrollmentPolicyHandler>();
 
+        // P11-04: per-course opt-in to Google Calendar attendee sync
+        services.AddScoped<IValidator<Features.SetCourseLiveSettings.SetCourseLiveSettingsCommand>, Features.SetCourseLiveSettings.SetCourseLiveSettingsCommandValidator>();
+        services.AddScoped<Features.SetCourseLiveSettings.SetCourseLiveSettingsHandler>();
+
+        // P11-06: attach a teaching recording to a finished live session (becomes an ordinary lesson = catch-up)
+        services.AddScoped<IValidator<Features.AttachSessionRecording.AttachSessionRecordingCommand>, Features.AttachSessionRecording.AttachSessionRecordingCommandValidator>();
+        services.AddScoped<Features.AttachSessionRecording.AttachSessionRecordingHandler>();
+
         // Cross-module contracts
         services.AddScoped<Contracts.ICatalogPriceContract, Infrastructure.Contracts.CatalogPriceContract>();
         services.AddScoped<Contracts.ICourseSummaryReader, Infrastructure.Contracts.CatalogPriceContract>();
         services.AddScoped<Notification.Contracts.ICourseOwnershipVerifier, Infrastructure.Contracts.CatalogPriceContract>();
+        // P11-10: instructor dashboard stats + user -> instructor-profile id resolution (money tables key by profile id).
+        services.AddScoped<Contracts.IInstructorCourseStatsReader, Infrastructure.Contracts.InstructorCourseStatsReader>();
+        services.AddScoped<Contracts.IInstructorProfileReader, Infrastructure.Contracts.InstructorProfileReader>();
 
         // Reviews (P1-08)
         services.AddScoped<CreateCourseReviewHandler>();
         services.AddScoped<GetCourseReviewsHandler>();
         services.AddScoped<Contracts.ICourseStatsUpdater, Application.CourseStatsUpdater>();
+
+        // COURSES.ENROLLMENT_COUNT: one writer (Learning calls it on enrollment transitions) + the hourly recount job (Siri.Workers registers it).
+        // The recount reads the source of truth through Contracts.ILearningEnrollmentCounter, which Siri.Modules.Learning implements.
+        services.AddScoped<Contracts.ICourseEnrollmentCountUpdater, Application.CourseEnrollmentCountUpdater>();
+        services.AddScoped<Infrastructure.CourseEnrollmentRecountJob>();
 
         // Repositories
         services.AddScoped<Application.ICourseRepository, Infrastructure.CourseRepository>();

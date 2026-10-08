@@ -114,4 +114,16 @@ public interface ILearningAccessContract
     Task<IReadOnlySet<Guid>> GetActiveEnrolledUserIdsAsync(
         Guid courseId,
         CancellationToken cancellationToken) => Task.FromResult<IReadOnlySet<Guid>>(new HashSet<Guid>());
+
+    /// <summary>
+    /// The mirror image of <see cref="GetActiveEnrolledUserIdsAsync"/>: the ids of every course <paramref name="userId"/> holds an active, unexpired enrollment
+    /// for right now — the same rule as <see cref="HasActiveEnrollmentAsync"/> (Status == Active AND (ExpiresAtUtc is null OR ExpiresAtUtc &gt; now)); expired and
+    /// revoked enrollments are not returned. Added for P11-05 (docs/contracts/P11-05-live-learner-instructor-api-join-gate.md section 3.2): "my upcoming live
+    /// classes" has to start from the learner's active courses without asking about each course one by one. Default implementation returns an empty list so any
+    /// other implementer (e.g. a test double) keeps compiling without opting in — only
+    /// <c>Infrastructure.Contracts.LearningAccessContract</c> overrides it with a real single query.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> GetActiveEnrolledCourseIdsAsync(
+        Guid userId,
+        CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Guid>>(Array.Empty<Guid>());
 }

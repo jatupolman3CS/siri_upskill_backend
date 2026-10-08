@@ -2,7 +2,6 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MimeKit;
 using Siri.SharedKernel;
 
 namespace Siri.Integrations.Email;
@@ -22,11 +21,18 @@ public sealed class SmtpEmailSender(IOptions<SmtpEmailSenderOptions> options, IL
 
         try
         {
-            using var mime = new MimeMessage();
-            mime.From.Add(new MailboxAddress(settings.FromDisplayName, settings.FromAddress));
-            mime.To.Add(MailboxAddress.Parse(message.ToAddress));
-            mime.Subject = message.Subject;
-            mime.Body = new BodyBuilder { HtmlBody = message.HtmlBody }.ToMessageBody();
+            // Everything caller-controlled is checked here, before any network I/O: a bad recipient or calendar
+            // is a fast, specific failure (email.invalid_recipient / email.invalid_calendar) that the outbox
+            // records and eventually gives up on — it never reaches the SMTP server. Neither failure logs the
+            // address or the calendar (personal data); the outbox row id in the job's own log identifies it.
+            var built = EmailMimeMessageFactory.Create(message, settings.FromAddress, settings.FromDisplayName);
+            if (built.IsFailure)
+            {
+                logger.LogWarning("Email not sent: {ErrorCode}", built.Error.Code);
+                return Result.Failure(built.Error);
+            }
+
+            using var mime = built.Value;
 
             using var client = new SmtpClient();
 

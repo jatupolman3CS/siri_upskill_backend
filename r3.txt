@@ -1,0 +1,1 @@
+{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.10","title":"คาบเรียนสดนี้จบแล้ว","status":409,"traceId":"00-2a48fe3057567437b047388424b1c65f-cbc7a26ae904a70f-01","errorCode":"conflict","reason":"live.session_ended","courseSlug":"qa-live-excel-sdthukkhuen-3-wan","recordingEpisodeId":"01a11488-1cc3-7ae3-94bd-45d57bcb0536"}

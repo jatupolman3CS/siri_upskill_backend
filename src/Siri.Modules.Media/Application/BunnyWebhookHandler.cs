@@ -28,9 +28,17 @@ public sealed class BunnyWebhookHandler(
         ReadOnlyMemory<byte> rawBody, string? version, string? algorithm, string? signature,
         CancellationToken cancellationToken)
     {
+        // A placeholder/empty signing key is a publicly-known (or empty) HMAC secret: anyone could forge
+        // a "valid" signature with it, so no webhook may be accepted until a real key is configured.
+        if (options.Value.GetMissingWebhookSettings().Count > 0)
+        {
+            logger.LogError("Bunny webhook rejected: {Setting} is missing or a placeholder.", $"{VideoProviderOptions.SectionName}:{nameof(VideoProviderOptions.ReadOnlyApiKey)}");
+            return Result.Failure(VideoProviderErrors.ProviderNotConfigured());
+        }
+
         // https://bunny.net/docs/stream/webhooks: authenticate exact bytes before JSON parsing.
         if (rawBody.Length > MaximumBodyBytes || version != "v1" || algorithm != "hmac-sha256" ||
-            string.IsNullOrWhiteSpace(options.Value.ReadOnlyApiKey) || signature is not { Length: 64 } ||
+            signature is not { Length: 64 } ||
             signature.Any(c => c is not (>= '0' and <= '9') and not (>= 'a' and <= 'f')))
         {
             return Result.Failure(new DomainError(InvalidSignature, "Invalid Bunny webhook signature."));

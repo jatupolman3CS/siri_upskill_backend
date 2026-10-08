@@ -15,6 +15,17 @@
          Commerce back, so this does not create a project cycle (same precedent as Catalog's own
          reference to Identity). -->
     <ProjectReference Include="..\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <!-- P11-12 (docs/contracts/P11-12-refund-hard-block-after-live-join.md): RefundService asks
+         Siri.Modules.Live.Contracts.ILiveAttendanceReader whether the buyer has joined a live session of a
+         course in the order. Only the Live.Contracts namespace is ever used from here (ArchitectureTests
+         enforce the module boundary). Live does not reference Commerce back, so there is no project cycle. -->
+    <ProjectReference Include="..\Siri.Modules.Live\Siri.Modules.Live.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets unit tests assert on the receipt data TaxInvoiceService prints (BuildTaxInvoiceDataAsync /
+         BuildOrderReceiptDataAsync) without parsing compressed PDF bytes. -->
+    <InternalsVisibleTo Include="Siri.UnitTests" />
   </ItemGroup>
 
   <ItemGroup>

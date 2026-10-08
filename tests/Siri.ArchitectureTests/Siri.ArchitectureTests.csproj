@@ -27,10 +27,12 @@
     <ProjectReference Include="..\..\src\Siri.Modules.Community\Siri.Modules.Community.csproj" />
     <ProjectReference Include="..\..\src\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
     <ProjectReference Include="..\..\src\Siri.Modules.Analytics\Siri.Modules.Analytics.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Live\Siri.Modules.Live.csproj" />
     <ProjectReference Include="..\..\src\Siri.Integrations.Video\Siri.Integrations.Video.csproj" />
     <ProjectReference Include="..\..\src\Siri.Integrations.Payment\Siri.Integrations.Payment.csproj" />
     <ProjectReference Include="..\..\src\Siri.Integrations.Storage\Siri.Integrations.Storage.csproj" />
     <ProjectReference Include="..\..\src\Siri.Integrations.Email\Siri.Integrations.Email.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Integrations.Google\Siri.Integrations.Google.csproj" />
   </ItemGroup>
 
   <ItemGroup>

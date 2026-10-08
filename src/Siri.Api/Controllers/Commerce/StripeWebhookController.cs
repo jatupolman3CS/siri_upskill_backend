@@ -20,6 +20,7 @@ public class StripeWebhookController : ControllerBase
     [EndpointSummary("รับ webhook event จาก Stripe")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IResult> HandleWebhook(
         [FromServices] StripeWebhookHandler handler,
         CancellationToken cancellationToken)

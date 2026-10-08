@@ -95,7 +95,8 @@ public sealed class ReceiptPdfGeneratorTests
             3500m,
             500m,
             210m,
-            3210m);
+            3210m,
+            new ReceiptSellerInfo("Test Seller Co., Ltd.", "Head Office", "0105500000001", "1 Test Road, Bangkok", "billing@seller.test", "https://seller.test"));
 
         var bytes = ReceiptPdfGenerator.GeneratePdf(data);
 
@@ -106,6 +107,31 @@ public sealed class ReceiptPdfGeneratorTests
         Assert.Equal((byte)'P', bytes[1]);
         Assert.Equal((byte)'D', bytes[2]);
         Assert.Equal((byte)'F', bytes[3]);
+    }
+
+    [Fact]
+    public void GeneratePdf_WithoutOptionalSellerFields_StillProducesValidPdf()
+    {
+        var data = new ReceiptPdfData(
+            "OFFICIAL RECEIPT",
+            "REC-1",
+            "ORD-1",
+            "Real Buyer",
+            null,
+            null,
+            DateTime.UtcNow,
+            "-",
+            [new ReceiptPdfItem("Course", 1, 100m, 100m)],
+            100m,
+            0m,
+            6.54m,
+            100m,
+            new ReceiptSellerInfo("Test Seller Co., Ltd.", null, "0105500000001", "1 Test Road, Bangkok", null, null));
+
+        var bytes = ReceiptPdfGenerator.GeneratePdf(data);
+
+        Assert.Equal((byte)'%', bytes[0]);
+        Assert.Equal((byte)'P', bytes[1]);
     }
 
     [Fact]
@@ -125,7 +151,7 @@ public sealed class ReceiptPdfGeneratorTests
         var invoice = TAX_INVOICE.Issue(order.ORDER_ID, "0105558123456", "บริษัท ลูกค้า จำกัด", "INV-555", clock);
         invoiceRepo.Invoices[invoice.TAX_INVOICE_ID] = invoice;
 
-        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
         var result = await service.GetPdfAsync(ownerId, invoice.TAX_INVOICE_ID, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -148,7 +174,7 @@ public sealed class ReceiptPdfGeneratorTests
         order.MarkPaid(clock);
         await orderRepo.AddAsync(order, CancellationToken.None);
 
-        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
         var result = await service.GetOrderReceiptPdfAsync(ownerId, order.ORDER_ID, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -168,7 +194,7 @@ public sealed class ReceiptPdfGeneratorTests
         var order = ORDER.Create("ORD-888", ownerId, 1000m, 0m, 70m, 1070m);
         await orderRepo.AddAsync(order, CancellationToken.None);
 
-        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
         var result = await service.GetOrderReceiptPdfAsync(ownerId, order.ORDER_ID, CancellationToken.None);
 
         Assert.False(result.IsSuccess);

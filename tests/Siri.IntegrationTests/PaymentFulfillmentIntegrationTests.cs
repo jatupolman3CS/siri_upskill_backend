@@ -36,6 +36,9 @@ public sealed class PaymentFulfillmentIntegrationTests(PostgresFixture fixture) 
     private const string WebhookSecret = "whsec_fulfillment_integration_test";
     private readonly IClock _clock = new SystemClock();
 
+    /// <summary>The real Catalog updater + Learning counter — what DI wires in production (Learning reports enrollment transitions to it).</summary>
+    private static Siri.Modules.Catalog.Application.CourseEnrollmentCountUpdater CountUpdater(AppDbContext db) => new(db, new LearningEnrollmentCounter(db));
+
     [Fact]
     public async Task PaidWebhook_WhenDownstreamSaveFails_RollsBackAndCanRetryExactlyOnce()
     {
@@ -125,7 +128,7 @@ public sealed class PaymentFulfillmentIntegrationTests(PostgresFixture fixture) 
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var catalog = new CatalogPriceContract(db);
             var promoRepository = new PromoCodeRepository(db);
-            var learning = new LearningAccessContract(new EnrollmentRepository(db), catalog, _clock);
+            var learning = new LearningAccessContract(new EnrollmentRepository(db), catalog, _clock, CountUpdater(db));
             var service = new OrderService(new OrderRepository(db), promoRepository, catalog,
                 new LiveScheduleReader(db),
                 new FailingEnrollmentContract(learning),
@@ -159,7 +162,7 @@ public sealed class PaymentFulfillmentIntegrationTests(PostgresFixture fixture) 
         db.Enrollments().Add(ENROLLMENT.Create(userId, Guid.NewGuid(), null, EnrollmentSource.Purchase, null, _clock));
         await db.SaveChangesAsync();
 
-        var service = new EnrollmentService(new EnrollmentRepository(db), new CertificateRepository(db), _clock, new CatalogPriceContract(db));
+        var service = new EnrollmentService(new EnrollmentRepository(db), new CertificateRepository(db), _clock, new CatalogPriceContract(db), CountUpdater(db));
         var result = await service.ListForUserAsync(userId, 1, 100, CancellationToken.None);
 
         Assert.Equal(2, result.TotalCount);
@@ -437,7 +440,7 @@ public sealed class PaymentFulfillmentIntegrationTests(PostgresFixture fixture) 
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var catalog = new CatalogPriceContract(db);
             var promoRepository = new PromoCodeRepository(db);
-            var learning = new LearningAccessContract(new EnrollmentRepository(db), catalog, _clock);
+            var learning = new LearningAccessContract(new EnrollmentRepository(db), catalog, _clock, CountUpdater(db));
             var service = new OrderService(new OrderRepository(db), promoRepository, catalog,
                 new LiveScheduleReader(db), learning,
                 new PricingEngine(catalog, new FlashSaleRepository(db), new BundleRepository(db), promoRepository, _clock), _clock,
@@ -514,7 +517,7 @@ public sealed class PaymentFulfillmentIntegrationTests(PostgresFixture fixture) 
         return new StripeWebhookHandler(new StripeWebhookEventRepository(db), new PaymentRepository(db), new OrderRepository(db),
             new PromoCodeRepository(db), new PaymentOpsQueueRepository(db), catalog,
             new LiveScheduleReader(db),
-            new LearningAccessContract(new EnrollmentRepository(db), catalog, _clock), revenue,
+            new LearningAccessContract(new EnrollmentRepository(db), catalog, _clock, CountUpdater(db)), revenue,
             scope.ServiceProvider.GetRequiredService<IEmailOutbox>(), new UserContactReader(),
             new StubPaymentMethod(chargeFee),
             Options.Create(new StripeOptions { WebhookSecret = WebhookSecret }), _clock, NullLogger<StripeWebhookHandler>.Instance);

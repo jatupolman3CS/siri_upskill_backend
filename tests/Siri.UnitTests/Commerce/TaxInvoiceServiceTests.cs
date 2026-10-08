@@ -89,7 +89,7 @@ public sealed class TaxInvoiceServiceTests
         order.MarkPaid(clock);
         await orderRepo.AddAsync(order, CancellationToken.None);
 
-        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
         var command = new IssueTaxInvoiceCommand(order.ORDER_ID, "0105558123456", "บริษัท ตัวอย่าง จำกัด");
 
         var result = await service.IssueAsync(userId, command, CancellationToken.None);
@@ -112,7 +112,7 @@ public sealed class TaxInvoiceServiceTests
         var order = ORDER.Create("ORD-123", userId, 1000m, 0m, 70m, 1070m); // Pending
         await orderRepo.AddAsync(order, CancellationToken.None);
 
-        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
         var command = new IssueTaxInvoiceCommand(order.ORDER_ID, "0105558123456", "บริษัท ตัวอย่าง จำกัด");
 
         var result = await service.IssueAsync(userId, command, CancellationToken.None);
@@ -139,7 +139,7 @@ public sealed class TaxInvoiceServiceTests
         var invoice = TAX_INVOICE.Issue(order.ORDER_ID, "0105558123456", "บริษัท ตัวอย่าง จำกัด", "INV-123", clock);
         invoiceRepo.Invoices[invoice.TAX_INVOICE_ID] = invoice;
 
-        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
 
         var result = await service.GetByIdAsync(strangerId, invoice.TAX_INVOICE_ID, CancellationToken.None);
 
@@ -163,7 +163,7 @@ public sealed class TaxInvoiceServiceTests
         var invoice = TAX_INVOICE.Issue(order.ORDER_ID, "0105558123456", "บริษัท ตัวอย่าง จำกัด", "INV-123", clock);
         invoiceRepo.Invoices[invoice.TAX_INVOICE_ID] = invoice;
 
-        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
         var result = await service.GetByOrderIdAsync(ownerId, order.ORDER_ID, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -189,10 +189,162 @@ public sealed class TaxInvoiceServiceTests
         var invoice = TAX_INVOICE.Issue(order.ORDER_ID, "0105558123456", "บริษัท ตัวอย่าง จำกัด", "INV-123", clock);
         invoiceRepo.Invoices[invoice.TAX_INVOICE_ID] = invoice;
 
-        var service = new TaxInvoiceService(invoiceRepo, orderRepo, clock);
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
         var result = await service.GetByOrderIdAsync(strangerId, order.ORDER_ID, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("not_found", result.Error.Code);
+    }
+
+    private static async Task<(FakeTaxInvoiceRepository InvoiceRepo, FakeOrderRepository OrderRepo, ORDER Order, Guid OwnerId, FakeClock Clock)> ArrangePaidOrderAsync(decimal total = 1070m)
+    {
+        var invoiceRepo = new FakeTaxInvoiceRepository();
+        var orderRepo = new FakeOrderRepository();
+        var clock = new FakeClock(new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc));
+        var ownerId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-REAL-1", ownerId, total, 0m, 70m, total);
+        order.AddItem(Guid.NewGuid(), "Real Course Title", total, total);
+        order.MarkAwaitingPayment();
+        order.MarkPaid(clock);
+        await orderRepo.AddAsync(order, CancellationToken.None);
+        return (invoiceRepo, orderRepo, order, ownerId, clock);
+    }
+
+    [Fact]
+    public async Task BuildOrderReceiptDataAsync_NoTaxInvoice_PrintsRealAccountDisplayNameAndConfiguredSeller()
+    {
+        var (invoiceRepo, orderRepo, order, ownerId, clock) = await ArrangePaidOrderAsync();
+        var service = TaxInvoiceServiceFactory.Create(
+            invoiceRepo, orderRepo, clock,
+            new TaxInvoiceServiceFactory.FakeUserContactReader("somchai@example.test", "สมชาย ใจดี"));
+
+        var result = await service.BuildOrderReceiptDataAsync(ownerId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("สมชาย ใจดี", result.Value.BuyerName);
+        Assert.NotEqual("Customer", result.Value.BuyerName);
+        Assert.Equal("Test Seller Co., Ltd.", result.Value.Seller.CompanyName);
+        Assert.Equal("0105500000001", result.Value.Seller.TaxId);
+        Assert.Equal("1 Test Road, Bangkok", result.Value.Seller.Address);
+    }
+
+    [Fact]
+    public async Task BuildOrderReceiptDataAsync_NoTaxInvoiceAndNoDisplayName_FallsBackToRealEmail()
+    {
+        var (invoiceRepo, orderRepo, order, ownerId, clock) = await ArrangePaidOrderAsync();
+        var service = TaxInvoiceServiceFactory.Create(
+            invoiceRepo, orderRepo, clock,
+            new TaxInvoiceServiceFactory.FakeUserContactReader("somchai@example.test", "  "));
+
+        var result = await service.BuildOrderReceiptDataAsync(ownerId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("somchai@example.test", result.Value.BuyerName);
+    }
+
+    [Fact]
+    public async Task BuildOrderReceiptDataAsync_BuyerAccountUnresolvable_FailsInsteadOfInventingAName()
+    {
+        var (invoiceRepo, orderRepo, order, ownerId, clock) = await ArrangePaidOrderAsync();
+        var service = TaxInvoiceServiceFactory.Create(
+            invoiceRepo, orderRepo, clock,
+            new TaxInvoiceServiceFactory.FakeUserContactReader(null, null));
+
+        var result = await service.BuildOrderReceiptDataAsync(ownerId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("not_found", result.Error.Code);
+
+        var pdf = await service.GetOrderReceiptPdfAsync(ownerId, order.ORDER_ID, CancellationToken.None);
+        Assert.True(pdf.IsFailure);
+    }
+
+    [Fact]
+    public async Task BuildOrderReceiptDataAsync_WithTaxInvoice_UsesInvoiceBuyerNameNotAccountName()
+    {
+        var (invoiceRepo, orderRepo, order, ownerId, clock) = await ArrangePaidOrderAsync();
+        var invoice = TAX_INVOICE.Issue(order.ORDER_ID, "0105558123456", "บริษัท ผู้ซื้อ จำกัด", "INV-9", clock);
+        invoiceRepo.Invoices[invoice.TAX_INVOICE_ID] = invoice;
+        var service = TaxInvoiceServiceFactory.Create(
+            invoiceRepo, orderRepo, clock,
+            new TaxInvoiceServiceFactory.FakeUserContactReader("somchai@example.test", "สมชาย ใจดี"));
+
+        var result = await service.BuildOrderReceiptDataAsync(ownerId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("บริษัท ผู้ซื้อ จำกัด", result.Value.BuyerName);
+        Assert.Equal("INV-9", result.Value.DocumentNumber);
+    }
+
+    [Theory]
+    [InlineData("", "0105500000001", "1 Test Road")]
+    [InlineData("Test Seller Co., Ltd.", "", "1 Test Road")]
+    [InlineData("Test Seller Co., Ltd.", "123", "1 Test Road")]
+    [InlineData("Test Seller Co., Ltd.", "0105500000001", "")]
+    [InlineData("CHANGE_ME_DEV_ONLY", "0105500000001", "1 Test Road")]
+    public async Task GetOrderReceiptPdfAsync_SellerIdentityMissingOrPlaceholder_FailsWith503Code(string company, string taxId, string address)
+    {
+        var (invoiceRepo, orderRepo, order, ownerId, clock) = await ArrangePaidOrderAsync();
+        var seller = TaxInvoiceServiceFactory.ConfiguredSeller();
+        seller.CompanyName = company;
+        seller.TaxId = taxId;
+        seller.Address = address;
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock, seller: seller);
+
+        var result = await service.GetOrderReceiptPdfAsync(ownerId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ReceiptErrors.SellerNotConfiguredCode, result.Error.Code);
+        Assert.EndsWith(DomainErrorHttpResults.NotConfiguredCodeSuffix, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetPdfAsync_SellerIdentityNotConfigured_FailsWith503Code()
+    {
+        var (invoiceRepo, orderRepo, order, ownerId, clock) = await ArrangePaidOrderAsync();
+        var invoice = TAX_INVOICE.Issue(order.ORDER_ID, "0105558123456", "บริษัท ผู้ซื้อ จำกัด", "INV-9", clock);
+        invoiceRepo.Invoices[invoice.TAX_INVOICE_ID] = invoice;
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock, seller: new Siri.Modules.Commerce.ReceiptSellerOptions());
+
+        var result = await service.GetPdfAsync(ownerId, invoice.TAX_INVOICE_ID, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ReceiptErrors.SellerNotConfiguredCode, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetOrderReceiptPdfAsync_StrangerWithUnconfiguredSeller_StillGetsNotFoundNotConfigState()
+    {
+        var (invoiceRepo, orderRepo, order, _, clock) = await ArrangePaidOrderAsync();
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock, seller: new Siri.Modules.Commerce.ReceiptSellerOptions());
+
+        var result = await service.GetOrderReceiptPdfAsync(Guid.NewGuid(), order.ORDER_ID, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("not_found", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task BuildOrderReceiptDataAsync_FullyDiscountedOrder_DoesNotClaimAPaymentChannel()
+    {
+        var (invoiceRepo, orderRepo, order, ownerId, clock) = await ArrangePaidOrderAsync(total: 0m);
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
+
+        var result = await service.BuildOrderReceiptDataAsync(ownerId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("-", result.Value.PaymentMethod);
+    }
+
+    [Fact]
+    public async Task BuildOrderReceiptDataAsync_PaidOrder_ReportsPromptPayStripe()
+    {
+        var (invoiceRepo, orderRepo, order, ownerId, clock) = await ArrangePaidOrderAsync();
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock);
+
+        var result = await service.BuildOrderReceiptDataAsync(ownerId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("PromptPay / Stripe", result.Value.PaymentMethod);
     }
 }

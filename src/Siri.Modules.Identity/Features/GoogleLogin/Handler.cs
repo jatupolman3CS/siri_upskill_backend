@@ -36,6 +36,11 @@ namespace Siri.Modules.Identity.Features.GoogleLogin;
 /// Every rejection that depends on the state of an existing account returns the same generic error as
 /// a bad token, so this endpoint cannot be used to probe which emails are registered.
 /// </para>
+/// <para>
+/// On every successful sign-in the ID token's <c>picture</c> claim fills <see cref="USER.AvatarUrl"/> if
+/// (and only if) the account has no avatar yet — see <see cref="USER.SetAvatarIfMissing"/> for what is
+/// accepted (https only, within the column width) and why an existing avatar is never overwritten.
+/// </para>
 /// </summary>
 public sealed class GoogleLoginHandler(
     AppDbContext dbContext,
@@ -151,6 +156,12 @@ public sealed class GoogleLoginHandler(
             dbContext.UserExternalLogins().Add(
                 USER_EXTERNAL_LOGIN.Link(user.Id, ExternalLoginProvider.Google, identity.Subject, email, clock));
         }
+
+        // Fill the avatar from Google's `picture` claim only when the account has none yet — the domain
+        // method refuses non-https / over-long / unusable values and never overwrites an existing
+        // avatar. Reached by every successful branch above (new, linked, activated-pending) and tracked
+        // by the context, so the save below persists it with everything else.
+        user.SetAvatarIfMissing(identity.Picture);
 
         // Commits whatever was staged above (new user / link / activation) together with the session.
         return await sessionIssuer.IssueAsync(

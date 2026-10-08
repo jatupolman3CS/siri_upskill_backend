@@ -22,6 +22,7 @@ internal static class ModuleAssemblyCatalog
         new("Siri.Modules.Community", typeof(Siri.Modules.Community.CommunityModule).Assembly),
         new("Siri.Modules.Notification", typeof(Siri.Modules.Notification.NotificationModule).Assembly),
         new("Siri.Modules.Analytics", typeof(Siri.Modules.Analytics.AnalyticsModule).Assembly),
+        new("Siri.Modules.Live", typeof(Siri.Modules.Live.LiveModule).Assembly),
     ];
 
     /// <summary>Every project assembly except Siri.Persistence, keyed by root namespace / project name.</summary>
@@ -38,6 +39,7 @@ internal static class ModuleAssemblyCatalog
         assemblies["Siri.Integrations.Payment"] = typeof(Siri.Integrations.Payment.IPaymentVerifier).Assembly;
         assemblies["Siri.Integrations.Storage"] = typeof(Siri.Integrations.Storage.IFileStorage).Assembly;
         assemblies["Siri.Integrations.Email"] = typeof(Siri.Integrations.Email.IEmailSender).Assembly;
+        assemblies["Siri.Integrations.Google"] = typeof(Siri.Integrations.Google.IGoogleOAuthService).Assembly;
 
         return assemblies;
     }

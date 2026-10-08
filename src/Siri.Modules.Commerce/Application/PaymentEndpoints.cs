@@ -18,7 +18,8 @@ public static class PaymentEndpoints
         endpoints.MapGet("/config", GetConfigAsync)
             .WithName("CommerceGetPaymentConfig")
             .WithSummary("ดึง publishable key และวิธีชำระเงินที่เปิดใช้งาน")
-            .Produces<PaymentConfigResponse>(StatusCodes.Status200OK);
+            .Produces<PaymentConfigResponse>(StatusCodes.Status200OK)
+            .Produces<ProblemDetails>(StatusCodes.Status503ServiceUnavailable);
 
         endpoints.MapGet("/{paymentId:guid}", GetByIdAsync)
             .WithName("CommerceGetPayment")
@@ -36,7 +37,11 @@ public static class PaymentEndpoints
         return endpoints;
     }
 
-    private static IResult GetConfigAsync(PaymentService paymentService) => Results.Ok(paymentService.GetConfig());
+    private static IResult GetConfigAsync(PaymentService paymentService, HttpContext httpContext)
+    {
+        var result = paymentService.GetConfig();
+        return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(httpContext);
+    }
 
     private static async Task<IResult> GetByIdAsync(Guid paymentId, PaymentService paymentService, IUserContext userContext, HttpContext httpContext, CancellationToken cancellationToken)
     {

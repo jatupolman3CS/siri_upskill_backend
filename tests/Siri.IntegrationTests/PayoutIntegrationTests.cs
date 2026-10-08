@@ -55,6 +55,7 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
     private HttpClient _client = null!;
 
     private Guid _instructorUserId;
+    private Guid _instructorProfileId; // revenue splits, payout accounts and batch items are keyed by this, never by the user id
     private Guid _adminUserId;
     private Guid _courseId;
 
@@ -157,6 +158,7 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
         var profile = INSTRUCTOR_PROFILE.Apply(instructor.Id, "Payout Instructor", "Finance Guru", "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
+        _instructorProfileId = profile.Id;
 
         var category = CATEGORY.Create($"cat-payout-{Guid.NewGuid():N}", "หมวดการเงิน", "Finance Cat", null, null, 0);
         dbContext.Categories().Add(category);
@@ -203,7 +205,7 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
         // Create Split with 80% instructor rate
         var cmd = new CreateRevenueSplitCommand(
             orderItemId,
-            _instructorUserId,
+            _instructorProfileId,
             grossAmount,
             paymentFee,
             platformFee,
@@ -244,13 +246,15 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
             CancellationToken.None);
         Assert.True(accountResult.IsSuccess);
 
-        var verifyResult = await payoutAccountService.VerifyAsync(_instructorUserId, CancellationToken.None);
+        // The account is keyed by the instructor PROFILE id (what splits carry), even though the instructor signs in as a user.
+        Assert.Equal(_instructorProfileId, accountResult.Value.InstructorId);
+        var verifyResult = await payoutAccountService.VerifyAsync(_instructorProfileId, CancellationToken.None);
         Assert.True(verifyResult.IsSuccess);
 
         // 2. Add revenue split with period key
         var splitCmd = new CreateRevenueSplitCommand(
             Guid.NewGuid(),
-            _instructorUserId,
+            _instructorProfileId,
             2000m,
             60m,
             582m,
@@ -305,23 +309,23 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
             _instructorUserId,
             new CreateInstructorPayoutAccountCommand("KBANK", "1112223334", "Instructor One", "1100500111111", TaxPayerType.Individual),
             CancellationToken.None)).IsSuccess);
-        Assert.True((await payoutAccountService.VerifyAsync(_instructorUserId, CancellationToken.None)).IsSuccess);
+        Assert.True((await payoutAccountService.VerifyAsync(_instructorProfileId, CancellationToken.None)).IsSuccess);
 
         Assert.True((await payoutAccountService.CreateForCurrentUserAsync(
             secondInstructor.Id,
             new CreateInstructorPayoutAccountCommand("SCB", "5556667778", "Instructor Two", "1100500222222", TaxPayerType.Individual),
             CancellationToken.None)).IsSuccess);
-        Assert.True((await payoutAccountService.VerifyAsync(secondInstructor.Id, CancellationToken.None)).IsSuccess);
+        Assert.True((await payoutAccountService.VerifyAsync(secondProfile.Id, CancellationToken.None)).IsSuccess);
 
         const string periodKey = "2026-06";
 
         var split1Result = await splitService.CreateAsync(
-            new CreateRevenueSplitCommand(Guid.NewGuid(), _instructorUserId, 2000m, 60m, 582m, 1358m, 70.00m, periodKey),
+            new CreateRevenueSplitCommand(Guid.NewGuid(), _instructorProfileId, 2000m, 60m, 582m, 1358m, 70.00m, periodKey),
             CancellationToken.None);
         Assert.True(split1Result.IsSuccess);
 
         var split2Result = await splitService.CreateAsync(
-            new CreateRevenueSplitCommand(Guid.NewGuid(), secondInstructor.Id, 3000m, 90m, 873m, 2037m, 70.00m, periodKey),
+            new CreateRevenueSplitCommand(Guid.NewGuid(), secondProfile.Id, 3000m, 90m, 873m, 2037m, 70.00m, periodKey),
             CancellationToken.None);
         Assert.True(split2Result.IsSuccess);
 
@@ -360,5 +364,57 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
         var split2AfterExecute = await db.RevenueSplits().AsNoTracking().FirstAsync(s => s.REVENUE_SPLIT_ID == split2Result.Value.Id);
         Assert.Equal(RevenueSplitStatus.Paid, split1AfterExecute.STATUS);
         Assert.Equal(RevenueSplitStatus.Paid, split2AfterExecute.STATUS);
+    }
+
+    // ---- Identity: the signed-in USER reaches the money of their own instructor PROFILE ---------------------------------
+
+    [Fact]
+    public async Task InstructorMoney_IsReadForTheProfileOfTheCallingUser_AndNeverForAnotherInstructor()
+    {
+        await using var scope = _app.Services.CreateAsyncScope();
+        var splitService = scope.ServiceProvider.GetRequiredService<RevenueSplitService>();
+        var earnings = scope.ServiceProvider.GetRequiredService<InstructorEarningsService>();
+        var accounts = scope.ServiceProvider.GetRequiredService<InstructorPayoutAccountService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var clock = scope.ServiceProvider.GetRequiredService<IClock>();
+
+        // A second instructor whose money must stay invisible to the first.
+        var other = await CreateUserAsync(_app.Services, db, $"instructor_payout3_{Guid.NewGuid():N}@test.com");
+        other.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        var otherProfile = INSTRUCTOR_PROFILE.Apply(other.Id, "Other Payout Instructor", "Headline", "Bio");
+        otherProfile.Approve(clock);
+        db.InstructorProfiles().Add(otherProfile);
+        await db.SaveChangesAsync();
+
+        Assert.True((await splitService.CreateAsync(
+            new CreateRevenueSplitCommand(Guid.NewGuid(), _instructorProfileId, 1000m, 30m, 291m, 679m, 70.00m, "2026-08"), CancellationToken.None)).IsSuccess);
+        Assert.True((await splitService.CreateAsync(
+            new CreateRevenueSplitCommand(Guid.NewGuid(), otherProfile.Id, 9000m, 270m, 2619m, 6111m, 70.00m, "2026-08"), CancellationToken.None)).IsSuccess);
+
+        var summary = await earnings.GetEarningsSummaryAsync(_instructorUserId, CancellationToken.None);
+        var mine = await splitService.ListForInstructorAsync(_instructorUserId, 1, 50, CancellationToken.None);
+
+        Assert.Equal(679m, summary.EstimatedNextPayoutAmount); // pending earnings of THIS instructor's profile only
+        Assert.All(mine.Items, split => Assert.Equal(_instructorProfileId, split.InstructorId));
+        Assert.DoesNotContain(mine.Items, split => split.InstructorId == otherProfile.Id);
+
+        // A user without an instructor profile owns no money at all.
+        var stranger = await earnings.GetEarningsSummaryAsync(Guid.NewGuid(), CancellationToken.None);
+        Assert.Equal(0m, stranger.EstimatedNextPayoutAmount);
+        Assert.Equal(0, (await splitService.ListForInstructorAsync(Guid.NewGuid(), 1, 50, CancellationToken.None)).TotalCount);
+
+        // An account created by the user is stored under the profile id and read back by the same user — and only by them.
+        var created = await accounts.CreateForCurrentUserAsync(
+            _instructorUserId,
+            new CreateInstructorPayoutAccountCommand("KBANK", "9876543210", "Payout Instructor", "1100500123456", TaxPayerType.Individual),
+            CancellationToken.None);
+        Assert.True(created.IsSuccess);
+        Assert.Equal(_instructorProfileId, created.Value.InstructorId);
+        Assert.True((await accounts.GetForCurrentUserAsync(_instructorUserId, CancellationToken.None)).IsSuccess);
+        Assert.True((await accounts.GetForCurrentUserAsync(other.Id, CancellationToken.None)).IsFailure);
+        Assert.Equal("forbidden", (await accounts.CreateForCurrentUserAsync(
+            Guid.NewGuid(),
+            new CreateInstructorPayoutAccountCommand("SCB", "1111111111", "Nobody", null),
+            CancellationToken.None)).Error.Code);
     }
 }

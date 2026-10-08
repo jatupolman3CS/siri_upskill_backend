@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Siri.SharedKernel;
@@ -19,7 +20,11 @@ public sealed class StripePaymentMethod : IPaymentMethod
 
     private readonly StripeOptions _options;
     private readonly ILogger<StripePaymentMethod> _logger;
-    private readonly IStripeClient _stripeClient;
+
+    /// <summary><c>null</c> only when no Stripe secret key is configured. The adapter is still
+    /// constructible then (the host boots), but every call refuses with
+    /// <see cref="PaymentProviderErrors.ProviderNotConfigured"/> — there is no fake-key fallback.</summary>
+    private readonly IStripeClient? _stripeClient;
 
     public StripePaymentMethod(
         IOptions<StripeOptions> options,
@@ -28,7 +33,27 @@ public sealed class StripePaymentMethod : IPaymentMethod
     {
         _options = options.Value;
         _logger = logger;
-        _stripeClient = stripeClient ?? new StripeClient(_options.SecretKey);
+        _stripeClient = _options.HasSecretKey
+            ? stripeClient ?? new StripeClient(_options.SecretKey)
+            : null;
+    }
+
+    /// <summary>Returns the Stripe client, or logs (setting name only, never a value) and returns
+    /// <c>false</c> when no secret key is configured — callers then answer
+    /// <see cref="PaymentProviderErrors.ProviderNotConfigured"/> (HTTP 503) without calling Stripe.</summary>
+    private bool TryGetClient(string operation, [NotNullWhen(true)] out IStripeClient? client)
+    {
+        client = _stripeClient;
+        if (client is not null)
+        {
+            return true;
+        }
+
+        _logger.LogError(
+            "Stripe {Operation} refused: {Setting} is missing or a placeholder.",
+            operation,
+            $"{StripeOptions.SectionName}:{nameof(StripeOptions.SecretKey)}");
+        return false;
     }
 
     /// <inheritdoc/>
@@ -37,6 +62,11 @@ public sealed class StripePaymentMethod : IPaymentMethod
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        if (!TryGetClient("CreatePaymentIntent", out var client))
+        {
+            return Result.Failure<PaymentIntentResult>(PaymentProviderErrors.ProviderNotConfigured());
+        }
 
         if (request.Amount <= 0)
         {
@@ -91,7 +121,7 @@ public sealed class StripePaymentMethod : IPaymentMethod
                   }
               };
 
-        var service = new PaymentIntentService(_stripeClient);
+        var service = new PaymentIntentService(client);
         // Reuse the same key across transport retries so an interrupted response cannot create
         // multiple chargeable QR codes for this payment attempt.
         var requestOptions = new RequestOptions { IdempotencyKey = Guid.NewGuid().ToString("N") };
@@ -124,7 +154,12 @@ public sealed class StripePaymentMethod : IPaymentMethod
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerPaymentIntentId);
 
-        var service = new PaymentIntentService(_stripeClient);
+        if (!TryGetClient("GetPaymentIntent", out var client))
+        {
+            return Result.Failure<PaymentIntentResult>(PaymentProviderErrors.ProviderNotConfigured());
+        }
+
+        var service = new PaymentIntentService(client);
 
         try
         {
@@ -153,7 +188,12 @@ public sealed class StripePaymentMethod : IPaymentMethod
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerPaymentIntentId);
 
-        var service = new PaymentIntentService(_stripeClient);
+        if (!TryGetClient("CancelPaymentIntent", out var client))
+        {
+            return Result.Failure(PaymentProviderErrors.ProviderNotConfigured());
+        }
+
+        var service = new PaymentIntentService(client);
 
         try
         {
@@ -183,6 +223,11 @@ public sealed class StripePaymentMethod : IPaymentMethod
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.ProviderPaymentIntentId);
 
+        if (!TryGetClient("CreateRefund", out var client))
+        {
+            return Result.Failure<PaymentRefundResult>(PaymentProviderErrors.ProviderNotConfigured());
+        }
+
         if (request.Amount <= 0)
         {
             return Result.Failure<PaymentRefundResult>(DomainError.Validation("Refund amount must be greater than zero."));
@@ -202,7 +247,7 @@ public sealed class StripePaymentMethod : IPaymentMethod
             }
         };
 
-        var service = new global::Stripe.RefundService(_stripeClient);
+        var service = new global::Stripe.RefundService(client);
 
         try
         {
@@ -243,7 +288,15 @@ public sealed class StripePaymentMethod : IPaymentMethod
     public async Task<Result<decimal?>> GetChargeFeeAsync(string providerPaymentIntentId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerPaymentIntentId);
-        var service = new PaymentIntentService(_stripeClient);
+
+        // Contract: always Success — an unconfigured key falls back to the estimated fee (the secret
+        // key being absent here means no real payment can have been created in the first place).
+        if (!TryGetClient("GetChargeFee", out var client))
+        {
+            return Result.Success<decimal?>(null);
+        }
+
+        var service = new PaymentIntentService(client);
         try
         {
             var intent = await service.GetAsync(

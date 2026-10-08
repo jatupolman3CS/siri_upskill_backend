@@ -1,9 +1,16 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using Siri.Integrations.Email;
 using Siri.Integrations.Payment.Stripe;
+using Siri.Integrations.Video.Bunny;
+using Siri.Modules.Catalog;
+using Siri.Modules.Commerce;
+using Siri.Modules.Learning;
+using Siri.Modules.Live;
 using Siri.Modules.Payout;
 using Siri.Modules.Payout.Infrastructure;
+using Siri.SharedKernel.Configuration;
 
 namespace Siri.Api.Configuration;
 
@@ -13,9 +20,6 @@ namespace Siri.Api.Configuration;
 /// </summary>
 public static class ProductionConfigurationGuard
 {
-    private const string DevKeyPlaceholder = "CHANGE_ME_IN_PRODUCTION_BASE64_32_BYTES_KEY==";
-    private const string ShippedDevelopmentKeyBase64 = "wb8jlEpV/0t7ptEyiSdtRQOh5MXY4lde5L5WYxNfyIM=";
-
     public static void ValidateProductionConfiguration(IConfiguration configuration, IHostEnvironment environment)
     {
         if (!environment.IsProduction())
@@ -25,31 +29,9 @@ public static class ProductionConfigurationGuard
 
         var errors = new List<string>();
 
-        // 1. DataProtection:EncryptionKeyBase64
-        var encKey = configuration["DataProtection:EncryptionKeyBase64"];
-        if (string.IsNullOrWhiteSpace(encKey) || string.Equals(encKey, DevKeyPlaceholder, StringComparison.Ordinal))
-        {
-            errors.Add("DataProtection:EncryptionKeyBase64 must be set to a secure, real key in production (not default placeholder).");
-        }
-        else
-        {
-            try
-            {
-                var bytes = Convert.FromBase64String(encKey);
-                if (bytes.Length != 32)
-                {
-                    errors.Add($"DataProtection:EncryptionKeyBase64 must decode to exactly 32 bytes (256-bit key). Got {bytes.Length} bytes.");
-                }
-                else if (bytes.AsSpan().SequenceEqual(Convert.FromBase64String(ShippedDevelopmentKeyBase64)))
-                {
-                    errors.Add("DataProtection:EncryptionKeyBase64 must be replaced with a secure production key; the shipped development key is not allowed.");
-                }
-            }
-            catch (FormatException)
-            {
-                errors.Add("DataProtection:EncryptionKeyBase64 is not a valid Base64 string.");
-            }
-        }
+        // 1. DataProtection:EncryptionKeyBase64 — shared with Siri.Workers (which decrypts stored Google refresh tokens), so the two
+        // hosts can never disagree about what a production-grade key is.
+        errors.AddRange(DataProtectionProductionRequirements.GetProblems(configuration));
 
         // 2. Identity:Jwt:SigningKey
         var jwtKey = configuration["Identity:Jwt:SigningKey"];
@@ -65,10 +47,18 @@ public static class ProductionConfigurationGuard
             errors.Add($"{StripeOptions.SectionName}:SecretKey must be a live secret key starting with 'sk_live_' in production.");
         }
 
+        // A missing webhook secret means paid orders are never fulfilled (every Stripe event is
+        // rejected), and a placeholder one would be a publicly-known signing secret — so it is required.
         var stripeWebhookSecret = configuration[$"{StripeOptions.SectionName}:WebhookSecret"];
-        if (!string.IsNullOrWhiteSpace(stripeWebhookSecret) && !stripeWebhookSecret.StartsWith("whsec_", StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(stripeWebhookSecret) || !stripeWebhookSecret.StartsWith("whsec_", StringComparison.Ordinal))
         {
-            errors.Add($"{StripeOptions.SectionName}:WebhookSecret must be a valid webhook secret starting with 'whsec_' in production.");
+            errors.Add($"{StripeOptions.SectionName}:WebhookSecret must be set to the real webhook signing secret starting with 'whsec_' in production.");
+        }
+
+        var stripePublishableKey = configuration[$"{StripeOptions.SectionName}:PublishableKey"];
+        if (string.IsNullOrWhiteSpace(stripePublishableKey) || !stripePublishableKey.StartsWith("pk_live_", StringComparison.Ordinal))
+        {
+            errors.Add($"{StripeOptions.SectionName}:PublishableKey must be a live publishable key starting with 'pk_live_' in production.");
         }
 
         // 4. CORS Allowed Origins
@@ -114,6 +104,67 @@ public static class ProductionConfigurationGuard
         {
             errors.Add(ex.Message);
         }
+
+        // 7. Email: real SMTP delivery only. 'Log'/unset silently drop (or fail) every mail — password
+        // resets, receipts and confirmations — which must never go unnoticed in production.
+        errors.AddRange(EmailProductionRequirements.GetProblems(configuration));
+
+        // 8. Video: every Bunny Stream setting must be real. There is no mock fallback, so a missing
+        // value would only surface later as 503s on upload/playback — fail the boot instead.
+        var videoOptions = configuration.GetSection(VideoProviderOptions.SectionName).Get<VideoProviderOptions>()
+            ?? new VideoProviderOptions();
+        var missingVideoSettings = videoOptions.GetAllMissingSettings();
+        if (missingVideoSettings.Count > 0)
+        {
+            errors.Add(
+                "Bunny Stream settings must be set to real values in production (empty or placeholder): "
+                + string.Join(", ", missingVideoSettings) + ".");
+        }
+
+        // 9. Receipts / tax invoices: the SELLER printed on every document must be the real legal entity.
+        // There is no built-in company, so a missing/placeholder value would only surface later as 503s on
+        // the receipt endpoints — fail the boot instead.
+        // Effective identity: Commerce:Seller:* with the payout module's payer identity as the fallback.
+        var sellerOptions = ReceiptSellerOptions.Resolve(configuration);
+        var missingSellerSettings = sellerOptions.GetMissingSettings();
+        if (missingSellerSettings.Count > 0)
+        {
+            errors.Add(
+                "Receipt seller identity must be set to the real legal entity in production (missing, placeholder or invalid): "
+                + string.Join(", ", missingSellerSettings) + ".");
+        }
+
+        // 10. Certificates: the QR code printed on every certificate PDF must lead to the real public site.
+        // The effective value is the explicit Learning:Certificates:PublicBaseUrl, else the site-wide Seo:PublicBaseUrl.
+        var certificateOptions = new CertificateOptions
+        {
+            PublicBaseUrl = CertificateOptions.ResolvePublicBaseUrl(
+                configuration[$"{CertificateOptions.SectionName}:PublicBaseUrl"], configuration),
+        };
+        if (certificateOptions.GetNormalizedPublicBaseUrl() is not { } normalizedCertificateUrl
+            || !normalizedCertificateUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add(
+                $"{CertificateOptions.SectionName}:PublicBaseUrl (or {CertificateOptions.FallbackConfigurationKey}) " +
+                "must be configured with the real public https:// origin in production.");
+        }
+
+        // 11. Attachments: no virus-scanning engine is integrated, so 'Disabled' would serve unscanned
+        // instructor uploads to learners. Production must stay on the default 'Required' (uploads are refused
+        // with 503 until an engine is registered) — the operator cannot opt in to unscanned files here.
+        var virusScanMode = configuration[$"{AttachmentVirusScanOptions.SectionName}:Mode"]?.Trim();
+        if (string.Equals(virusScanMode, nameof(AttachmentVirusScanMode.Disabled), StringComparison.OrdinalIgnoreCase))
+        {
+            errors.Add(
+                $"{AttachmentVirusScanOptions.SectionName}:Mode must not be '{nameof(AttachmentVirusScanMode.Disabled)}' in production: " +
+                "no virus-scanning engine is integrated, so attachments would be served unscanned. Leave it at 'Required' " +
+                "(uploads are refused until a scanner is configured).");
+        }
+
+        // 12. Live (P11-03): the fake Google/Meet provider must never run in production, a half-configured Google
+        // client would only fail at an instructor's first click, and the public origin goes into links people follow.
+        // Shared with Siri.Workers (which runs the sync job) so the two hosts cannot drift apart.
+        errors.AddRange(LiveProductionRequirements.GetProblems(configuration));
 
         if (errors.Count > 0)
         {

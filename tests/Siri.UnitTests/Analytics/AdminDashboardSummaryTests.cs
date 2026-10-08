@@ -24,6 +24,9 @@ public sealed class AdminDashboardSummaryTests
 
     private sealed class FakeCatalogPriceContract : ICatalogPriceContract
     {
+        /// <summary>When false the catalog cannot resolve any course title (e.g. the course no longer exists).</summary>
+        public bool ResolveTitles { get; init; } = true;
+
         public Task<IReadOnlyDictionary<Guid, CoursePriceInfo>> GetPublishedCoursePricesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyDictionary<Guid, CoursePriceInfo>>(new Dictionary<Guid, CoursePriceInfo>());
 
@@ -39,7 +42,9 @@ public sealed class AdminDashboardSummaryTests
 
         public Task<IReadOnlyDictionary<Guid, string>> GetCourseTitlesAsync(IEnumerable<Guid> courseIds, CancellationToken cancellationToken)
         {
-            var dict = courseIds.ToDictionary(id => id, id => $"COURSE {id}");
+            var dict = ResolveTitles
+                ? courseIds.ToDictionary(id => id, id => $"COURSE {id}")
+                : new Dictionary<Guid, string>();
             return Task.FromResult<IReadOnlyDictionary<Guid, string>>(dict);
         }
 
@@ -98,5 +103,24 @@ public sealed class AdminDashboardSummaryTests
         Assert.Equal(2, result.TopCourses30Days.Count);
         Assert.Equal(50000m, result.TopCourses30Days[0].TotalRevenue);
         Assert.Equal(25, result.TopCourses30Days[0].TotalEnrollments);
+        Assert.All(result.TopCourses30Days, c => Assert.StartsWith("COURSE ", c.CourseTitle));
+    }
+
+    [Fact]
+    public async Task HandleAsync_CourseTitleUnresolvable_ReportsNullTitleKeepingRealNumbers()
+    {
+        var handler = new GetAdminDashboardSummaryHandler(
+            new FakeIdentityStatsContract(),
+            new FakeCatalogPriceContract { ResolveTitles = false },
+            new FakeCommerceStatsContract(),
+            new FakeDailyCourseStatRepository(),
+            new FakeClock(DateTime.UtcNow));
+
+        var result = await handler.HandleAsync(CancellationToken.None);
+
+        Assert.Equal(2, result.TopCourses30Days.Count);
+        Assert.All(result.TopCourses30Days, c => Assert.Null(c.CourseTitle));
+        Assert.DoesNotContain(result.TopCourses30Days, c => c.CourseTitle == "Unknown Course");
+        Assert.Equal(50000m, result.TopCourses30Days[0].TotalRevenue);
     }
 }

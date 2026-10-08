@@ -6,22 +6,32 @@ namespace Siri.Integrations.Email;
 
 public static class EmailServiceCollectionExtensions
 {
+    /// <summary>The only <c>Email:Provider</c> value that delivers real mail.</summary>
+    public const string SmtpProvider = "Smtp";
+
+    /// <summary>Explicit opt-in that deliberately delivers nothing (logs only). Never a default.</summary>
+    public const string LogProvider = "Log";
+
     /// <summary>
-    /// Registers <see cref="IEmailSender"/> against either a real SMTP server
-    /// (<see cref="SmtpEmailSender"/>) or a no-op logger (<see cref="LoggingEmailSender"/>), chosen
-    /// by the <c>Email:Provider</c> setting ("Smtp" | "Log", case-insensitive). Falls back to
-    /// <see cref="LoggingEmailSender"/> whenever <c>Email:Provider</c> is anything other than "Smtp"
-    /// <em>or</em> "Smtp" is selected but <c>Email:Smtp:Host</c> is not actually configured — so a
-    /// misconfigured or default (no-credentials-yet) environment still boots and is testable, per
-    /// task P0-19, instead of failing startup or silently trying to talk to nothing.
+    /// Registers <see cref="IEmailSender"/> from the <c>Email:Provider</c> setting (case-insensitive):
+    /// <list type="bullet">
+    /// <item><c>Smtp</c> — real delivery via <see cref="SmtpEmailSender"/>. <c>Email:Smtp:Host</c> and
+    /// <c>FromAddress</c> are required and validated on start, so an incomplete SMTP configuration
+    /// fails the boot loudly instead of silently dropping mail.</item>
+    /// <item><c>Log</c> — <see cref="LoggingEmailSender"/>; delivers nothing. Only ever selected by
+    /// explicitly setting this value (tests, or an operator who really wants no mail).
+    /// <c>ProductionConfigurationGuard</c> refuses it in Production.</item>
+    /// <item>unset/empty — <see cref="UnconfiguredEmailSender"/>: the host boots (so other features work)
+    /// but every send fails with <c>email.provider_not_configured</c>, which the email outbox records and
+    /// retries — mail is never silently pretended-sent.</item>
+    /// <item>anything else — a typo; throws at registration time.</item>
+    /// </list>
     /// </summary>
     public static IServiceCollection AddEmailIntegration(this IServiceCollection services, IConfiguration configuration)
     {
-        var provider = configuration["Email:Provider"];
-        var smtpHost = configuration[$"{SmtpEmailSenderOptions.SectionName}:Host"];
-        var useSmtp = string.Equals(provider, "Smtp", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(smtpHost);
+        var provider = configuration["Email:Provider"]?.Trim();
 
-        if (useSmtp)
+        if (string.Equals(provider, SmtpProvider, StringComparison.OrdinalIgnoreCase))
         {
             services
                 .AddOptions<SmtpEmailSenderOptions>()
@@ -34,9 +44,18 @@ public static class EmailServiceCollectionExtensions
 
             services.AddSingleton<IEmailSender, SmtpEmailSender>();
         }
-        else
+        else if (string.Equals(provider, LogProvider, StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton<IEmailSender, LoggingEmailSender>();
+        }
+        else if (string.IsNullOrEmpty(provider))
+        {
+            services.AddSingleton<IEmailSender, UnconfiguredEmailSender>();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Unknown 'Email:Provider' value '{provider}'. Use '{SmtpProvider}' (real delivery) or '{LogProvider}' (explicitly deliver nothing).");
         }
 
         return services;

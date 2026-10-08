@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Siri.Modules.Payout;
 using Siri.Modules.Payout.Application;
@@ -176,7 +177,7 @@ public sealed class PayoutBatchServiceTests
         var now = new DateTime(2026, 8, 25, 0, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
-        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock);
+        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock, NullLogger<PayoutBatchService>.Instance, new FakeInstructorProfileReader());
 
         var eligibleInstructor = Guid.NewGuid();
         var unverifiedInstructor = Guid.NewGuid();
@@ -259,7 +260,7 @@ public sealed class PayoutBatchServiceTests
         var options = Options.Create(new PayoutOptions());
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock);
+        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock, NullLogger<PayoutBatchService>.Instance, new FakeInstructorProfileReader());
 
         var existingBatch = PAYOUT_BATCH.Create("2026-08");
         batchRepo.Add(existingBatch);
@@ -280,7 +281,7 @@ public sealed class PayoutBatchServiceTests
         var options = Options.Create(new PayoutOptions());
         var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
 
-        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock);
+        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock, NullLogger<PayoutBatchService>.Instance, new FakeInstructorProfileReader());
 
         var batch = PAYOUT_BATCH.Create("2026-08");
         var instructorId = Guid.NewGuid();
@@ -311,7 +312,7 @@ public sealed class PayoutBatchServiceTests
         var options = Options.Create(new PayoutOptions());
         var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
 
-        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock);
+        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock, NullLogger<PayoutBatchService>.Instance, new FakeInstructorProfileReader());
 
         var batch = PAYOUT_BATCH.Create("2026-08");
         var instructorA = Guid.NewGuid();
@@ -362,7 +363,7 @@ public sealed class PayoutBatchServiceTests
         var options = Options.Create(new PayoutOptions());
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock);
+        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock, NullLogger<PayoutBatchService>.Instance, new FakeInstructorProfileReader());
 
         var instructorId = Guid.NewGuid();
         var account = INSTRUCTOR_PAYOUT_ACCOUNT.Create(instructorId, "KBANK", DataProtector.Encrypt("0123456789"), "สมชาย โอนไว", null);
@@ -393,10 +394,13 @@ public sealed class PayoutBatchServiceTests
             PayerAddress = "Bangkok, Thailand"
         });
         var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+        var profiles = new FakeInstructorProfileReader();
 
-        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock);
+        var service = new PayoutBatchService(batchRepo, itemRepo, splitRepo, accountRepo, DataProtector, options, clock, NullLogger<PayoutBatchService>.Instance, profiles);
 
-        var individualInstructor = Guid.NewGuid();
+        var individualInstructor = Guid.NewGuid(); // the instructor PROFILE id the money is keyed by
+        var individualUser = Guid.NewGuid(); // the authenticated USER id of that instructor
+        profiles.Map(individualUser, individualInstructor);
         var individualAccount = INSTRUCTOR_PAYOUT_ACCOUNT.Create(
             individualInstructor,
             "KBANK",
@@ -413,7 +417,7 @@ public sealed class PayoutBatchServiceTests
         batchRepo.Add(batch);
         itemRepo.Items[item.PAYOUT_BATCH_ITEM_ID] = item;
 
-        var result = await service.GetTaxCertificateAsync(individualInstructor, item.PAYOUT_BATCH_ITEM_ID, false, CancellationToken.None);
+        var result = await service.GetTaxCertificateAsync(individualUser, item.PAYOUT_BATCH_ITEM_ID, false, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal("ภ.ง.ด.3", result.Value.TaxFormType);
@@ -423,6 +427,158 @@ public sealed class PayoutBatchServiceTests
         Assert.Equal(10000m, result.Value.GrossIncomeAmount);
         Assert.Equal(300m, result.Value.WithholdingTaxAmount);
         Assert.Equal(9700m, result.Value.NetIncomeAmount);
+    }
+
+    private static PayoutOptions RealPayer() => new()
+    {
+        PayerCompanyName = "SIRI UpSkill Co., Ltd.",
+        PayerTaxId = "0105500000000",
+        PayerAddress = "123 Sukhumvit Road, Bangkok 10110",
+    };
+
+    /// <summary>
+    /// An executed batch with one item for a fresh instructor. Money is keyed by the instructor PROFILE id; the returned <c>UserId</c> is the (different) authenticated
+    /// user id of that instructor — the id a controller passes in — mapped to the profile by the fake profile reader.
+    /// </summary>
+    private static (PayoutBatchService Service, FakeInstructorPayoutAccountRepository Accounts, PAYOUT_BATCH_ITEM Item, Guid UserId) ArrangeExecutedItem(
+        PayoutOptions options,
+        Func<Guid, INSTRUCTOR_PAYOUT_ACCOUNT?> accountFactory)
+    {
+        var batchRepo = new FakePayoutBatchRepository();
+        var itemRepo = new FakePayoutBatchItemRepository();
+        var accountRepo = new FakeInstructorPayoutAccountRepository();
+        var profiles = new FakeInstructorProfileReader();
+        var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+        var service = new PayoutBatchService(
+            batchRepo, itemRepo, new FakeRevenueSplitRepository(), accountRepo, DataProtector, Options.Create(options), clock,
+            NullLogger<PayoutBatchService>.Instance, profiles);
+
+        var profileId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        profiles.Map(userId, profileId);
+
+        var account = accountFactory(profileId);
+        if (account is not null)
+        {
+            account.Verify(clock);
+            accountRepo.Add(account);
+        }
+
+        var batch = PAYOUT_BATCH.Create("2026-08");
+        var item = batch.AddItem(profileId, 10000m, 3m, 300m, 9700m);
+        batch.MarkExecuted(Guid.NewGuid(), clock);
+        batchRepo.Add(batch);
+        itemRepo.Items[item.PAYOUT_BATCH_ITEM_ID] = item;
+
+        return (service, accountRepo, item, userId);
+    }
+
+    [Fact]
+    public async Task GetTaxCertificateAsync_CorporatePayee_UsesRealAccountNameAndForm53()
+    {
+        var (service, _, item, userId) = ArrangeExecutedItem(RealPayer(), id => INSTRUCTOR_PAYOUT_ACCOUNT.Create(
+            id, "KBANK", DataProtector.Encrypt("2222222222"), "บริษัท ผู้สอน จำกัด", DataProtector.Encrypt("0105500000099"), TaxPayerType.Corporate));
+
+        var result = await service.GetTaxCertificateAsync(userId, item.PAYOUT_BATCH_ITEM_ID, false, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("บริษัท ผู้สอน จำกัด", result.Value.PayeeName);
+        Assert.Equal("0105500000099", result.Value.PayeeTaxId);
+        Assert.Equal(TaxPayerType.Corporate, result.Value.TaxPayerType);
+        Assert.Equal("ภ.ง.ด.53", result.Value.TaxFormType);
+    }
+
+    [Fact]
+    public async Task GetTaxCertificateAsync_NoPayoutAccount_FailsInsteadOfInventingAPayeeAsIndividual()
+    {
+        var (service, _, item, userId) = ArrangeExecutedItem(RealPayer(), _ => null);
+
+        var result = await service.GetTaxCertificateAsync(userId, item.PAYOUT_BATCH_ITEM_ID, false, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("conflict", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetTaxCertificateAsync_AdminRequestingForInstructorWithoutAccount_AlsoFails()
+    {
+        var (service, _, item, _) = ArrangeExecutedItem(RealPayer(), _ => null);
+
+        var result = await service.GetTaxCertificateAsync(Guid.NewGuid(), item.PAYOUT_BATCH_ITEM_ID, true, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("conflict", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetTaxCertificateAsync_PayeeWithoutTaxId_FailsInsteadOfPrintingACertificateWithNoTaxId()
+    {
+        var (service, _, item, userId) = ArrangeExecutedItem(RealPayer(), id => INSTRUCTOR_PAYOUT_ACCOUNT.Create(
+            id, "KBANK", DataProtector.Encrypt("3333333333"), "อาจารย์ไม่มีเลขภาษี", null, TaxPayerType.Individual));
+
+        var result = await service.GetTaxCertificateAsync(userId, item.PAYOUT_BATCH_ITEM_ID, false, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("conflict", result.Error.Code);
+    }
+
+    [Theory]
+    [InlineData("CHANGE_ME_DEV_ONLY", "0105500000000", "123 Sukhumvit Road")]
+    [InlineData("SIRI UpSkill Co., Ltd.", "0000000000000", "123 Sukhumvit Road")]
+    [InlineData("SIRI UpSkill Co., Ltd.", "0105500000000", "CHANGE_ME")]
+    [InlineData("SIRI UpSkill Co., Ltd.", "123", "123 Sukhumvit Road")]
+    public async Task GetTaxCertificateAsync_PayerIdentityIsPlaceholder_FailsWith503Code(string name, string taxId, string address)
+    {
+        var options = new PayoutOptions { PayerCompanyName = name, PayerTaxId = taxId, PayerAddress = address };
+        var (service, _, item, userId) = ArrangeExecutedItem(options, id => INSTRUCTOR_PAYOUT_ACCOUNT.Create(
+            id, "KBANK", DataProtector.Encrypt("4444444444"), "อาจารย์เด่น", DataProtector.Encrypt("1234567890123"), TaxPayerType.Individual));
+
+        var result = await service.GetTaxCertificateAsync(userId, item.PAYOUT_BATCH_ITEM_ID, false, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(PayoutBatchService.PayerNotConfiguredCode, result.Error.Code);
+        Assert.EndsWith(DomainErrorHttpResults.NotConfiguredCodeSuffix, result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetTaxCertificateAsync_StrangerWithUnconfiguredPayer_StillGetsForbiddenNotConfigState()
+    {
+        var (service, _, item, _) = ArrangeExecutedItem(new PayoutOptions(), _ => null);
+
+        var result = await service.GetTaxCertificateAsync(Guid.NewGuid(), item.PAYOUT_BATCH_ITEM_ID, false, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("forbidden", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task ExportBatchTransferFileAsync_ItemWithoutVerifiedAccount_FailsInsteadOfWritingABlankTransferRow()
+    {
+        var batchRepo = new FakePayoutBatchRepository();
+        var accountRepo = new FakeInstructorPayoutAccountRepository();
+        var clock = new FakeClock(DateTime.UtcNow);
+        var service = new PayoutBatchService(
+            batchRepo, new FakePayoutBatchItemRepository(), new FakeRevenueSplitRepository(), accountRepo, DataProtector,
+            Options.Create(new PayoutOptions()), clock, NullLogger<PayoutBatchService>.Instance, new FakeInstructorProfileReader());
+
+        var verifiedInstructor = Guid.NewGuid();
+        var verified = INSTRUCTOR_PAYOUT_ACCOUNT.Create(verifiedInstructor, "KBANK", DataProtector.Encrypt("0123456789"), "สมชาย โอนไว", null);
+        verified.Verify(clock);
+        accountRepo.Add(verified);
+
+        var unverifiedInstructor = Guid.NewGuid();
+        accountRepo.Add(INSTRUCTOR_PAYOUT_ACCOUNT.Create(unverifiedInstructor, "SCB", DataProtector.Encrypt("9999999999"), "ยังไม่ยืนยัน", null));
+
+        var batch = PAYOUT_BATCH.Create("2026-08");
+        batch.AddItem(verifiedInstructor, 1000m, 3m, 30m, 970m);
+        batch.AddItem(unverifiedInstructor, 2000m, 3m, 60m, 1940m);
+        batchRepo.Add(batch);
+
+        var result = await service.ExportBatchTransferFileAsync(batch.PAYOUT_BATCH_ID, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("conflict", result.Error.Code);
+        Assert.Contains(unverifiedInstructor.ToString(), result.Error.Message);
     }
 
     [Fact]
@@ -462,5 +618,84 @@ public sealed class PayoutBatchServiceTests
         Assert.True(isValidPass);
         Assert.Empty(validationResults);
     }
-}
 
+    // ---- Identity: a payout account and its splits must meet under the SAME key (the instructor PROFILE id) -----------------------------
+
+    [Fact]
+    public async Task CreateAsync_InstructorWhoRegisteredTheirAccountThroughTheirUserId_IsIncludedInTheBatch()
+    {
+        var batchRepo = new FakePayoutBatchRepository();
+        var splitRepo = new FakeRevenueSplitRepository();
+        var accountRepo = new FakeInstructorPayoutAccountRepository();
+        var profiles = new FakeInstructorProfileReader();
+        var now = new DateTime(2026, 8, 25, 0, 0, 0, DateTimeKind.Utc);
+        var clock = new FakeClock(now);
+        var batchService = new PayoutBatchService(
+            batchRepo, new FakePayoutBatchItemRepository(), splitRepo, accountRepo, DataProtector,
+            Options.Create(new PayoutOptions { HoldDays = 14, MinimumPayoutAmount = 500m, WithholdingTaxPercent = 3m }), clock,
+            NullLogger<PayoutBatchService>.Instance, profiles);
+        var accountService = new InstructorPayoutAccountService(accountRepo, DataProtector, clock, profiles);
+
+        // The instructor signs in as a USER; revenue splits are written with the instructor PROFILE id (Course.InstructorId).
+        var userId = Guid.NewGuid();
+        var profileId = profiles.Map(userId, Guid.NewGuid());
+
+        var created = await accountService.CreateForCurrentUserAsync(
+            userId,
+            new CreateInstructorPayoutAccountCommand("KBANK", "1234567890", "ครูสมชาย", "1234567890123", TaxPayerType.Individual),
+            CancellationToken.None);
+        Assert.True(created.IsSuccess);
+
+        // The admin sees the profile id on the split/batch item and verifies the account with that id.
+        Assert.True((await accountService.VerifyAsync(profileId, CancellationToken.None)).IsSuccess);
+
+        var split = REVENUE_SPLIT.Create(Guid.NewGuid(), profileId, 1428.57m, 0m, 428.57m, 1000m, 70m, "2026-08");
+        SetCreatedAt(split, now.AddDays(-20));
+        splitRepo.Add(split);
+
+        var result = await batchService.CreateAsync(new CreatePayoutBatchCommand("2026-08"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var item = Assert.Single(result.Value.Items); // before the fix the account was keyed by the user id, matched no split, and the batch stayed empty
+        Assert.Equal(profileId, item.InstructorId);
+        Assert.Equal(1000m, item.Amount);
+        Assert.Equal(item.Id, split.PAYOUT_BATCH_ITEM_ID);
+    }
+
+    [Fact]
+    public async Task GetTaxCertificateAsync_AnotherInstructorWithTheirOwnProfile_IsForbidden()
+    {
+        var batchRepo = new FakePayoutBatchRepository();
+        var itemRepo = new FakePayoutBatchItemRepository();
+        var accountRepo = new FakeInstructorPayoutAccountRepository();
+        var profiles = new FakeInstructorProfileReader();
+        var clock = new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc));
+        var service = new PayoutBatchService(
+            batchRepo, itemRepo, new FakeRevenueSplitRepository(), accountRepo, DataProtector, Options.Create(RealPayer()), clock,
+            NullLogger<PayoutBatchService>.Instance, profiles);
+
+        var ownerUser = Guid.NewGuid();
+        var ownerProfile = profiles.Map(ownerUser, Guid.NewGuid());
+        var otherUser = Guid.NewGuid();
+        profiles.Map(otherUser, Guid.NewGuid());
+
+        var account = INSTRUCTOR_PAYOUT_ACCOUNT.Create(ownerProfile, "KBANK", DataProtector.Encrypt("1111111111"), "เจ้าของ", DataProtector.Encrypt("1234567890123"));
+        account.Verify(clock);
+        accountRepo.Add(account);
+
+        var batch = PAYOUT_BATCH.Create("2026-08");
+        var item = batch.AddItem(ownerProfile, 10000m, 3m, 300m, 9700m);
+        batch.MarkExecuted(Guid.NewGuid(), clock);
+        batchRepo.Add(batch);
+        itemRepo.Items[item.PAYOUT_BATCH_ITEM_ID] = item;
+
+        var asOther = await service.GetTaxCertificateAsync(otherUser, item.PAYOUT_BATCH_ITEM_ID, false, CancellationToken.None);
+        var asOwner = await service.GetTaxCertificateAsync(ownerUser, item.PAYOUT_BATCH_ITEM_ID, false, CancellationToken.None);
+        var asAdmin = await service.GetTaxCertificateAsync(Guid.NewGuid(), item.PAYOUT_BATCH_ITEM_ID, true, CancellationToken.None);
+
+        Assert.True(asOther.IsFailure);
+        Assert.Equal("forbidden", asOther.Error.Code);
+        Assert.True(asOwner.IsSuccess);
+        Assert.True(asAdmin.IsSuccess);
+    }
+}

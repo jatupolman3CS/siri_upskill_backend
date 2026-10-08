@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Payout.Domain;
 using Siri.SharedKernel;
 
@@ -7,7 +8,7 @@ namespace Siri.Modules.Payout.Application;
 /// <summary>
 /// Business logic for <see cref="REVENUE_SPLIT"/>, backing <c>RevenueSplitEndpoints</c>.
 /// </summary>
-public sealed class RevenueSplitService(IRevenueSplitRepository repository)
+public sealed class RevenueSplitService(IRevenueSplitRepository repository, IInstructorProfileReader instructorProfiles)
 {
     public async Task<Result<RevenueSplitResponse>> CreateAsync(CreateRevenueSplitCommand command, CancellationToken cancellationToken)
     {
@@ -86,12 +87,23 @@ public sealed class RevenueSplitService(IRevenueSplitRepository repository)
         return PagedResult<RevenueSplitResponse>.Create(mapped, totalCount, effectivePage, effectivePageSize);
     }
 
+    /// <summary>
+    /// The caller's own revenue splits. <paramref name="userId"/> is the authenticated <b>user</b> id; splits are keyed by the instructor <b>profile</b> id
+    /// (<c>Course.InstructorId</c>), so the profile that belongs to this user is resolved first — a user can only ever see the splits of their own profile,
+    /// and a user without a profile sees none.
+    /// </summary>
     public async Task<PagedResult<RevenueSplitResponse>> ListForInstructorAsync(Guid userId, int page, int pageSize, CancellationToken cancellationToken)
     {
         var effectivePageSize = pageSize is <= 0 or > 100 ? 20 : pageSize;
         var effectivePage = page <= 0 ? 1 : page;
 
-        var query = repository.Query().Where(r => r.INSTRUCTOR_ID == userId);
+        var instructorProfileId = await instructorProfiles.GetProfileIdByUserIdAsync(userId, cancellationToken).ConfigureAwait(false);
+        if (instructorProfileId is not { } profileId)
+        {
+            return PagedResult<RevenueSplitResponse>.Create([], 0, effectivePage, effectivePageSize);
+        }
+
+        var query = repository.Query().Where(r => r.INSTRUCTOR_ID == profileId);
         var totalCount = await query.CountAsync(cancellationToken).ConfigureAwait(false);
         var items = await query
             .OrderByDescending(r => r.CreatedAtUtc)

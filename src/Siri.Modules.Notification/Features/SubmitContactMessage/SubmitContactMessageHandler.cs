@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Siri.Modules.Notification.Domain;
 using Siri.Modules.Notification.Infrastructure;
 using Siri.Persistence;
@@ -10,6 +11,7 @@ namespace Siri.Modules.Notification.Features.SubmitContactMessage;
 public sealed class SubmitContactMessageHandler(
     AppDbContext dbContext,
     IValidator<SubmitContactMessageCommand> validator,
+    IOptions<ContactOptions> contactOptions,
     ILogger<SubmitContactMessageHandler> logger)
 {
     public async Task<Result<SubmitContactMessageResponse>> HandleAsync(
@@ -44,9 +46,14 @@ public sealed class SubmitContactMessageHandler(
 
         dbContext.ContactMessages().Add(contactMessage);
 
-        // 4. Enqueue notification email to team via EmailOutbox
-        var safeSubject = contactMessage.Subject;
-        var bodyHtml = $@"<div style=""font-family: sans-serif; line-height: 1.6;"">
+        // 4. Enqueue notification email to team via EmailOutbox — to the REAL configured support inbox only.
+        // With none configured the message is still saved (staff read it in the admin contact list); no email
+        // is queued to an address nobody confirmed exists.
+        var supportEmail = contactOptions.Value.SupportEmail?.Trim();
+        if (!string.IsNullOrWhiteSpace(supportEmail))
+        {
+            var safeSubject = contactMessage.Subject;
+            var bodyHtml = $@"<div style=""font-family: sans-serif; line-height: 1.6;"">
 <h2>New Contact Message from SiriUpSkill</h2>
 <p><strong>From:</strong> {System.Net.WebUtility.HtmlEncode(contactMessage.Name)} &lt;{System.Net.WebUtility.HtmlEncode(contactMessage.Email)}&gt;</p>
 <p><strong>Subject:</strong> {System.Net.WebUtility.HtmlEncode(contactMessage.Subject)}</p>
@@ -56,13 +63,21 @@ public sealed class SubmitContactMessageHandler(
 <p style=""color: #71717a; font-size: 12px;"">Message ID: {contactMessage.Id}</p>
 </div>";
 
-        var outboxMessage = EMAIL_OUTBOX_MESSAGE.Enqueue(
-            toEmail: "support@siriupskill.com",
-            subject: $"[Contact Form] {safeSubject}",
-            bodyHtml: bodyHtml,
-            templateKey: "contact-notification");
+            var outboxMessage = EMAIL_OUTBOX_MESSAGE.Enqueue(
+                toEmail: supportEmail,
+                subject: $"[Contact Form] {safeSubject}",
+                bodyHtml: bodyHtml,
+                templateKey: "contact-notification");
 
-        dbContext.EmailOutboxMessages().Add(outboxMessage);
+            dbContext.EmailOutboxMessages().Add(outboxMessage);
+        }
+        else
+        {
+            logger.LogWarning(
+                "Contact message {MessageId} was saved but NOT emailed to the team: {Option} is not configured.",
+                contactMessage.Id,
+                $"{ContactOptions.SectionName}:{nameof(ContactOptions.SupportEmail)}");
+        }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

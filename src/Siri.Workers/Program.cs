@@ -7,6 +7,7 @@ using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Json;
+using Siri.Integrations.Email;
 using Siri.Modules.Analytics;
 using Siri.Modules.Catalog;
 using Siri.Modules.Cms;
@@ -14,6 +15,7 @@ using Siri.Modules.Commerce;
 using Siri.Modules.Community;
 using Siri.Modules.Identity;
 using Siri.Modules.Learning;
+using Siri.Modules.Live;
 using Siri.Modules.Media;
 using Siri.Modules.Notification;
 using Siri.Modules.Payout;
@@ -40,6 +42,22 @@ public static class Program
         {
             var builder = Host.CreateApplicationBuilder(args);
             DotEnvLoader.AddDefaults(builder.Configuration, builder.Environment);
+
+            // This host drains the email outbox, so it must not start in Production while mail would be
+            // dropped or fail (Email:Provider unset/'Log'); it also runs the live-meeting-sync job, so it must not
+            // start with the fake Live provider or a half-configured Google client; and it decrypts the instructors'
+            // stored Google refresh tokens, so it must not start with the placeholder / shipped dev encryption key
+            // (its own appsettings.json carries the dev key). Same checks as Siri.Api's ProductionConfigurationGuard —
+            // shared so the two can never drift apart (see WorkersProductionRequirements).
+            if (builder.Environment.IsProduction())
+            {
+                var productionProblems = WorkersProductionRequirements.GetProblems(builder.Configuration);
+                if (productionProblems.Count > 0)
+                {
+                    throw new InvalidOperationException(
+                        "PRODUCTION CONFIGURATION VALIDATION FAILED:\n - " + string.Join("\n - ", productionProblems));
+                }
+            }
 
             // "<project>-<component>-<env>" naming for the shared VPS-wide OTLP collector — same
             // convention/reasoning as Siri.Api/Program.cs's ObservabilityOptions.ServiceName.
@@ -180,6 +198,7 @@ public static class Program
                 .AddCmsModule()
                 .AddCommunityModule()
                 .AddNotificationModule(builder.Configuration)
+                .AddLiveModule(builder.Configuration)
                 .AddAnalyticsModule();
 
             var host = builder.Build();

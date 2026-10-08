@@ -9,6 +9,7 @@
     <ProjectReference Include="..\Siri.Integrations.Video\Siri.Integrations.Video.csproj" />
     <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
     <ProjectReference Include="..\Siri.Modules.Analytics\Siri.Modules.Analytics.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Live\Siri.Modules.Live.csproj" />
     <ProjectReference Include="..\Siri.Modules.Commerce\Siri.Modules.Commerce.csproj" />
     <ProjectReference Include="..\Siri.Modules.Media\Siri.Modules.Media.csproj" />
     <ProjectReference Include="..\Siri.Modules.Payout\Siri.Modules.Payout.csproj" />

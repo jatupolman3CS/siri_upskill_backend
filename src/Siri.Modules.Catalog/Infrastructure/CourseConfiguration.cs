@@ -97,6 +97,10 @@ public sealed class CourseConfiguration : IEntityTypeConfiguration<COURSE>
         builder.Property(c => c.MaxSeats);
         builder.Property(c => c.SeatsUsed).IsRequired().HasDefaultValue(0);
 
+        // P11-04 (docs/contracts/P11-04-live-invites-ics-reminders.md §2.3): opt-in, default false —
+        // every existing course gets false with no data migration. Not a read-model/search field.
+        builder.Property(c => c.GoogleAttendeeSyncEnabled).IsRequired().HasDefaultValue(false);
+
         builder.Property(c => c.TotalDurationSeconds).IsRequired();
         builder.Property(c => c.EpisodeCount).IsRequired();
         builder.Property(c => c.RatingAverage).HasPrecision(3, 2).IsRequired();

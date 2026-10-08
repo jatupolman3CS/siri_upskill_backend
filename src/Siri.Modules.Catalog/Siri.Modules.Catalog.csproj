@@ -41,6 +41,11 @@
     <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- P11-05: GetCourseLiveScheduleHandler's three reads are internal so a unit test can prove each translates to SQL without a database. -->
+    <InternalsVisibleTo Include="Siri.UnitTests" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

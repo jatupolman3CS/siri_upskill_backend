@@ -29,7 +29,7 @@ public sealed class LearningAccessContractTests
         var now = new DateTime(2026, 9, 7, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
         var repo = new FakeEnrollmentRepository();
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock);
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock, new RecordingCourseEnrollmentCountUpdater());
         var existing = ENROLLMENT.Create(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EnrollmentSource.Purchase, now, clock);
         existing.UpdateProgress(42m, clock);
         repo.Add(existing);
@@ -117,7 +117,7 @@ public sealed class LearningAccessContractTests
     public async Task EnrollUserInCoursesAsync_NewCourses_CreatesOneEnrollmentPerCourseInOneBatch()
     {
         var repo = new FakeEnrollmentRepository();
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc)));
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc)), new RecordingCourseEnrollmentCountUpdater());
 
         var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
         var userId = Guid.NewGuid();
@@ -158,7 +158,7 @@ public sealed class LearningAccessContractTests
         var repo = new FakeEnrollmentRepository();
         var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock);
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock, new RecordingCourseEnrollmentCountUpdater());
 
         var userId = Guid.NewGuid();
         var expiredCourse = Guid.NewGuid();
@@ -198,7 +198,7 @@ public sealed class LearningAccessContractTests
         var repo = new FakeEnrollmentRepository();
         var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock);
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock, new RecordingCourseEnrollmentCountUpdater());
 
         var userId = Guid.NewGuid();
         var activeCourse = Guid.NewGuid();
@@ -234,7 +234,7 @@ public sealed class LearningAccessContractTests
     public async Task EnrollUserInCoursesAsync_EmptyGrantList_ReturnsSuccessWithoutAnyRepositoryCall()
     {
         var repo = new FakeEnrollmentRepository();
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(DateTime.UtcNow));
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(DateTime.UtcNow), new RecordingCourseEnrollmentCountUpdater());
 
         var result = await contract.EnrollUserInCoursesAsync(Guid.NewGuid(), "Purchase", [], CancellationToken.None);
 
@@ -247,7 +247,7 @@ public sealed class LearningAccessContractTests
     public async Task EnrollUserInCoursesAsync_EmptyUserId_ReturnsValidationFailure()
     {
         var repo = new FakeEnrollmentRepository();
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(DateTime.UtcNow));
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(DateTime.UtcNow), new RecordingCourseEnrollmentCountUpdater());
 
         var result = await contract.EnrollUserInCoursesAsync(
             Guid.Empty, "Purchase", [new CourseEnrollmentGrant(Guid.NewGuid(), null, null)], CancellationToken.None);
@@ -260,7 +260,7 @@ public sealed class LearningAccessContractTests
     public async Task EnrollUserInCoursesAsync_EmptyCourseIdInGrant_ReturnsValidationFailure()
     {
         var repo = new FakeEnrollmentRepository();
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(DateTime.UtcNow));
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(DateTime.UtcNow), new RecordingCourseEnrollmentCountUpdater());
 
         var result = await contract.EnrollUserInCoursesAsync(
             Guid.NewGuid(), "Purchase", [new CourseEnrollmentGrant(Guid.Empty, null, null)], CancellationToken.None);
@@ -275,7 +275,7 @@ public sealed class LearningAccessContractTests
         var repo = new FakeEnrollmentRepository();
         var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock);
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock, new RecordingCourseEnrollmentCountUpdater());
 
         var userId = Guid.NewGuid();
         var activeCourse = Guid.NewGuid();
@@ -305,7 +305,7 @@ public sealed class LearningAccessContractTests
         var repo = new FakeEnrollmentRepository();
         var now = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock);
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), clock, new RecordingCourseEnrollmentCountUpdater());
 
         var userId = Guid.NewGuid();
         var lifetimeCourse = Guid.NewGuid();
@@ -320,7 +320,7 @@ public sealed class LearningAccessContractTests
     public async Task HasActiveEnrollmentsAsync_EmptyCourseIdList_ReturnsEmptyWithoutAnyRepositoryCall()
     {
         var repo = new FakeEnrollmentRepository();
-        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(DateTime.UtcNow));
+        var contract = new LearningAccessContract(repo, new FakeCatalogPriceContract(), new FakeClock(DateTime.UtcNow), new RecordingCourseEnrollmentCountUpdater());
 
         var result = await contract.HasActiveEnrollmentsAsync(Guid.NewGuid(), [], CancellationToken.None);
 

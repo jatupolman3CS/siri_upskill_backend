@@ -80,8 +80,8 @@ public sealed class CoursePublicationIntegrationTests(PostgresFixture fixture) :
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var contract = new MediaAssetContractService(db);
                 var success = approving
-                    ? (await new ApproveCourseHandler(db, clock, cache, contract).HandleAsync(courseId, CancellationToken.None)).IsSuccess
-                    : (await new SubmitCourseForReviewHandler(db, contract, clock).HandleAsync(userId, courseId, CancellationToken.None)).IsSuccess;
+                    ? (await new ApproveCourseHandler(db, clock, cache, contract, new NullLiveMeetingReadinessReader()).HandleAsync(courseId, CancellationToken.None)).IsSuccess
+                    : (await new SubmitCourseForReviewHandler(db, contract, clock, new NullLiveMeetingReadinessReader()).HandleAsync(userId, courseId, CancellationToken.None)).IsSuccess;
                 Assert.Equal(mediaState == "Ready", success);
             }
             using (var scope = fixture.CreateScope())

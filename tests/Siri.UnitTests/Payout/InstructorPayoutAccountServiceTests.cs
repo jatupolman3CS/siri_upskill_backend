@@ -42,20 +42,29 @@ public sealed class InstructorPayoutAccountServiceTests
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    [Fact]
-    public async Task CreateForCurrentUserAsync_WhenNew_CreatesAccount()
+    private static (InstructorPayoutAccountService Service, FakeInstructorPayoutAccountRepository Repo, FakeInstructorProfileReader Profiles) Arrange(DateTime? now = null)
     {
         var repo = new FakeInstructorPayoutAccountRepository();
-        var clock = new FakeClock(DateTime.UtcNow);
-        var service = new InstructorPayoutAccountService(repo, DataProtector, clock);
+        var profiles = new FakeInstructorProfileReader();
+        var service = new InstructorPayoutAccountService(repo, DataProtector, new FakeClock(now ?? DateTime.UtcNow), profiles);
+        return (service, repo, profiles);
+    }
 
+    [Fact]
+    public async Task CreateForCurrentUserAsync_WhenNew_CreatesAccountKeyedByTheInstructorProfileIdNotTheUserId()
+    {
+        var (service, repo, profiles) = Arrange();
         var userId = Guid.NewGuid();
+        var profileId = profiles.Map(userId, Guid.NewGuid());
         var command = new CreateInstructorPayoutAccountCommand("KBANK", "0123456789", "สมชาย สบายดี", "1234567890123", TaxPayerType.Individual);
 
         var result = await service.CreateForCurrentUserAsync(userId, command, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(userId, result.Value.InstructorId);
+        // Revenue splits and payout-batch items carry the profile id; the account must carry the same key or a batch can never match it to a verified account.
+        Assert.Equal(profileId, result.Value.InstructorId);
+        Assert.NotEqual(userId, result.Value.InstructorId);
+        Assert.Equal(profileId, repo.Accounts.Values.Single().INSTRUCTOR_ID);
         Assert.Equal("KBANK", result.Value.BankCode);
         Assert.Equal("สมชาย สบายดี", result.Value.AccountName);
         Assert.Equal(TaxPayerType.Individual, result.Value.TaxPayerType);
@@ -63,13 +72,24 @@ public sealed class InstructorPayoutAccountServiceTests
     }
 
     [Fact]
+    public async Task CreateForCurrentUserAsync_UserWithoutAnInstructorProfile_IsForbiddenAndStoresNothing()
+    {
+        var (service, repo, _) = Arrange();
+        var command = new CreateInstructorPayoutAccountCommand("KBANK", "0123456789", "สมชาย สบายดี", "1234567890123");
+
+        var result = await service.CreateForCurrentUserAsync(Guid.NewGuid(), command, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("forbidden", result.Error.Code);
+        Assert.Empty(repo.Accounts);
+    }
+
+    [Fact]
     public async Task CreateForCurrentUserAsync_StoresAccountNumberEncrypted_NotPlaintext()
     {
-        var repo = new FakeInstructorPayoutAccountRepository();
-        var clock = new FakeClock(DateTime.UtcNow);
-        var service = new InstructorPayoutAccountService(repo, DataProtector, clock);
-
+        var (service, repo, profiles) = Arrange();
         var userId = Guid.NewGuid();
+        profiles.Map(userId, Guid.NewGuid());
         var command = new CreateInstructorPayoutAccountCommand("KBANK", "0123456789", "สมชาย สบายดี", "1234567890123");
 
         await service.CreateForCurrentUserAsync(userId, command, CancellationToken.None);
@@ -80,13 +100,11 @@ public sealed class InstructorPayoutAccountServiceTests
     }
 
     [Fact]
-    public async Task CreateForCurrentUserAsync_WhenAlreadyExists_ReturnsConflict()
+    public async Task CreateForCurrentUserAsync_WhenTheProfileAlreadyHasAnAccount_ReturnsConflict()
     {
-        var repo = new FakeInstructorPayoutAccountRepository();
-        var clock = new FakeClock(DateTime.UtcNow);
-        var service = new InstructorPayoutAccountService(repo, DataProtector, clock);
-
+        var (service, _, profiles) = Arrange();
         var userId = Guid.NewGuid();
+        profiles.Map(userId, Guid.NewGuid());
         var command = new CreateInstructorPayoutAccountCommand("KBANK", "0123456789", "สมชาย สบายดี", "1234567890123");
 
         await service.CreateForCurrentUserAsync(userId, command, CancellationToken.None);
@@ -97,14 +115,12 @@ public sealed class InstructorPayoutAccountServiceTests
     }
 
     [Fact]
-    public async Task GetForCurrentUserAsync_WhenExists_ReturnsAccountWithMaskedNumber()
+    public async Task GetForCurrentUserAsync_WhenExists_ReturnsTheUsersOwnAccountWithMaskedNumber()
     {
-        var repo = new FakeInstructorPayoutAccountRepository();
-        var clock = new FakeClock(DateTime.UtcNow);
-        var service = new InstructorPayoutAccountService(repo, DataProtector, clock);
-
+        var (service, repo, profiles) = Arrange();
         var userId = Guid.NewGuid();
-        var account = INSTRUCTOR_PAYOUT_ACCOUNT.Create(userId, "SCB", DataProtector.Encrypt("9998887776"), "สมชาย สบายดี", null);
+        var profileId = profiles.Map(userId, Guid.NewGuid());
+        var account = INSTRUCTOR_PAYOUT_ACCOUNT.Create(profileId, "SCB", DataProtector.Encrypt("9998887776"), "สมชาย สบายดี", null);
         repo.Add(account);
 
         var result = await service.GetForCurrentUserAsync(userId, CancellationToken.None);
@@ -116,18 +132,49 @@ public sealed class InstructorPayoutAccountServiceTests
     }
 
     [Fact]
-    public async Task VerifyAsync_WhenAccountExists_SetsVerifiedAtUtc()
+    public async Task GetForCurrentUserAsync_NeverReturnsAnotherInstructorsAccount()
     {
-        var repo = new FakeInstructorPayoutAccountRepository();
+        var (service, repo, profiles) = Arrange();
+        var userA = Guid.NewGuid();
+        var userB = Guid.NewGuid();
+        var profileA = profiles.Map(userA, Guid.NewGuid());
+        var profileB = profiles.Map(userB, Guid.NewGuid());
+        var accountA = INSTRUCTOR_PAYOUT_ACCOUNT.Create(profileA, "SCB", DataProtector.Encrypt("1111111111"), "A", null);
+        var accountB = INSTRUCTOR_PAYOUT_ACCOUNT.Create(profileB, "KBANK", DataProtector.Encrypt("2222222222"), "B", null);
+        repo.Add(accountA);
+        repo.Add(accountB);
+
+        var asB = await service.GetForCurrentUserAsync(userB, CancellationToken.None);
+
+        Assert.True(asB.IsSuccess);
+        Assert.Equal(accountB.INSTRUCTOR_PAYOUT_ACCOUNT_ID, asB.Value.Id);
+        Assert.Equal("B", asB.Value.AccountName);
+    }
+
+    [Fact]
+    public async Task GetForCurrentUserAsync_UserWithoutProfile_IsNotFound_EvenWhenAnAccountExistsForSomeoneElse()
+    {
+        var (service, repo, profiles) = Arrange();
+        profiles.Map(Guid.NewGuid(), Guid.NewGuid());
+        repo.Add(INSTRUCTOR_PAYOUT_ACCOUNT.Create(Guid.NewGuid(), "SCB", DataProtector.Encrypt("1111111111"), "Other", null));
+
+        var result = await service.GetForCurrentUserAsync(Guid.NewGuid(), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("not_found", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task VerifyAsync_ByInstructorProfileId_SetsVerifiedAtUtc()
+    {
         var verifiedTime = new DateTime(2026, 8, 25, 12, 0, 0, DateTimeKind.Utc);
-        var clock = new FakeClock(verifiedTime);
-        var service = new InstructorPayoutAccountService(repo, DataProtector, clock);
+        var (service, repo, _) = Arrange(verifiedTime);
 
-        var userId = Guid.NewGuid();
-        var account = INSTRUCTOR_PAYOUT_ACCOUNT.Create(userId, "SCB", DataProtector.Encrypt("9998887776"), "สมชาย สบายดี", null);
-        repo.Add(account);
+        // The admin sees the profile id on revenue splits and batch items and verifies the account with that same id.
+        var profileId = Guid.NewGuid();
+        repo.Add(INSTRUCTOR_PAYOUT_ACCOUNT.Create(profileId, "SCB", DataProtector.Encrypt("9998887776"), "สมชาย สบายดี", null));
 
-        var result = await service.VerifyAsync(userId, CancellationToken.None);
+        var result = await service.VerifyAsync(profileId, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(verifiedTime, result.Value.VerifiedAtUtc);

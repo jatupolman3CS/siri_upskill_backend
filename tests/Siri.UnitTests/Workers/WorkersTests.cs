@@ -47,6 +47,18 @@ public sealed class WorkersTests
     }
 
     [Fact]
+    public void MapRecurringJobs_RegistersTheHourlyCourseEnrollmentRecount()
+    {
+        var mockManager = new FakeRecurringJobManager();
+
+        mockManager.MapRecurringJobs();
+
+        // D2: COURSES.ENROLLMENT_COUNT is healed (and filled in for rows that predate its writer) once an hour.
+        Assert.Contains("course-enrollment-recount", mockManager.RegisteredJobIds);
+        Assert.Equal(Cron.Hourly(), mockManager.CronOf("course-enrollment-recount"));
+    }
+
+    [Fact]
     public void AddHangfireClient_WithoutConnectionString_ThrowsInvalidOperationException()
     {
         // Arrange
@@ -78,9 +90,14 @@ public sealed class WorkersTests
     {
         public List<string> RegisteredJobIds { get; } = [];
 
+        private readonly Dictionary<string, string> _crons = [];
+
+        public string CronOf(string recurringJobId) => _crons[recurringJobId];
+
         public void AddOrUpdate(string recurringJobId, Job job, string cronExpression, RecurringJobOptions options)
         {
             RegisteredJobIds.Add(recurringJobId);
+            _crons[recurringJobId] = cronExpression;
         }
 
         public void Trigger(string recurringJobId) { }

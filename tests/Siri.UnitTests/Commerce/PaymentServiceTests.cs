@@ -17,14 +17,14 @@ public class PaymentServiceTests
     private readonly FakeClock _clock = new(new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc));
     private readonly PaymentOptions _paymentOptions = new();
 
-    private PaymentService CreateService() => new(
+    private PaymentService CreateService(StripeOptions? stripeOptions = null) => new(
         _paymentRepo,
         _orderRepo,
         _paymentMethod,
         _clock,
         new FakeUserContactReader(),
         Options.Create(_paymentOptions),
-        Options.Create(new StripeOptions { PublishableKey = "pk_test_fake", SecretKey = "sk_test_fake" }));
+        Options.Create(stripeOptions ?? new StripeOptions { PublishableKey = "pk_test_fake", SecretKey = "sk_test_fake" }));
 
     [Fact]
     public async Task GetByIdAsync_PaymentNotFound_ReturnsNotFound()
@@ -206,10 +206,31 @@ public class PaymentServiceTests
     {
         _paymentOptions.EnabledMethods = [PaymentMethod.PromptPay, PaymentMethod.Card];
 
-        var config = CreateService().GetConfig();
+        var result = CreateService().GetConfig();
 
-        Assert.Equal("pk_test_fake", config.PublishableKey);
-        Assert.Equal([PaymentMethod.PromptPay, PaymentMethod.Card], config.EnabledMethods);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("pk_test_fake", result.Value.PublishableKey);
+        Assert.Equal([PaymentMethod.PromptPay, PaymentMethod.Card], result.Value.EnabledMethods);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("CHANGE_ME_DEV_ONLY_pk_test_placeholder_key")]
+    [InlineData("change_me_pk")]
+    public void GetConfig_PublishableKeyMissingOrPlaceholder_FailsNotConfigured(string publishableKey)
+    {
+        var service = CreateService(new StripeOptions { PublishableKey = publishableKey, SecretKey = "sk_test_fake" });
+
+        var result = service.GetConfig();
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(PaymentProviderErrors.ProviderNotConfiguredCode, result.Error.Code);
+        // The error reaches API clients: it must not leak the configured (placeholder) value.
+        if (!string.IsNullOrWhiteSpace(publishableKey))
+        {
+            Assert.DoesNotContain(publishableKey, result.Error.Message, StringComparison.Ordinal);
+        }
     }
 
     private sealed class FakePaymentRepository : IPaymentRepository

@@ -148,9 +148,11 @@ $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
 $connection = "Host=127.0.0.1;Port=5433;Database=SIRIUPSKILL;Username=siriupskill_dev;Password=$($settings.AppPassword)"
 if (!(Test-Path $dotenvPath)) {
     $original = Read-Dotenv (Join-Path $backendRoot '.env')
-    $stripeSecret = 'CHANGE_ME_DEV_ONLY_sk_test_placeholder_key'
-    $stripePublic = 'CHANGE_ME_DEV_ONLY_pk_test_placeholder_key'
-    $stripeWebhook = 'CHANGE_ME_DEV_ONLY_whsec_placeholder_key'
+    # Empty = Stripe not configured: the API still boots and payment endpoints answer 503
+    # payment.provider_not_configured. Never seed fake keys.
+    $stripeSecret = ''
+    $stripePublic = ''
+    $stripeWebhook = ''
     if ([string]$original['Payment__Stripe__SecretKey'] -like 'sk_test_*') {
         $stripeSecret = $original['Payment__Stripe__SecretKey']
         $stripePublic = $original['Payment__Stripe__PublishableKey']
@@ -203,7 +205,6 @@ $local['Email__Smtp__FromAddress'] = 'no-reply@siriupskill.test'
 $local['Email__Smtp__FromDisplayName'] = 'SIRI UpSkill Dev'
 $local['Email__Smtp__UseStartTls'] = 'false'
 $local['Email__Smtp__AllowInsecure'] = 'true'
-$local['SIRI_DEV_SAMPLE_VIDEO'] = 'true'
 $local['ASPNETCORE_ENVIRONMENT'] = 'Development'
 $local['DOTNET_ENVIRONMENT'] = 'Development'
 $local['API_INTERNAL_URL'] = 'http://localhost:5190'
@@ -275,10 +276,10 @@ try {
     $workerRoot = Join-Path $backendRoot 'src\Siri.Workers'
     Run-Logged 'migrate' $dotnet @('bin/Debug/net10.0/Siri.Api.dll','--environment','Development','--migrate') $apiRoot
     Run-Logged 'seed' $dotnet @('bin/Debug/net10.0/Siri.Api.dll','--environment','Development','--seed') $apiRoot
-    # Switch only the two known sample assets created by MediaSeeder in this local database.
+    # Real data only: there is no mock/test-stream video anymore. Re-point any episode still attached to a
+    # legacy 'mock-video-demo-1' asset (created by older seeds) to the real Bunny library sample asset.
     # Uploaded media references are outside this predicate and retain their original provider.
-    $sampleVideoEnabled = !$local.ContainsKey('SIRI_DEV_SAMPLE_VIDEO') -or $local['SIRI_DEV_SAMPLE_VIDEO'] -eq 'true'
-    $targetSample = if ($sampleVideoEnabled) { 'mock-video-demo-1' } else { '448944e4-c1bd-4f61-a8b1-3e10e469aa69' }
+    $targetSample = '448944e4-c1bd-4f61-a8b1-3e10e469aa69'
     $sampleSql = @'
 UPDATE "CATALOG"."COURSE_EPISODES" AS episode
 SET "MEDIA_ASSET_ID" = target."MEDIA_ASSET_ID"
@@ -292,7 +293,7 @@ WHERE target."PROVIDER" = 'BunnyStream' AND target."PROVIDER_ASSET_ID" = '__DEV_
 '@
     $sampleSql.Replace('__DEV_SAMPLE_TARGET__', $targetSample) | & $psql -X -h 127.0.0.1 -p 5433 -U siri_dev_admin -d SIRIUPSKILL -v ON_ERROR_STOP=1 *> (Join-Path $logsRoot 'sample-video.log')
     if ($LASTEXITCODE -ne 0) { throw 'Could not configure the local sample video.' }
-    Write-Host $(if ($sampleVideoEnabled) { 'Sample courses use the public HLS test clip (development only).' } else { 'Sample courses use the configured Bunny library.' })
+    Write-Host 'Sample courses use the Bunny library video; playback needs real VideoProvider credentials (otherwise the API answers 503 video.provider_not_configured).'
     Start-DevProcess 'cache' (Join-Path $devRoot 'tools\garnet\net10.0\GarnetServer.exe') '--bind 127.0.0.1 --port 6380 --memory 128m --page 4m --index 8m' $devRoot
     Start-DevProcess 'mailpit' (Join-Path $devRoot 'tools\mailpit\mailpit.exe') "--listen 127.0.0.1:8025 --smtp 127.0.0.1:1025 --database `"$devRoot\mailpit.db`" --disable-version-check --smtp-disable-rdns" $devRoot
     Wait-Port 6380

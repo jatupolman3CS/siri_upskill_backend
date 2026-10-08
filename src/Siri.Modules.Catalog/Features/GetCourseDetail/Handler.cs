@@ -75,14 +75,7 @@ public sealed class GetCourseDetailHandler(AppDbContext dbContext, IUserContext 
                 .ConfigureAwait(false);
 
             var nowUtc = clock.UtcNow;
-            var detailSessions = sessions.Select(s => new CourseDetailLiveSession(
-                s.Id,
-                s.Title,
-                s.StartsAtUtc,
-                s.EndsAtUtc,
-                LiveSessionDisplayStateCalculator.Compute(LiveSessionStatus.Scheduled, s.StartsAtUtc, s.EndsAtUtc, nowUtc),
-                s.RecordingEpisodeId.HasValue
-            )).ToList();
+            var detailSessions = sessions.Select(s => ToDetailSession(s, nowUtc)).ToList();
 
             var upcomingCount = detailSessions.Count(s => s.DisplayState is LiveSessionDisplayState.Upcoming or LiveSessionDisplayState.Live);
             var pastCount = detailSessions.Count(s => s.DisplayState == LiveSessionDisplayState.Ended);
@@ -104,4 +97,15 @@ public sealed class GetCourseDetailHandler(AppDbContext dbContext, IUserContext 
             course.PublishedAtUtc, course.CategoryId, instructor, outcomes, requirements, sections, isWishlisted,
             course.DeliveryFormat, liveSchedule);
     }
+
+    /// <summary>The public view of one scheduled class. No room link anywhere: there is no URL property, and the title — instructor free text,
+    /// shown to anonymous visitors — is scrubbed of meeting-host links too, so a title stored before the write-side rule existed (or through any
+    /// other path) cannot leak one.</summary>
+    internal static CourseDetailLiveSession ToDetailSession(COURSE_LIVE_SESSION session, DateTime nowUtc) => new(
+        session.Id,
+        MeetingLinkText.ScrubRequired(session.Title),
+        session.StartsAtUtc,
+        session.EndsAtUtc,
+        LiveSessionDisplayStateCalculator.Compute(LiveSessionStatus.Scheduled, session.StartsAtUtc, session.EndsAtUtc, nowUtc),
+        session.RecordingEpisodeId.HasValue);
 }

@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
+    <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <!-- Pure HttpClient integration (no EF Core, no other module) — IGoogleOAuthService / ICalendarProvider
+         (P11-03 WP-B). -->
+    <ProjectReference Include="..\Siri.Integrations.Google\Siri.Integrations.Google.csproj" />
+    <!-- Cross-module reads go through each module's Contracts/ namespace only (ArchitectureTests enforce
+         this) — Catalog (ILiveScheduleReader/ILiveMeetingReadinessReader/ILiveMeetingSink/ICatalogPriceContract),
+         Learning (ILearningAccessContract), Identity (IUserContactReader), Notification (IEmailOutbox). -->
+    <ProjectReference Include="..\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Learning\Siri.Modules.Learning.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Siri.Modules.Notification\Siri.Modules.Notification.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- LiveMeetingSyncJob's tests drive the job directly (internal knobs such as the conference poll interval). -->
+    <InternalsVisibleTo Include="Siri.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed for IServiceCollection/ASP.NET Core extension points in LiveModule.cs. Modules stay class
+         libraries (not Sdk.Web) — this only pulls in the ASP.NET Core types, not a web host. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-agnostic EF Core only (no .Npgsql here) — same reasoning as Siri.Modules.Community.csproj/
+         Siri.Modules.Analytics.csproj: Infrastructure/ owns this module's IEntityTypeConfiguration<T>
+         classes and DbSet accessors, but only Siri.Persistence decides the actual provider. Already
+         centrally versioned in Directory.Packages.props — not a new package to the solution. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <!-- LiveMeetingSyncJob (P11-03 WP-E) uses Hangfire's [DisableConcurrentExecution] filter attribute
+         directly, same as Siri.Modules.Notification's EmailOutboxSenderJob. -->
+    <PackageReference Include="Hangfire.Core" />
+    <PackageReference Include="FluentValidation" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

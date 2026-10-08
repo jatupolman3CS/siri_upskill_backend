@@ -35,7 +35,11 @@ public sealed class RevenueSplitServiceTests
             return Task.FromResult<IReadOnlyList<REVENUE_SPLIT>>(list);
         }
 
-        public IQueryable<REVENUE_SPLIT> Query() => Splits.Values.AsQueryable();
+        /// <summary>Set to prove a code path never touches the split table.</summary>
+        public bool QueryIsForbidden { get; set; }
+
+        public IQueryable<REVENUE_SPLIT> Query() =>
+            QueryIsForbidden ? throw new InvalidOperationException("The split table must not be queried here.") : Splits.Values.AsQueryable();
 
         public Task<decimal> GetTotalEarningsAsync(Guid instructorId, CancellationToken cancellationToken) =>
             Task.FromResult(0m);
@@ -52,7 +56,7 @@ public sealed class RevenueSplitServiceTests
     public async Task CreateAsync_WhenUniqueOrderItem_CreatesSplit()
     {
         var repo = new FakeRevenueSplitRepository();
-        var service = new RevenueSplitService(repo);
+        var service = new RevenueSplitService(repo, new FakeInstructorProfileReader());
 
         var orderItemId = Guid.NewGuid();
         var instructorId = Guid.NewGuid();
@@ -73,7 +77,7 @@ public sealed class RevenueSplitServiceTests
     public async Task CreateAsync_WhenDuplicateOrderItem_ReturnsConflict()
     {
         var repo = new FakeRevenueSplitRepository();
-        var service = new RevenueSplitService(repo);
+        var service = new RevenueSplitService(repo, new FakeInstructorProfileReader());
 
         var orderItemId = Guid.NewGuid();
         var instructorId = Guid.NewGuid();
@@ -90,7 +94,7 @@ public sealed class RevenueSplitServiceTests
     public async Task GetByIdAsync_WhenExists_ReturnsSplit()
     {
         var repo = new FakeRevenueSplitRepository();
-        var service = new RevenueSplitService(repo);
+        var service = new RevenueSplitService(repo, new FakeInstructorProfileReader());
 
         var orderItemId = Guid.NewGuid();
         var instructorId = Guid.NewGuid();
@@ -101,5 +105,19 @@ public sealed class RevenueSplitServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(split.REVENUE_SPLIT_ID, result.Value.Id);
+    }
+
+    [Fact]
+    public async Task ListForInstructorAsync_UserWithoutAnInstructorProfile_GetsAnEmptyPageAndNeverTouchesTheSplits()
+    {
+        var repo = new FakeRevenueSplitRepository { QueryIsForbidden = true };
+        var profiles = new FakeInstructorProfileReader();
+        var service = new RevenueSplitService(repo, profiles);
+
+        var result = await service.ListForInstructorAsync(Guid.NewGuid(), 1, 20, CancellationToken.None);
+
+        Assert.Empty(result.Items);
+        Assert.Equal(0, result.TotalCount);
+        Assert.Equal(1, profiles.Calls); // the profile is resolved from the caller user id before any money is read
     }
 }

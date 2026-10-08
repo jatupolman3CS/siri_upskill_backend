@@ -8,6 +8,7 @@ using Siri.Modules.Identity.Features.AnonymizeAccount;
 using Siri.Modules.Identity.Features.ConfirmEmail;
 using Siri.Modules.Identity.Features.DataExport;
 using Siri.Modules.Identity.Features.ForgotPassword;
+using Siri.Modules.Identity.Features.GetMe;
 using Siri.Modules.Identity.Features.GoogleLogin;
 using Siri.Modules.Identity.Features.Login;
 using Siri.Modules.Identity.Features.Logout;
@@ -229,6 +230,33 @@ public class AuthController : ControllerBase
         var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
 
         var result = await handler.HandleAsync(command, ipAddress, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(HttpContext);
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    [EndpointName("IdentityGetMe")]
+    [EndpointSummary("ดูโปรไฟล์ของตัวเอง (ชื่อ อีเมล รูปโปรไฟล์ บทบาท) สำหรับแสดงที่ส่วนหัวของเว็บ")]
+    [ProducesResponseType(typeof(MeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IResult> GetMe(
+        [FromServices] IUserContext userContext,
+        [FromServices] GetMeHandler handler,
+        CancellationToken cancellationToken)
+    {
+        // Personal data, differs per caller: never let a browser/proxy/CDN keep or share a copy.
+        Response.Headers.CacheControl = "no-store";
+
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await handler.HandleAsync(new GetMeQuery(userId), cancellationToken).ConfigureAwait(false);
 
         return result.IsSuccess
             ? Results.Ok(result.Value)

@@ -97,7 +97,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\siri_upskill_backend\s
 
 Native development uses `.env` directly. The launcher also passes these settings to both hosts above stale user-secrets and environment values. It creates a separate PostgreSQL cluster; the existing PostgreSQL service and its databases are preserved. Email goes to local Mailpit. Stripe test keys can be set in `.env`.
 
-Sample courses use the existing public HLS test clip by default, so classroom playback/progress can be tested without a Bunny account. This requires internet access. The launcher switches only the two known sample media assets in `SIRIUPSKILL`; uploaded media remains on its configured provider. To test actual Bunny media, set `SIRI_DEV_SAMPLE_VIDEO=false` in `.env`, configure `VideoProvider__TokenAuthenticationKey` with the **CDN Token Authentication Key** (different from the library API key), and Stop/Start. The seeded video ID must exist in that library. Bunny signing follows the [directory-token specification](https://bunny.net/docs/cdn/security/token-authentication/advanced) so HLS segment requests retain authorization.
+There is no mock or public test-stream video: all video goes through Bunny Stream. Without real `VideoProvider__*` values (`LibraryId`, `ApiKey`, `ReadOnlyApiKey`, `CdnHostname`, `TokenAuthenticationKey`) in `.env`, upload/status/playback endpoints answer HTTP 503 `video.provider_not_configured` instead of faking a response. Sample courses are attached to the seeded Bunny library video (`MediaSeeder.DefaultBunnyVideoId`), which must exist in your library; the launcher also re-points any episode still attached to a legacy `mock-video-demo-1` asset to it. Configure `VideoProvider__TokenAuthenticationKey` with the **CDN Token Authentication Key** (different from the library API key) and Stop/Start. Bunny signing follows the [directory-token specification](https://bunny.net/docs/cdn/security/token-authentication/advanced) so HLS segment requests retain authorization.
 
 For checkout without an external payment provider, log in as admin and create a 100% discount code, then use it as a learner. This exercises the actual order/enrollment transaction. The local database on this machine already has **`DEVFREE`** (100% discount) for testing. This code is test data, not automatically created in new databases.
 
@@ -113,7 +113,7 @@ Keep `Payment__Stripe__SecretKey` and `Payment__Stripe__PublishableKey` set to y
 
 Choose a course without a 100% discount and click Pay. Scan the displayed **test** QR using a QR reader to open Stripe's test payment page, then select **Authorize Test Payment**. Checkout polls the payment status and automatically opens the success page after the webhook grants access. Stripe CLI logs are in `.dev/logs/stripe.log` and `stripe.err.log`; they can contain the signing secret, so keep them private. Set `SIRI_DEV_STRIPE_WEBHOOKS=false` to start dev without connecting the listener to Stripe.
 
-See Stripe's [local webhook listener documentation](https://github.com/stripe/stripe-cli/wiki/listen-command) for how forwarding works. Use sample videos while testing payments; actual Bunny configuration is independent.
+See Stripe's [local webhook listener documentation](https://github.com/stripe/stripe-cli/wiki/listen-command) for how forwarding works. Without `Payment__Stripe__SecretKey`/`PublishableKey` the app still boots but payment endpoints answer HTTP 503 `payment.provider_not_configured`; there is no fake key. Bunny configuration is independent of payments.
 
 Development allows 100 authentication requests per minute so local login, confirmation and refresh tests can run together; other environments keep the existing limit of 5.
 
@@ -125,7 +125,7 @@ Log in with the instructor account above, open a draft course in Course Builder,
 
 The progress indicator measures transferred bytes. After transfer, the UI shows Processing until Bunny confirms Ready or Failed. API status polling and the background worker both update the stored asset. Saving the draft retains the media reference across reloads; duration comes from the provider. Newly created lesson IDs are returned by autosave so later saves update the same lessons. Removing a video also removes its draft reference.
 
-Keep `SIRI_DEV_SAMPLE_VIDEO=true` to continue learning with the sample clip. Real uploads still go to Bunny. Playing an uploaded video requires the correct CDN Token Authentication Key independently of successful uploading; the sample switch does not replace uploaded media with a sample.
+Playing an uploaded video requires the correct CDN Token Authentication Key independently of successful uploading. `SIRI_DEV_SAMPLE_VIDEO=true` (Development only) merely auto-attaches the seeded Bunny library sample video to episodes that have no media; it never replaces uploaded media.
 
 Verified upload regression: a generated 3-second clip was uploaded from the instructor browser using TUS POST 201 / PATCH 204, reached Ready with the provider's duration, and remained attached after page reload and a development restart. PostgreSQL regressions cover ownership, creating/reordering lessons, removing media, stale-save rollback, and processing after upload-session completion. No database migration is needed for these fixes.
 

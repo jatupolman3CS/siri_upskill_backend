@@ -34,7 +34,7 @@ public sealed class GetWishlistHandler(AppDbContext dbContext)
                 c.Price,
                 c.ComparePrice,
                 c.Currency,
-                p != null ? p.DisplayName : "ผู้สอน",
+                p != null ? p.DisplayName : null,
                 c.RatingAverage,
                 c.RatingCount,
                 w.CreatedAtUtc)

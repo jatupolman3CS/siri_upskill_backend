@@ -14,7 +14,7 @@ public sealed record CourseReviewDto(
     Guid Id,
     Guid CourseId,
     Guid UserId,
-    string UserName,
+    string? UserName,
     int Rating,
     string? Comment,
     DateTime CreatedAtUtc);
@@ -94,7 +94,7 @@ public sealed class CreateCourseReviewHandler(
             review.Id,
             review.CourseId,
             review.UserId,
-            userName ?? "ผู้เรียน",
+            string.IsNullOrWhiteSpace(userName) ? null : userName,
             review.Rating,
             review.Comment,
             review.CreatedAtUtc));

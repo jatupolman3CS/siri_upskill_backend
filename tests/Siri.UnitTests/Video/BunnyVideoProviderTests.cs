@@ -316,8 +316,169 @@ public class BunnyVideoProviderTests
     }
 
     // -----------------------------------------------------------------------
+    // Real data only — no mock fallback when Bunny is not configured
+    // -----------------------------------------------------------------------
+
+    public static TheoryData<string, string, string> UnconfiguredApiSettings => new()
+    {
+        { "000000", "real-api-key", "library id still the unset default" },
+        { "", "real-api-key", "library id empty" },
+        { "12345", "", "api key empty" },
+        { "12345", "CHANGE_ME_DEV_ONLY_bunny_api_key", "api key is the committed placeholder" },
+    };
+
+    private static (BunnyVideoProvider Provider, CountingHandler Handler) CreateUnconfigured(string libraryId, string apiKey)
+    {
+        var options = CreateValidOptions();
+        options.LibraryId = libraryId;
+        options.ApiKey = apiKey;
+        var handler = new CountingHandler();
+        return (CreateProvider(options, handler), handler);
+    }
+
+    [Theory]
+    [MemberData(nameof(UnconfiguredApiSettings))]
+    public async Task CreateVideoAsync_ApiNotConfigured_FailsWithoutFabricatingAVideo(string libraryId, string apiKey, string _)
+    {
+        var (provider, handler) = CreateUnconfigured(libraryId, apiKey);
+
+        var result = await provider.CreateVideoAsync("My Video", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(VideoProviderErrors.ProviderNotConfiguredCode, result.Error.Code);
+        Assert.Equal("video.provider_not_configured", result.Error.Code);
+        Assert.EndsWith(Siri.SharedKernel.DomainErrorHttpResults.NotConfiguredCodeSuffix, result.Error.Code); // -> HTTP 503
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Theory]
+    [MemberData(nameof(UnconfiguredApiSettings))]
+    public async Task GetUploadUrlAsync_ApiNotConfigured_FailsWithoutFakeUploadUrl(string libraryId, string apiKey, string _)
+    {
+        var (provider, handler) = CreateUnconfigured(libraryId, apiKey);
+
+        var result = await provider.GetUploadUrlAsync("video-guid-123", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(VideoProviderErrors.ProviderNotConfiguredCode, result.Error.Code);
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Theory]
+    [MemberData(nameof(UnconfiguredApiSettings))]
+    public async Task GetStatusAsync_ApiNotConfigured_FailsInsteadOfReportingReady(string libraryId, string apiKey, string _)
+    {
+        var (provider, handler) = CreateUnconfigured(libraryId, apiKey);
+
+        var result = await provider.GetStatusAsync("video-guid-123", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(VideoProviderErrors.ProviderNotConfiguredCode, result.Error.Code);
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Theory]
+    [MemberData(nameof(UnconfiguredApiSettings))]
+    public async Task DeleteVideoAsync_ApiNotConfigured_FailsInsteadOfPretendingSuccess(string libraryId, string apiKey, string _)
+    {
+        var (provider, handler) = CreateUnconfigured(libraryId, apiKey);
+
+        var result = await provider.DeleteVideoAsync("video-guid-123", CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(VideoProviderErrors.ProviderNotConfiguredCode, result.Error.Code);
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_ConfiguredAndMockPrefixedId_IsNotSpecialCased()
+    {
+        // The old "mock-" prefix shortcut is gone: such an id is just another id looked up at Bunny.
+        var handler = new CountingHandler { StatusCode = HttpStatusCode.NotFound };
+        var provider = CreateProvider(handler: handler);
+
+        var result = await provider.GetStatusAsync("mock-abc123", CancellationToken.None);
+
+        Assert.Equal(1, handler.Calls);
+        Assert.True(result.IsFailure);
+        Assert.Equal("not_found", result.Error.Code);
+    }
+
+    [Fact]
+    public async Task GetUploadUrlAsync_ConfiguredAndMockPrefixedId_NeverReturnsMockScheme()
+    {
+        var provider = CreateProvider();
+
+        var result = await provider.GetUploadUrlAsync("mock-abc123", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.StartsWith("https://video.bunnycdn.com/tusupload", result.Value.UploadUrl);
+        Assert.DoesNotContain("mock://", result.Value.UploadUrl);
+    }
+
+    [Fact]
+    public async Task GetSignedPlaybackUrlAsync_MockPrefixedIdWithoutCdn_FailsInsteadOfReturningPublicTestStream()
+    {
+        var opts = CreateValidOptions();
+        opts.CdnHostname = "";
+        var provider = CreateProvider(opts);
+
+        var result = await provider.GetSignedPlaybackUrlAsync("mock-abc123", TimeSpan.FromMinutes(5), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal("video.cdn_not_configured", result.Error.Code);
+        Assert.EndsWith(Siri.SharedKernel.DomainErrorHttpResults.NotConfiguredCodeSuffix, result.Error.Code); // -> HTTP 503
+    }
+
+    [Fact]
+    public async Task GetSignedPlaybackUrlAsync_MockPrefixedIdWithCdn_IsSignedLikeAnyOtherId()
+    {
+        var provider = CreateProvider();
+
+        var result = await provider.GetSignedPlaybackUrlAsync("mock-abc123", TimeSpan.FromMinutes(5), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.StartsWith("https://my-pull-zone.b-cdn.net/bcdn_token=HS256-", result.Value.ManifestUrl);
+        Assert.DoesNotContain("test-streams.mux.dev", result.Value.ManifestUrl);
+    }
+
+    [Theory]
+    [InlineData("CHANGE_ME_DEV_ONLY_cdn", "real-token-key", "video.cdn_not_configured")]
+    [InlineData("real.b-cdn.net", "CHANGE_ME_DEV_ONLY_token", "video.token_auth_not_configured")]
+    [InlineData("a-placeholder.b-cdn.net", "real-token-key", "video.cdn_not_configured")]
+    public async Task GetSignedPlaybackUrlAsync_PlaceholderPlaybackSettings_Fail(string cdn, string tokenKey, string expectedCode)
+    {
+        var opts = CreateValidOptions();
+        opts.CdnHostname = cdn;
+        opts.TokenAuthenticationKey = tokenKey;
+        var provider = CreateProvider(opts);
+
+        var result = await provider.GetSignedPlaybackUrlAsync("video-1", TimeSpan.FromMinutes(5), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(expectedCode, result.Error.Code);
+    }
+
+    // -----------------------------------------------------------------------
     // Test helpers
     // -----------------------------------------------------------------------
+
+    /// <summary>Counts requests so tests can prove the provider never reached Bunny.</summary>
+    private sealed class CountingHandler : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+
+        public HttpStatusCode StatusCode { get; set; } = HttpStatusCode.OK;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new HttpResponseMessage(StatusCode)
+            {
+                Content = new StringContent("{}", System.Text.Encoding.UTF8, "application/json"),
+            });
+        }
+    }
 
     /// <summary>
     /// A minimal <see cref="IHttpClientFactory"/> for unit tests that returns a client backed by the

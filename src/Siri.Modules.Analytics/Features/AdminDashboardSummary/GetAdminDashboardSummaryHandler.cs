@@ -8,7 +8,7 @@ namespace Siri.Modules.Analytics.Features.AdminDashboardSummary;
 
 public sealed record TopCourseSummary(
     Guid CourseId,
-    string CourseTitle,
+    string? CourseTitle,
     decimal TotalRevenue,
     int TotalEnrollments,
     int TotalViews);
@@ -47,7 +47,7 @@ public sealed class GetAdminDashboardSummaryHandler(
 
         var topCourses = topCoursesStats.Select(s => new TopCourseSummary(
             s.CourseId,
-            titles.TryGetValue(s.CourseId, out var title) ? title : "Unknown Course",
+            titles.TryGetValue(s.CourseId, out var title) && !string.IsNullOrWhiteSpace(title) ? title : null,
             s.TotalRevenue,
             s.TotalEnrollments,
             s.TotalViews)).ToList();

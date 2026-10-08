@@ -20,7 +20,10 @@
          directly. Already reachable transitively through Siri.Api below, but explicit for the same
          reason every other reference in this file is: don't rely on an incidental transitive path. -->
     <ProjectReference Include="..\..\src\Siri.Modules.Catalog\Siri.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Modules.Live\Siri.Modules.Live.csproj" />
     <ProjectReference Include="..\..\src\Siri.Integrations.Email\Siri.Integrations.Email.csproj" />
+    <!-- P11-03: GoogleOAuthService/GoogleCalendarProvider/options unit tests (HttpMessageHandler stubs). -->
+    <ProjectReference Include="..\..\src\Siri.Integrations.Google\Siri.Integrations.Google.csproj" />
     <!-- P2-02: BunnyVideoProvider + VideoProviderOptions unit tests. -->
     <ProjectReference Include="..\..\src\Siri.Integrations.Video\Siri.Integrations.Video.csproj" />
     <!-- P3-01: StripePaymentMethod + PaymentService unit tests. -->

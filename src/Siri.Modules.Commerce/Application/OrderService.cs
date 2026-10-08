@@ -26,7 +26,8 @@ public sealed class OrderService(
             return Result.Failure<OrderResponse>(DomainError.NotFound("ไม่พบคำสั่งซื้อที่ระบุ"));
         }
 
-        return Result.Success(ToResponse(order));
+        var paymentIds = await paymentRepository.GetSucceededPaymentIdsByOrderIdsAsync([order.ORDER_ID], cancellationToken).ConfigureAwait(false);
+        return Result.Success(ToResponse(order, paymentIds.TryGetValue(order.ORDER_ID, out var paymentId) ? paymentId : null));
     }
 
     public async Task<Result<OrderResponse>> CreateAsync(Guid userId, CreateOrderCommand command, CancellationToken cancellationToken)
@@ -226,11 +227,17 @@ public sealed class OrderService(
         var effectivePage = page <= 0 ? 1 : page;
 
         var (items, totalCount) = await orderRepository.ListByUserIdAsync(userId, effectivePage, effectivePageSize, cancellationToken).ConfigureAwait(false);
-        var mapped = items.Select(ToResponse).ToList();
+
+        // One batched lookup for the whole page (never one per order): the successful payment each order's refund request would refer to.
+        var paymentIds = await paymentRepository
+            .GetSucceededPaymentIdsByOrderIdsAsync(items.Select(o => o.ORDER_ID).ToArray(), cancellationToken)
+            .ConfigureAwait(false);
+
+        var mapped = items.Select(o => ToResponse(o, paymentIds.TryGetValue(o.ORDER_ID, out var paymentId) ? paymentId : null)).ToList();
         return PagedResult<OrderResponse>.Create(mapped, totalCount, effectivePage, effectivePageSize);
     }
 
-    private static OrderResponse ToResponse(ORDER order) =>
+    private static OrderResponse ToResponse(ORDER order, Guid? paymentId = null) =>
         new(
             order.ORDER_ID,
             order.ORDER_NO,
@@ -242,7 +249,8 @@ public sealed class OrderService(
             order.STATUS,
             order.CreatedAtUtc,
             order.PAID_AT_UTC,
-            order.ORDER_ITEMS.Select(i => new OrderItemResponse(i.ORDER_ITEM_ID, i.COURSE_ID, i.TITLE_SNAPSHOT, i.UNIT_PRICE, i.LINE_TOTAL)).ToList());
+            order.ORDER_ITEMS.Select(i => new OrderItemResponse(i.ORDER_ITEM_ID, i.COURSE_ID, i.TITLE_SNAPSHOT, i.UNIT_PRICE, i.LINE_TOTAL)).ToList(),
+            paymentId);
 }
 
 public sealed record OrderItemResponse(
@@ -263,6 +271,7 @@ public sealed record OrderResponse(
     OrderStatus Status,
     DateTime CreatedAtUtc,
     DateTime? PaidAtUtc,
-    IReadOnlyList<OrderItemResponse> Items);
+    IReadOnlyList<OrderItemResponse> Items,
+    Guid? PaymentId = null);
 
 public sealed record CreateOrderCommand(IReadOnlyList<Guid> CourseIds, string? PromoCode = null, Guid? BundleId = null);

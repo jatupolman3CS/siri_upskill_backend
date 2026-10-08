@@ -168,7 +168,8 @@ notify.Announcements(Id, CourseId, InstructorId, Title, Body, SendEmail bit,
                      ScheduledAtUtc, SentAtUtc, RecipientCount)
 notify.Notifications(Id, UserId, Type, Title, Body, LinkUrl, ReadAtUtc, CreatedAtUtc)
 notify.EmailOutbox(Id, ToEmail, Subject, BodyHtml, TemplateKey, Status,
-                   Attempts, NextRetryAtUtc, SentAtUtc, LastError)
+                   Attempts, NextRetryAtUtc, SentAtUtc, LastError,
+                   CalendarIcs text NULL, CalendarMethod varchar(10) NULL)   -- P11-04 (migration AddEmailOutboxCalendarPart, ยังไม่ apply) ดูส่วน "ส่วนขยาย P11–P12"
 
 analytics.DailyCourseStats(Date, CourseId, Views, Enrollments, Revenue, CompletionRate) PK(Date,CourseId)
 analytics.EpisodeDropOff(Date, EpisodeId, StartCount, CompleteCount, AvgWatchPercent) PK(Date,EpisodeId)
@@ -225,7 +226,7 @@ commerce.Subscriptions(Id PK, UserId FK, PlanId FK, ProviderSubscriptionId UQ,  
 
 ---
 
-## ส่วนขยาย P11–P12 (Hybrid Live + AI Study — D-21, 2026-09-16 · sketch เดิม · P11-01's ส่วน Catalog **สร้างจริงแล้ว** — ที่เหลือยังไม่สร้าง)
+## ส่วนขยาย P11–P12 (Hybrid Live + AI Study — D-21, 2026-09-16 · P11-01/P11-11 (Catalog) **สร้างจริงแล้ว** · P11-03/04/05 (schema `LIVE` + Notification + Catalog) **สร้างจริงแล้ว 2026-10-07 แต่ migration ยังไม่ apply** · P12 ยังเป็น sketch ไม่สร้าง)
 
 > แบบเต็ม `docs/HYBRID_LIVE.md` §1 · Catalog = PascalCase property/ตาราง UPPERCASE ตาม convention เดิมของโมดูล · `LIVE`/`MEDIA`/`LEARNING` = UPPERCASE ตาม D-17 · ห้าม hard delete/cascade บน invite/join log (เป็นสิทธิ์เรียน+forensics)
 >
@@ -255,30 +256,77 @@ CATALOG.COURSES            + ENROLLMENT_DEADLINE_UTC timestamptz(3) NULL   -- nu
                            -- PROMO_CODE.REDEEMED_COUNT) — เขียนตอนสร้าง/ยกเลิก/หมดอายุ order เท่านั้น ไม่ลดเมื่อ
                            -- refund หลังจ่ายเงินแล้ว (ตัดสินใจแล้ว ดูรายละเอียดใน contract §4.5)
 
--- P11-03 module ใหม่ Siri.Modules.Live (schema LIVE) — migration AddLiveModule — ออกแบบใหม่ตาม Q10=B (ไม่มี host กลาง)
-LIVE.INSTRUCTOR_GOOGLE_ACCOUNTS(INSTRUCTOR_GOOGLE_ACCOUNT_ID PK, INSTRUCTOR_PROFILE_ID UQ (ไม่มี FK ข้าม schema
-                      — เหมือน TrailerMediaAssetId), GOOGLE_EMAIL(320), REFRESH_TOKEN_ENCRYPTED text
-                      (ผ่าน ISensitiveDataProtector — ห้าม plaintext เด็ดขาด), SCOPES(500),
-                      CONNECTED_AT_UTC, LAST_VALIDATED_AT_UTC NULL, REVOKED_AT_UTC NULL, audit)
-LIVE.SESSION_MEETINGS(SESSION_MEETING_ID PK, SESSION_ID UQ (ไม่มี FK ข้าม schema — เหมือน TrailerMediaAssetId),
-                      PROVIDER varchar(20),            -- GoogleMeet|Manual
-                      PROVIDER_EVENT_ID(200) NULL, MEET_URL(500) NULL,
-                      INSTRUCTOR_GOOGLE_ACCOUNT_ID FK→INSTRUCTOR_GOOGLE_ACCOUNTS NoAction NULL,   -- null ถ้า Manual
-                      SYNC_STATUS varchar(20),         -- Pending|Synced|Failed|Deleted|NeedsReconnect
-                      SEQUENCE int NOT NULL DEFAULT 0, -- ICS SEQUENCE เพิ่มทุกครั้งที่แก้เวลา
-                      ATTEMPTS int, NEXT_RETRY_AT_UTC NULL, LAST_SYNC_AT_UTC NULL, ERROR(2000) NULL, audit)
-LIVE.SESSION_INVITES(SESSION_INVITE_ID PK, SESSION_ID, USER_ID, ENROLLMENT_ID,
-                      STATUS varchar(20),              -- Pending|Invited|Cancelled|Skipped
-                      ICS_SENT_AT_UTC NULL, ICS_SEQUENCE int, GOOGLE_ATTENDEE_SYNCED_AT_UTC NULL,
-                      REMINDER_24H_AT_UTC NULL, REMINDER_1H_AT_UTC NULL, ERROR(2000) NULL, audit)
-                      UQ(SESSION_ID, USER_ID) · IX(STATUS) WHERE STATUS='Pending' · IX(USER_ID)
-LIVE.SESSION_JOIN_LOGS(SESSION_JOIN_LOG_ID PK, SESSION_ID, USER_ID, AUTH_SESSION_ID(200) (JWT sid),
-                      JOINED_AT_UTC, IP_ADDRESS(64))   -- append-only เหมือน MEDIA.PLAYBACK_SESSIONS
-                      IX(SESSION_ID, JOINED_AT_UTC) · IX(USER_ID, JOINED_AT_UTC)
+-- ✅ P11-03 / P11-04 / P11-05 WP-A สร้างจริงแล้ว (2026-10-07, DATABASE agent) — 5 migration ตามลำดับนี้ **ยังไม่ apply ขึ้น DB จริง**
+--    1 AddLiveMeetings → 2 AddEmailOutboxCalendarPart → 3 AddLiveSessionInvites → 4 AddCourseGoogleAttendeeSync → 5 AddLiveSessionJoinLogs
+--    (แทนที่ sketch เดิมของ LIVE.* ที่เคยอยู่ตรงนี้ทั้งก้อน — ที่มา: docs/contracts/P11-03 §2, P11-04 §2, P11-05 §2 ซึ่ง FROZEN)
+-- ทุกตาราง LIVE: entity UPPERCASE (property ของ IAuditable เป็น PascalCase), PK uuid UUIDv7, timestamptz(3) UTC, enum เก็บเป็น string,
+--    ROW_VERSION bytea (ConcurrencyTokenInterceptor), **ไม่มี FK ข้าม schema/โมดูล** (SESSION_ID/USER_ID/COURSE_ID ชี้ไป CATALOG/IDENTITY โดยไม่มี constraint),
+--    **ไม่มี cascade delete ทุกเส้น**, ไม่ hard delete invite/join log (เป็นหลักฐานว่าใครถูกเชิญ/เข้าห้อง)
 
--- P11-04 Notification (แก้ตารางเดิม) — migration AddEmailOutboxCalendarPart
-NOTIFY.EMAIL_OUTBOX        + CALENDAR_ICS text NULL, CALENDAR_METHOD varchar(10) NULL   -- REQUEST|CANCEL → MimeKit text/calendar
-CATALOG.COURSES            + GOOGLE_ATTENDEE_SYNC_ENABLED bool NOT NULL DEFAULT false   -- opt-in ต่อคอร์ส (Q11)
+-- migration 1: AddLiveMeetings (P11-03)
+LIVE.INSTRUCTOR_GOOGLE_ACCOUNTS(INSTRUCTOR_GOOGLE_ACCOUNT_ID PK,
+                      INSTRUCTOR_USER_ID uuid UQ,         -- key ด้วย user id (ไม่ใช่ InstructorProfileId ตาม sketch เดิม) — 1 ผู้สอน = 1 บัญชี Google
+                      GOOGLE_SUBJECT(64), GOOGLE_EMAIL(320),
+                      REFRESH_TOKEN_ENCRYPTED text NULL,  -- ISensitiveDataProtector.Encrypt เท่านั้น · null หลัง revoke/disconnect · ห้าม plaintext
+                      SCOPES(500), CONNECTED_AT_UTC, LAST_VALIDATED_AT_UTC NULL, REVOKED_AT_UTC NULL,
+                      REVOKED_REASON(40) NULL,            -- invalid_grant | user_disconnected | scope_missing | insufficient_scope
+                      ROW_VERSION, audit)
+                      PK_INSTRUCTOR_GOOGLE_ACCOUNTS · UQ IX_INSTR_GOOGLE_ACCT_USER_ID
+LIVE.SESSION_MEETINGS(SESSION_MEETING_ID PK,
+                      SESSION_ID UQ,                      -- CATALOG.COURSE_LIVE_SESSIONS.Id (ไม่มี FK — แถวถูก stage ก่อนที่ session จะอยู่ใน DB)
+                      INSTRUCTOR_USER_ID NULL,            -- denormalize ตอน job ประมวลผลครั้งแรก (ใช้ reset ตอนผู้สอน reconnect)
+                      PROVIDER varchar(20) NULL,          -- GoogleMeet | Manual | Logging(dev เท่านั้น) · null = ยังไม่ตัดสิน
+                      INSTRUCTOR_GOOGLE_ACCOUNT_ID FK→INSTRUCTOR_GOOGLE_ACCOUNTS NoAction NULL,   -- FK_SESSION_MEETINGS_GOOGLE_ACCT
+                      PROVIDER_EVENT_ID(200) NULL,
+                      MEET_URL_ENCRYPTED text NULL,       -- ลิงก์ห้อง = capability URL → เข้ารหัส (sketch เดิมเป็น MEET_URL(500) plaintext)
+                      SYNC_STATUS varchar(20),            -- Pending | AwaitingLink | Synced | NeedsReconnect | Failed | PendingDelete | Deleted
+                      ICS_SEQUENCE int NOT NULL DEFAULT 0, -- (sketch เดิมชื่อ SEQUENCE) เพิ่มเมื่อเวลา/ชื่อคาบเปลี่ยนหรือยกเลิก
+                      ATTEMPTS int NOT NULL DEFAULT 0, NEXT_RETRY_AT_UTC NULL, LAST_SYNC_AT_UTC NULL,
+                      ERROR(500) NULL,                    -- error code สั้น ๆ เท่านั้น — ห้ามมี token/URL/อีเมล (sketch เดิม 2000)
+                      MEETING_ALERT_SENT_AT_UTC NULL,     -- กัน alert ผู้สอนซ้ำ ("วางลิงก์" ของ P11-03 — ตั้งทันทีที่เป็น AwaitingLink)
+                      READINESS_ALERT_SENT_AT_UTC NULL,   -- P11-04 (migration AddSessionMeetingReadinessAlert) กัน alert "ห้องยังไม่พร้อม" ที่ T−24 ชม. ซ้ำ —
+                                                          --   แยกจากข้างบนเพราะอันนั้นถูกใช้ไปแล้วหลายวันก่อน ไม่งั้น alert ใกล้วันสอนจะไม่มีวันส่ง
+                      ATTENDEE_SYNC_ALERT_SENT_AT_UTC NULL, -- P11-04 WP-F (migration AddSessionMeetingAttendeeSyncAlert) กัน alert "เกินเพดาน attendee Google (Live:GoogleAttendeeCap)" ซ้ำ ·
+                                                          --   เคลียร์เมื่อจำนวนกลับมาต่ำกว่าเพดาน
+                      ROW_VERSION, audit)
+                      PK_SESSION_MEETINGS · UQ IX_SESSION_MEETINGS_SESSION_ID ·
+                      IX_SESSION_MEETINGS_SYNC_DUE (SYNC_STATUS, NEXT_RETRY_AT_UTC) WHERE "SYNC_STATUS" IN ('Pending','PendingDelete') ·
+                      IX_SESSION_MEETINGS_INSTR_USER_ID (INSTRUCTOR_USER_ID) ·
+                      IX_SESSION_MEETINGS_GOOGLE_ACCT_ID (INSTRUCTOR_GOOGLE_ACCOUNT_ID)   -- index ของ FK (EF สร้างให้เองอยู่แล้ว ตั้งชื่อให้ชัด — ไม่อยู่ในรายการ index ของ contract)
+                      -- IsUsable (ไม่ใช่คอลัมน์) = MEET_URL_ENCRYPTED IS NOT NULL AND SYNC_STATUS <> 'Deleted' — ใช้ทั้ง publish gate และ join gate
+
+-- migration 2: AddEmailOutboxCalendarPart (P11-04) — Notification, additive 2 AddColumn
+NOTIFY.EMAIL_OUTBOX        + CALENDAR_ICS text NULL, CALENDAR_METHOD varchar(10) NULL   -- REQUEST | CANCEL | PUBLISH → MimeKit text/calendar · มาคู่กันเสมอ (domain บังคับ)
+
+-- migration 3: AddLiveSessionInvites (P11-04)
+LIVE.SESSION_INVITES(SESSION_INVITE_ID PK, SESSION_ID, USER_ID,
+                      ROLE varchar(16),                   -- Learner | Instructor (enum LiveParticipantRole — ใช้ร่วมกับ SESSION_JOIN_LOGS) · sketch เดิมไม่มี
+                      STATUS varchar(16),                 -- Pending | Invited | Cancelled | Skipped
+                      ICS_SEQUENCE_SENT int NULL,         -- SEQUENCE ล่าสุดที่ส่ง (รวม CANCEL) — monotonic ต่อ invite
+                      INVITE_SENT_AT_UTC NULL, CANCEL_SENT_AT_UTC NULL,
+                      REMINDER_24H_SENT_AT_UTC NULL, REMINDER_1H_SENT_AT_UTC NULL,
+                      GOOGLE_ATTENDEE_SYNCED_AT_UTC NULL,
+                      ERROR(300) NULL,                    -- code สั้น เช่น no_contact — ห้ามมีอีเมล
+                      ROW_VERSION, audit)                 -- ตัด ENROLLMENT_ID ออกจาก sketch เดิม (Live ไม่เห็น enrollment id ผ่าน contract)
+                      PK_SESSION_INVITES · UQ IX_SESSION_INVITES_SESSION_USER (SESSION_ID, USER_ID) ·
+                      IX_SESSION_INVITES_USER_ID (USER_ID) · IX_SESSION_INVITES_PENDING (SESSION_ID) WHERE "STATUS" = 'Pending'
+                      -- ชื่อคอลัมน์ REMINDER_24H/1H: ApplyUppercaseNamingConventions แยก "ตัวเลข+ตัวพิมพ์ใหญ่" เป็น 24_H ได้ถ้าตั้งชื่ออัปเปอร์เคสตรง ๆ —
+                      -- SessionInviteConfiguration จึงตั้ง HasColumnName แบบตัวพิมพ์เล็กโดยตั้งใจ (convention ทำเป็นตัวใหญ่ให้ทีหลัง) · LiveSchemaTests ล็อกชื่อไว้
+
+-- migration 4: AddCourseGoogleAttendeeSync (P11-04) — Catalog, additive 1 AddColumn
+CATALOG.COURSES            + GOOGLE_ATTENDEE_SYNC_ENABLED bool NOT NULL DEFAULT false   -- opt-in ต่อคอร์ส (Q11) — ส่งอีเมลผู้เรียนไป Google จึงต้องเป็นการตัดสินใจของผู้สอน
+
+-- migration 5: AddLiveSessionJoinLogs (P11-05)
+LIVE.SESSION_JOIN_LOGS(SESSION_JOIN_LOG_ID PK, SESSION_ID, COURSE_ID,   -- COURSE_ID denormalize ให้ refund (P11-12) เช็ค (USER_ID, COURSE_ID) ได้โดยไม่ join ข้ามโมดูล
+                      USER_ID,                            -- จาก IUserContext เท่านั้น
+                      ROLE varchar(16),                   -- Learner | Instructor — refund/KPI นับเฉพาะ Learner
+                      AUTH_SESSION_ID uuid NULL,          -- claim sid ของ JWT (sketch เดิมเป็น varchar(200))
+                      JOINED_AT_UTC,                      -- เวลาที่เปิดเผยลิงก์
+                      IP_ADDRESS(64) NULL, USER_AGENT(300) NULL)
+                      -- append-only เหมือน MEDIA.PLAYBACK_SESSIONS: ไม่ implement IAuditable/ISoftDelete, ไม่มี ROW_VERSION, entity ไม่มี method แก้ — มีแต่ SESSION_JOIN_LOG.Record(...)
+                      PK_SESSION_JOIN_LOGS · IX_SESSION_JOIN_LOGS_SESSION_USER (SESSION_ID, USER_ID) · IX_SESSION_JOIN_LOGS_USER_COURSE (USER_ID, COURSE_ID)
+                      -- ต่างจาก sketch เดิม: IX(SESSION_ID, JOINED_AT_UTC)/IX(USER_ID, JOINED_AT_UTC) → ตาม contract P11-05 §2
+                      -- retention ของ IP/UA (scrub หลัง 12 เดือน) เป็น follow-up · USER_ID/COURSE_ID/SESSION_ID ต้องเก็บไว้ตามกฎ refund Q13.4
 
 -- P11 Commerce: ไม่มีตารางใหม่ (PAYMENT.METHOD รองรับ Card แล้ว) · Config Payment:EnabledMethods
 

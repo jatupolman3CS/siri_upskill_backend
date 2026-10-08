@@ -233,7 +233,7 @@ public sealed class CatalogPriceContract(AppDbContext dbContext) : ICatalogPrice
             .AsNoTracking()
             .Where(e => idList.Contains(e.CourseId))
             .OrderBy(e => e.SortOrder)
-            .Select(e => new CourseEpisodeInfo(e.Id, e.CourseId, e.Title, e.SortOrder))
+            .Select(e => new CourseEpisodeInfo(e.Id, e.CourseId, e.Title, e.SortOrder, e.DurationSeconds))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 

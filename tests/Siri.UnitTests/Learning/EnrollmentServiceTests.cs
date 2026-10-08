@@ -20,7 +20,7 @@ public sealed class EnrollmentServiceTests
             revoked ? null : clock.UtcNow, clock);
         if (revoked) enrollment.Revoke();
         repo.Add(enrollment);
-        var service = new EnrollmentService(repo, certificates, clock, new FakeCourseSummaryReader());
+        var service = new EnrollmentService(repo, certificates, clock, new FakeCourseSummaryReader(), new RecordingCourseEnrollmentCountUpdater());
 
         var result = await service.UpdateOwnProgressAsync(enrollment.USER_ID, enrollment.ENROLLMENT_ID,
             new(100m), CancellationToken.None);
@@ -39,7 +39,7 @@ public sealed class EnrollmentServiceTests
         var now = new DateTime(2026, 9, 7, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
         var repo = new FakeEnrollmentRepository();
-        var service = new EnrollmentService(repo, new FakeCertificateRepository(), clock, new FakeCourseSummaryReader());
+        var service = new EnrollmentService(repo, new FakeCertificateRepository(), clock, new FakeCourseSummaryReader(), new RecordingCourseEnrollmentCountUpdater());
         var existing = ENROLLMENT.Create(Guid.NewGuid(), Guid.NewGuid(), null, EnrollmentSource.Purchase, now, clock);
         existing.UpdateProgress(42m, clock);
         if (status == EnrollmentStatus.Expired) existing.Expire();
@@ -113,7 +113,7 @@ public sealed class EnrollmentServiceTests
         var certRepo = new FakeCertificateRepository();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader());
+        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader(), new RecordingCourseEnrollmentCountUpdater());
 
         var userId = Guid.NewGuid();
         var courseId = Guid.NewGuid();
@@ -135,7 +135,7 @@ public sealed class EnrollmentServiceTests
         var repo = new FakeEnrollmentRepository();
         var certRepo = new FakeCertificateRepository();
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader());
+        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader(), new RecordingCourseEnrollmentCountUpdater());
 
         var userId = Guid.NewGuid();
         var courseId = Guid.NewGuid();
@@ -154,7 +154,7 @@ public sealed class EnrollmentServiceTests
         var repo = new FakeEnrollmentRepository();
         var certRepo = new FakeCertificateRepository();
         var clock = new FakeClock(DateTime.UtcNow);
-        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader());
+        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader(), new RecordingCourseEnrollmentCountUpdater());
 
         var ownerId = Guid.NewGuid();
         var otherUserId = Guid.NewGuid();
@@ -174,7 +174,7 @@ public sealed class EnrollmentServiceTests
         var certRepo = new FakeCertificateRepository();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
-        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader());
+        var service = new EnrollmentService(repo, certRepo, clock, new FakeCourseSummaryReader(), new RecordingCourseEnrollmentCountUpdater());
 
         var userId = Guid.NewGuid();
         var enrollment = ENROLLMENT.Create(userId, Guid.NewGuid(), null, EnrollmentSource.Purchase, null, clock);

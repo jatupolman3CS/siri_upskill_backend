@@ -34,31 +34,28 @@ public static class CommerceModule
         services.AddScoped<IFlashSaleRepository, FlashSaleRepository>();
         services.AddScoped<ITaxInvoiceRepository, TaxInvoiceRepository>();
 
-        // P3-01: Stripe Payment integration
+        // P3-01: Stripe Payment integration. Real data only: a missing key stays EMPTY (never a fake
+        // "sk_test_placeholder_key"). The host still boots, but StripePaymentMethod refuses every Stripe
+        // call and GET /payments/config answers 503 payment.provider_not_configured until real keys are
+        // set; ProductionConfigurationGuard makes Production fail fast instead.
         services.AddOptions<StripeOptions>()
             .Bind(configuration.GetSection(StripeOptions.SectionName))
             .PostConfigure(options =>
             {
-                if (string.IsNullOrWhiteSpace(options.SecretKey))
+                // Legacy un-prefixed env var aliases (STRIPE_*). Real values only — no defaults.
+                if (!StripeOptions.IsConfigured(options.SecretKey))
                 {
-                    options.SecretKey = Environment.GetEnvironmentVariable("Payment__Stripe__SecretKey")
-                        ?? Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY")
-                        ?? "sk_test_placeholder_key";
+                    options.SecretKey = Environment.GetEnvironmentVariable("STRIPE_SECRET_KEY") ?? options.SecretKey;
                 }
-                if (string.IsNullOrWhiteSpace(options.PublishableKey))
+                if (!StripeOptions.IsConfigured(options.PublishableKey))
                 {
-                    options.PublishableKey = Environment.GetEnvironmentVariable("Payment__Stripe__PublishableKey")
-                        ?? Environment.GetEnvironmentVariable("STRIPE_PUBLISHABLE_KEY")
-                        ?? "pk_test_placeholder_key";
+                    options.PublishableKey = Environment.GetEnvironmentVariable("STRIPE_PUBLISHABLE_KEY") ?? options.PublishableKey;
                 }
-                if (string.IsNullOrWhiteSpace(options.WebhookSecret))
+                if (!StripeOptions.IsConfigured(options.WebhookSecret))
                 {
-                    options.WebhookSecret = Environment.GetEnvironmentVariable("Payment__Stripe__WebhookSecret")
-                        ?? Environment.GetEnvironmentVariable("STRIPE_WEBHOOK_SECRET")
-                        ?? string.Empty;
+                    options.WebhookSecret = Environment.GetEnvironmentVariable("STRIPE_WEBHOOK_SECRET") ?? options.WebhookSecret;
                 }
             })
-            .ValidateDataAnnotations()
             .ValidateOnStart();
 
         // P11-09: operational gate for which payment methods are currently enabled
@@ -79,6 +76,15 @@ public static class CommerceModule
         services.AddOptions<OrderExpiryOptions>()
             .Bind(configuration.GetSection(OrderExpiryOptions.SectionName))
             .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        // Real data only: the receipt/tax-invoice seller identity (legal name, tax id, address) is configuration,
+        // never a built-in company. Commerce:Seller:* wins; anything unset falls back to the payout module's payer
+        // identity (the same company — see ReceiptSellerOptions). A still-missing value keeps the host booting but
+        // the receipt endpoints answer 503 receipt.seller_not_configured; ProductionConfigurationGuard makes
+        // Production fail fast instead.
+        services.AddOptions<ReceiptSellerOptions>()
+            .Configure(options => ReceiptSellerOptions.Apply(options, configuration))
             .ValidateOnStart();
 
         services.AddScoped<IPaymentMethod, StripePaymentMethod>();

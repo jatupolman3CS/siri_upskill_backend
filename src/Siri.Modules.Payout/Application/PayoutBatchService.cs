@@ -1,7 +1,10 @@
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Payout.Domain;
+using Siri.Modules.Payout.Infrastructure;
 using Siri.SharedKernel;
 
 namespace Siri.Modules.Payout.Application;
@@ -13,6 +16,9 @@ namespace Siri.Modules.Payout.Application;
 /// </summary>
 public sealed class PayoutBatchService
 {
+    /// <summary>Ends in the shared <c>_not_configured</c> suffix, so it maps to HTTP 503.</summary>
+    public const string PayerNotConfiguredCode = "payout.payer_not_configured";
+
     private readonly IPayoutBatchRepository _batchRepository;
     private readonly IPayoutBatchItemRepository _itemRepository;
     private readonly IRevenueSplitRepository _splitRepository;
@@ -20,6 +26,8 @@ public sealed class PayoutBatchService
     private readonly ISensitiveDataProtector _dataProtector;
     private readonly IOptions<PayoutOptions> _options;
     private readonly IClock _clock;
+    private readonly ILogger<PayoutBatchService> _logger;
+    private readonly IInstructorProfileReader _instructorProfiles;
 
     public PayoutBatchService(
         IPayoutBatchRepository batchRepository,
@@ -28,7 +36,9 @@ public sealed class PayoutBatchService
         IInstructorPayoutAccountRepository accountRepository,
         ISensitiveDataProtector dataProtector,
         IOptions<PayoutOptions> options,
-        IClock clock)
+        IClock clock,
+        ILogger<PayoutBatchService> logger,
+        IInstructorProfileReader instructorProfiles)
     {
         _batchRepository = batchRepository;
         _itemRepository = itemRepository;
@@ -37,6 +47,8 @@ public sealed class PayoutBatchService
         _dataProtector = dataProtector;
         _options = options;
         _clock = clock;
+        _logger = logger;
+        _instructorProfiles = instructorProfiles;
     }
 
     public async Task<Result<PayoutBatchResponse>> CreateAsync(CreatePayoutBatchCommand command, CancellationToken cancellationToken)
@@ -202,18 +214,26 @@ public sealed class PayoutBatchService
         var instructorIds = batch.Items.Select(i => i.INSTRUCTOR_ID).Distinct().ToList();
         var accounts = await _accountRepository.GetVerifiedAccountsAsync(instructorIds, cancellationToken).ConfigureAwait(false);
 
+        // A transfer file row with a blank bank/account would be an instruction to the bank built on nothing,
+        // so the export refuses to run while any item's instructor has no verified payout account (e.g. the
+        // account was removed or un-verified after the batch was drafted) — fix the account, then re-export.
+        var instructorsWithoutAccount = instructorIds.Where(id => !accounts.ContainsKey(id)).ToList();
+        if (instructorsWithoutAccount.Count > 0)
+        {
+            return Result.Failure<BatchExportResponse>(DomainError.Conflict(
+                $"ไม่สามารถส่งออกไฟล์โอนเงินได้: ผู้สอน {instructorsWithoutAccount.Count} ราย ({string.Join(", ", instructorsWithoutAccount)}) ไม่มีบัญชีธนาคารที่ยืนยันแล้ว"));
+        }
+
         var sb = new StringBuilder();
         sb.AppendLine("BankCode,AccountNumber,AccountName,Amount,TransferRef");
 
         foreach (var item in batch.Items)
         {
-            accounts.TryGetValue(item.INSTRUCTOR_ID, out var account);
-            var accountNo = account != null ? _dataProtector.Decrypt(account.ACCOUNT_NO_ENCRYPTED) : string.Empty;
-            var accountName = account?.ACCOUNT_NAME ?? string.Empty;
-            var bankCode = account?.BANK_CODE ?? string.Empty;
+            var account = accounts[item.INSTRUCTOR_ID];
+            var accountNo = _dataProtector.Decrypt(account.ACCOUNT_NO_ENCRYPTED);
             var transferRef = item.TRANSFER_REF ?? item.PAYOUT_BATCH_ITEM_ID.ToString("N")[..12].ToUpperInvariant();
 
-            sb.AppendLine($"{bankCode},{accountNo},\"{accountName}\",{item.NET_AMOUNT:F2},{transferRef}");
+            sb.AppendLine($"{account.BANK_CODE},{accountNo},\"{account.ACCOUNT_NAME}\",{item.NET_AMOUNT:F2},{transferRef}");
         }
 
         var fileName = $"payout-batch-{batch.PERIOD_KEY}-{batch.PAYOUT_BATCH_ID}.csv";
@@ -237,9 +257,15 @@ public sealed class PayoutBatchService
             return Result.Failure<WithholdingTaxCertificateResponse>(DomainError.NotFound("ไม่พบรายการจ่ายเงินที่ระบุ"));
         }
 
-        if (!isAdmin && item.INSTRUCTOR_ID != userId)
+        if (!isAdmin)
         {
-            return Result.Failure<WithholdingTaxCertificateResponse>(DomainError.Forbidden("คุณไม่มีสิทธิ์ดูหนังสือรับรองการหักภาษีนี้"));
+            // Batch items are keyed by the instructor PROFILE id; the caller is identified by their USER id, so a non-admin may only open an item whose
+            // instructor is the profile that belongs to their own account (a user without a profile owns no item).
+            var callerProfileId = await _instructorProfiles.GetProfileIdByUserIdAsync(userId, cancellationToken).ConfigureAwait(false);
+            if (callerProfileId is not { } ownProfileId || item.INSTRUCTOR_ID != ownProfileId)
+            {
+                return Result.Failure<WithholdingTaxCertificateResponse>(DomainError.Forbidden("คุณไม่มีสิทธิ์ดูหนังสือรับรองการหักภาษีนี้"));
+            }
         }
 
         var batch = await _batchRepository.GetByIdAsync(item.BATCH_ID, cancellationToken).ConfigureAwait(false);
@@ -248,12 +274,38 @@ public sealed class PayoutBatchService
             return Result.Failure<WithholdingTaxCertificateResponse>(DomainError.NotFound("ไม่พบรอบการจ่ายเงิน"));
         }
 
-        var account = await _accountRepository.GetByInstructorIdAsync(item.INSTRUCTOR_ID, cancellationToken).ConfigureAwait(false);
-        var decryptedTaxId = account?.TAX_ID is not null ? _dataProtector.Decrypt(account.TAX_ID) : null;
-        var taxPayerType = account?.TAX_PAYER_TYPE ?? TaxPayerType.Individual;
-        var taxFormType = taxPayerType == TaxPayerType.Individual ? "ภ.ง.ด.3" : "ภ.ง.ด.53";
-
+        // A 50 ทวิ is a legal tax document: both parties must be real. The payer is the configured company; the
+        // payee is the instructor's own payout account. Nothing is made up — if a required value is missing
+        // the request fails with a clear error (the admin sees which side to fix) instead of printing a
+        // stand-in payee name or silently assuming the payee is an individual.
         var payoutOptions = _options.Value;
+        var payerProblems = PayoutOptionsGuard.GetPayerInfoProblems(payoutOptions);
+        if (payerProblems.Count > 0)
+        {
+            _logger.LogError(
+                "Withholding tax certificate not generated: the payer identity is not configured ({Problems}).",
+                string.Join(" ", payerProblems));
+            return Result.Failure<WithholdingTaxCertificateResponse>(new DomainError(
+                PayerNotConfiguredCode,
+                "Withholding tax certificate payer details are not configured."));
+        }
+
+        var account = await _accountRepository.GetByInstructorIdAsync(item.INSTRUCTOR_ID, cancellationToken).ConfigureAwait(false);
+        if (account is null)
+        {
+            return Result.Failure<WithholdingTaxCertificateResponse>(DomainError.Conflict(
+                "ผู้สอนยังไม่ได้บันทึกข้อมูลบัญชีรับเงิน จึงไม่สามารถออกหนังสือรับรองการหักภาษี ณ ที่จ่ายได้"));
+        }
+
+        if (string.IsNullOrWhiteSpace(account.TAX_ID))
+        {
+            return Result.Failure<WithholdingTaxCertificateResponse>(DomainError.Conflict(
+                "ผู้สอนยังไม่ได้ระบุเลขประจำตัวผู้เสียภาษี จึงไม่สามารถออกหนังสือรับรองการหักภาษี ณ ที่จ่ายได้"));
+        }
+
+        var decryptedTaxId = _dataProtector.Decrypt(account.TAX_ID);
+        var taxPayerType = account.TAX_PAYER_TYPE;
+        var taxFormType = taxPayerType == TaxPayerType.Individual ? "ภ.ง.ด.3" : "ภ.ง.ด.53";
 
         var cert = new WithholdingTaxCertificateResponse(
             item.PAYOUT_BATCH_ITEM_ID,
@@ -262,7 +314,7 @@ public sealed class PayoutBatchService
             payoutOptions.PayerCompanyName,
             payoutOptions.PayerTaxId,
             payoutOptions.PayerAddress,
-            account?.ACCOUNT_NAME ?? "ผู้สอน",
+            account.ACCOUNT_NAME,
             decryptedTaxId,
             taxPayerType,
             taxFormType,

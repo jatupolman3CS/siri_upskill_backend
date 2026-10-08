@@ -26,4 +26,28 @@ public sealed class PaymentRepository(AppDbContext dbContext) : IPaymentReposito
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
     }
+
+    public async Task<IReadOnlyDictionary<Guid, Guid>> GetSucceededPaymentIdsByOrderIdsAsync(
+        IReadOnlyCollection<Guid> orderIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(orderIds);
+
+        var ids = orderIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, Guid>();
+        }
+
+        var rows = await dbContext.Payments()
+            .AsNoTracking()
+            .Where(p => ids.Contains(p.ORDER_ID) && p.STATUS == PaymentStatus.Succeeded)
+            .Select(p => new { p.ORDER_ID, p.PAYMENT_ID, p.CREATED_AT_UTC })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return rows
+            .GroupBy(r => r.ORDER_ID)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(r => r.CREATED_AT_UTC).First().PAYMENT_ID);
+    }
 }

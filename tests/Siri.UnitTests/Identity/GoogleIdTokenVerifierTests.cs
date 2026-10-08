@@ -81,7 +81,8 @@ public sealed class GoogleIdTokenVerifierTests
         DateTime? expires = null,
         object? emailVerified = null,
         string subject = "google-sub-1",
-        string email = "person@example.com")
+        string email = "person@example.com",
+        string? picture = null)
     {
         var descriptor = new SecurityTokenDescriptor
         {
@@ -100,6 +101,11 @@ public sealed class GoogleIdTokenVerifierTests
             },
         };
 
+        if (picture is not null)
+        {
+            descriptor.Claims["picture"] = picture;
+        }
+
         return new JsonWebTokenHandler().CreateToken(descriptor);
     }
 
@@ -116,6 +122,21 @@ public sealed class GoogleIdTokenVerifierTests
         Assert.Equal("person@example.com", identity.Email);
         Assert.True(identity.EmailVerified);
         Assert.Equal("Person One", identity.Name);
+        Assert.Null(identity.Picture); // the claim is optional — absent means null, not an error
+    }
+
+    [Fact]
+    public async Task VerifyAsync_TokenWithPictureClaim_ExposesItOnTheIdentity()
+    {
+        var google = new FakeGoogle();
+        var verifier = CreateVerifier(google, new MutableClock(Now));
+
+        var identity = await verifier.VerifyAsync(
+            Token(google.SigningKey, picture: "https://lh3.googleusercontent.com/a/abc123=s96-c"),
+            CancellationToken.None);
+
+        Assert.NotNull(identity);
+        Assert.Equal("https://lh3.googleusercontent.com/a/abc123=s96-c", identity.Picture);
     }
 
     [Fact]

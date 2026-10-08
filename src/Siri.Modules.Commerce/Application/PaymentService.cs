@@ -134,8 +134,19 @@ public sealed class PaymentService
             intentResult.Value.QrCodeData);
     }
 
-    public PaymentConfigResponse GetConfig() =>
-        new(_stripeOptions.PublishableKey, _paymentOptions.EnabledMethods);
+    /// <summary>
+    /// The client-side Stripe config. Real data only: without a real publishable key this fails with
+    /// <c>payment.provider_not_configured</c> (HTTP 503) instead of handing the frontend a fake key.
+    /// </summary>
+    public Result<PaymentConfigResponse> GetConfig()
+    {
+        if (!_stripeOptions.HasPublishableKey)
+        {
+            return Result.Failure<PaymentConfigResponse>(PaymentProviderErrors.ProviderNotConfigured());
+        }
+
+        return Result.Success(new PaymentConfigResponse(_stripeOptions.PublishableKey, _paymentOptions.EnabledMethods));
+    }
 
     private static PaymentResponse ToResponse(PAYMENT payment) =>
         new(payment.PAYMENT_ID, payment.ORDER_ID, payment.METHOD, payment.AMOUNT, payment.STATUS, payment.CREATED_AT_UTC);

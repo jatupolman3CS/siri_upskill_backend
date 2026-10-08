@@ -1,20 +1,23 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Learning.Contracts;
 using Siri.Modules.Learning.Domain;
 using Siri.Persistence;
 
 namespace Siri.Modules.Learning.Infrastructure.Contracts;
 
-public sealed class LearningAnalyticsContract(AppDbContext dbContext) : ILearningAnalyticsContract
+public sealed class LearningAnalyticsContract(AppDbContext dbContext, ICatalogPriceContract catalogPriceContract) : ILearningAnalyticsContract
 {
     public async Task<IReadOnlyList<EpisodeDropOffItem>> GetEpisodeDropOffRollupAsync(DateOnly date, CancellationToken cancellationToken)
     {
         var startUtc = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var endUtc = date.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
 
-        var events = await dbContext.WatchEvents()
-            .AsNoTracking()
-            .Where(w => w.OCCURRED_AT_UTC >= startUtc && w.OCCURRED_AT_UTC <= endUtc)
+        var events = await (
+            from w in dbContext.WatchEvents().AsNoTracking()
+            join e in dbContext.Enrollments().AsNoTracking() on w.ENROLLMENT_ID equals e.ENROLLMENT_ID
+            where w.OCCURRED_AT_UTC >= startUtc && w.OCCURRED_AT_UTC <= endUtc
+            select new { w.ENROLLMENT_ID, w.EPISODE_ID, e.COURSE_ID, w.EVENT_TYPE, w.POSITION_SECONDS })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -23,23 +26,113 @@ public sealed class LearningAnalyticsContract(AppDbContext dbContext) : ILearnin
             return [];
         }
 
+        // Real episode durations (Catalog) turn "furthest position reached" into a real watch percentage.
+        var courseIds = events.Select(e => e.COURSE_ID).Distinct().ToList();
+        var episodes = await catalogPriceContract.GetEpisodesForCoursesAsync(courseIds, cancellationToken).ConfigureAwait(false);
+        var durationByEpisode = episodes
+            .Where(e => e.DurationSeconds is > 0)
+            .ToDictionary(e => e.EpisodeId, e => e.DurationSeconds!.Value);
+
         var results = events
             .GroupBy(w => w.EPISODE_ID)
             .Select(g =>
             {
                 var startCount = g.Count(w => w.EVENT_TYPE == WatchEventType.Play);
                 var completeCount = g.Count(w => w.EVENT_TYPE == WatchEventType.Ended);
-                var avgSeconds = g.Average(w => (double)w.POSITION_SECONDS);
 
-                var avgWatchPercent = g.Any(w => w.EVENT_TYPE == WatchEventType.Ended)
-                    ? Math.Min(100m, (decimal)(completeCount * 100.0 / Math.Max(1, startCount)))
-                    : Math.Min(100m, (decimal)(avgSeconds > 0 ? 50.0 : 0.0));
+                // Never a made-up value: measured per viewer from real positions + real duration (see
+                // WatchPercentCalculator). 0 only when no viewer of the episode is measurable.
+                int? duration = durationByEpisode.TryGetValue(g.Key, out var seconds) ? seconds : null;
+                var avgWatchPercent = WatchPercentCalculator.AveragePercent(
+                    g.Select(w => new WatchSample(w.ENROLLMENT_ID, w.EVENT_TYPE, w.POSITION_SECONDS)),
+                    duration);
 
                 return new EpisodeDropOffItem(g.Key, startCount, completeCount, avgWatchPercent);
             })
             .ToList();
 
         return results;
+    }
+
+    public async Task<IReadOnlyList<EpisodeWatchTimeBucket>> GetEpisodeWatchTimeBucketsAsync(
+        IEnumerable<Guid> courseIds,
+        DateTime activeSinceUtc,
+        CancellationToken cancellationToken)
+    {
+        var idList = courseIds.Distinct().ToList();
+        if (idList.Count == 0)
+        {
+            return [];
+        }
+
+        return await (
+            from p in dbContext.EpisodeProgresses().AsNoTracking()
+            join e in dbContext.Enrollments().AsNoTracking() on p.ENROLLMENT_ID equals e.ENROLLMENT_ID
+            where idList.Contains(e.COURSE_ID) && p.UPDATED_AT_UTC >= activeSinceUtc && p.WATCHED_SECONDS > 0
+            group p by new { p.EPISODE_ID, p.WATCHED_SECONDS } into g
+            select new EpisodeWatchTimeBucket(g.Key.EPISODE_ID, g.Key.WATCHED_SECONDS, g.Count()))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    public async Task<LearnerCounts> GetLearnerCountsAsync(
+        IReadOnlyCollection<Guid> courseIds,
+        DateTime sinceUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(courseIds);
+
+        var ids = courseIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return new LearnerCounts(0, 0);
+        }
+
+        var total = await CountDistinctLearnersAsync(ids, enrolledSinceUtc: null, cancellationToken).ConfigureAwait(false);
+        var since = await CountDistinctLearnersAsync(ids, sinceUtc, cancellationToken).ConfigureAwait(false);
+
+        return new LearnerCounts(total, since);
+    }
+
+    /// <summary>Different learners with an Active or Expired enrollment in the courses (a Revoked one is not a learner), optionally only those who enrolled at or after
+    /// <paramref name="enrolledSinceUtc"/>. DISTINCT per user, so someone in several of the courses counts once. Internal so a unit test can prove both shapes translate to SQL.</summary>
+    internal async Task<int> CountDistinctLearnersAsync(Guid[] courseIds, DateTime? enrolledSinceUtc, CancellationToken cancellationToken)
+    {
+        var query = dbContext.Enrollments()
+            .AsNoTracking()
+            .Where(e => courseIds.Contains(e.COURSE_ID) && (e.STATUS == EnrollmentStatus.Active || e.STATUS == EnrollmentStatus.Expired));
+
+        if (enrolledSinceUtc is { } since)
+        {
+            query = query.Where(e => e.ENROLLED_AT_UTC >= since);
+        }
+
+        return await query.Select(e => e.USER_ID).Distinct().CountAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<long> GetWatchedSecondsAsync(
+        IReadOnlyCollection<Guid> courseIds,
+        DateTime sinceUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(courseIds);
+
+        var ids = courseIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return 0;
+        }
+
+        // Summed as long: a busy course can exceed int.MaxValue seconds in total.
+        var seconds = await (
+            from p in dbContext.EpisodeProgresses().AsNoTracking()
+            join e in dbContext.Enrollments().AsNoTracking() on p.ENROLLMENT_ID equals e.ENROLLMENT_ID
+            where ids.Contains(e.COURSE_ID) && p.UPDATED_AT_UTC >= sinceUtc
+            select (long?)p.WATCHED_SECONDS)
+            .SumAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return seconds ?? 0L;
     }
 
     public async Task<IReadOnlyList<DailyCourseActivityItem>> GetDailyCourseActivityAsync(DateOnly date, CancellationToken cancellationToken)
@@ -160,20 +253,42 @@ public sealed class LearningAnalyticsContract(AppDbContext dbContext) : ILearnin
 
         var effectiveLimit = limit <= 0 ? 50 : Math.Min(limit, 100);
 
-        var enrollments = await dbContext.Enrollments()
+        // Real signals only: "last active" is the latest of the enrollment's last-accessed stamp and any
+        // episode-progress heartbeat (null when the learner never opened the course — NOT the enrollment or
+        // completion date), and completed episodes are counted from episode-progress rows rather than
+        // back-computed from the percentage.
+        var rows = await dbContext.Enrollments()
             .AsNoTracking()
             .Where(e => idList.Contains(e.COURSE_ID))
             .OrderByDescending(e => e.ENROLLED_AT_UTC)
             .Take(effectiveLimit)
-            .Select(e => new StudentCourseProgressRecord(
+            .Select(e => new
+            {
                 e.ENROLLMENT_ID,
                 e.USER_ID,
                 e.COURSE_ID,
                 e.PROGRESS_PERCENT,
-                e.COMPLETED_AT_UTC ?? e.ENROLLED_AT_UTC))
+                e.LAST_ACCESSED_AT_UTC,
+                LastProgressAtUtc = dbContext.EpisodeProgresses()
+                    .Where(p => p.ENROLLMENT_ID == e.ENROLLMENT_ID)
+                    .Max(p => (DateTime?)p.UPDATED_AT_UTC),
+                CompletedEpisodes = dbContext.EpisodeProgresses()
+                    .Count(p => p.ENROLLMENT_ID == e.ENROLLMENT_ID && p.IS_COMPLETED),
+            })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return enrollments;
+        return rows
+            .Select(r => new StudentCourseProgressRecord(
+                r.ENROLLMENT_ID,
+                r.USER_ID,
+                r.COURSE_ID,
+                r.PROGRESS_PERCENT,
+                LatestOf(r.LAST_ACCESSED_AT_UTC, r.LastProgressAtUtc),
+                r.CompletedEpisodes))
+            .ToList();
     }
+
+    private static DateTime? LatestOf(DateTime? first, DateTime? second) =>
+        first is null ? second : second is null ? first : first > second ? first : second;
 }

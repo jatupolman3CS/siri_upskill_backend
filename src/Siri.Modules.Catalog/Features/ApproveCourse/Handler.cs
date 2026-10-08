@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -27,7 +28,12 @@ namespace Siri.Modules.Catalog.Features.ApproveCourse;
 /// must also call this same eviction).
 /// </para>
 /// </summary>
-public sealed class ApproveCourseHandler(AppDbContext dbContext, IClock clock, IOutputCacheStore outputCacheStore, IMediaAssetContract mediaAssets)
+public sealed class ApproveCourseHandler(
+    AppDbContext dbContext,
+    IClock clock,
+    IOutputCacheStore outputCacheStore,
+    IMediaAssetContract mediaAssets,
+    ILiveMeetingReadinessReader liveMeetingReadiness)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
     private static readonly DomainError NotInReviewError = DomainError.Conflict("อนุมัติได้เฉพาะคอร์สที่อยู่ระหว่างตรวจสอบเท่านั้น");
@@ -67,6 +73,14 @@ public sealed class ApproveCourseHandler(AppDbContext dbContext, IClock clock, I
         if (mediaReadiness.IsFailure)
         {
             return Result.Failure<ApproveCourseResponse>(mediaReadiness.Error);
+        }
+
+        // P11-03: every future scheduled class of a Live/Hybrid course must still have a usable online room at
+        // approval time (a Google token may have expired, or a class may have been added, since submission).
+        var meetingReadiness = await LiveMeetingReadinessGate.ValidateAsync(course, liveMeetingReadiness, clock, cancellationToken).ConfigureAwait(false);
+        if (meetingReadiness.IsFailure)
+        {
+            return Result.Failure<ApproveCourseResponse>(meetingReadiness.Error);
         }
 
         course.Publish(clock);

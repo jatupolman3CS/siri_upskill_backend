@@ -230,6 +230,12 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("EPISODE_COUNT");
 
+                    b.Property<bool>("GoogleAttendeeSyncEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("GOOGLE_ATTENDEE_SYNC_ENABLED");
+
                     b.Property<Guid>("InstructorId")
                         .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_ID");
@@ -3303,6 +3309,376 @@ namespace Siri.Persistence.Migrations
                     b.ToTable("WATCH_EVENTS", "LEARNING");
                 });
 
+            modelBuilder.Entity("Siri.Modules.Live.Domain.INSTRUCTOR_GOOGLE_ACCOUNT", b =>
+                {
+                    b.Property<Guid>("INSTRUCTOR_GOOGLE_ACCOUNT_ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("INSTRUCTOR_GOOGLE_ACCOUNT_ID");
+
+                    b.Property<DateTime>("CONNECTED_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("CONNECTED_AT_UTC");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("CREATED_BY");
+
+                    b.Property<string>("GOOGLE_EMAIL")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)")
+                        .HasColumnName("GOOGLE_EMAIL");
+
+                    b.Property<string>("GOOGLE_SUBJECT")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("GOOGLE_SUBJECT");
+
+                    b.Property<Guid>("INSTRUCTOR_USER_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("INSTRUCTOR_USER_ID");
+
+                    b.Property<DateTime?>("LAST_VALIDATED_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("LAST_VALIDATED_AT_UTC");
+
+                    b.Property<string>("REFRESH_TOKEN_ENCRYPTED")
+                        .HasColumnType("text")
+                        .HasColumnName("REFRESH_TOKEN_ENCRYPTED");
+
+                    b.Property<DateTime?>("REVOKED_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("REVOKED_AT_UTC");
+
+                    b.Property<string>("REVOKED_REASON")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("REVOKED_REASON");
+
+                    b.Property<byte[]>("ROW_VERSION")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("ROW_VERSION");
+
+                    b.Property<string>("SCOPES")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("SCOPES");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("UPDATED_AT_UTC");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UPDATED_BY");
+
+                    b.HasKey("INSTRUCTOR_GOOGLE_ACCOUNT_ID")
+                        .HasName("PK_INSTRUCTOR_GOOGLE_ACCOUNTS");
+
+                    b.HasIndex("INSTRUCTOR_USER_ID")
+                        .IsUnique()
+                        .HasDatabaseName("IX_INSTR_GOOGLE_ACCT_USER_ID");
+
+                    b.ToTable("INSTRUCTOR_GOOGLE_ACCOUNTS", "LIVE");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Live.Domain.SESSION_INVITE", b =>
+                {
+                    b.Property<Guid>("SESSION_INVITE_ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("SESSION_INVITE_ID");
+
+                    b.Property<DateTime?>("CANCEL_SENT_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("CANCEL_SENT_AT_UTC");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("CREATED_BY");
+
+                    b.Property<string>("ERROR")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("ERROR");
+
+                    b.Property<DateTime?>("GOOGLE_ATTENDEE_SYNCED_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("GOOGLE_ATTENDEE_SYNCED_AT_UTC");
+
+                    b.Property<int?>("ICS_SEQUENCE_SENT")
+                        .HasColumnType("integer")
+                        .HasColumnName("ICS_SEQUENCE_SENT");
+
+                    b.Property<DateTime?>("INVITE_SENT_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("INVITE_SENT_AT_UTC");
+
+                    b.Property<DateTime?>("REMINDER_1H_SENT_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("REMINDER_1H_SENT_AT_UTC");
+
+                    b.Property<DateTime?>("REMINDER_24H_SENT_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("REMINDER_24H_SENT_AT_UTC");
+
+                    b.Property<string>("ROLE")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("ROLE");
+
+                    b.Property<byte[]>("ROW_VERSION")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("ROW_VERSION");
+
+                    b.Property<Guid>("SESSION_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("SESSION_ID");
+
+                    b.Property<string>("STATUS")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("STATUS");
+
+                    b.Property<Guid>("USER_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("USER_ID");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("UPDATED_AT_UTC");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UPDATED_BY");
+
+                    b.HasKey("SESSION_INVITE_ID")
+                        .HasName("PK_SESSION_INVITES");
+
+                    b.HasIndex("SESSION_ID")
+                        .HasDatabaseName("IX_SESSION_INVITES_PENDING")
+                        .HasFilter("\"STATUS\" = 'Pending'");
+
+                    b.HasIndex("USER_ID")
+                        .HasDatabaseName("IX_SESSION_INVITES_USER_ID");
+
+                    b.HasIndex("SESSION_ID", "USER_ID")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SESSION_INVITES_SESSION_USER");
+
+                    b.ToTable("SESSION_INVITES", "LIVE");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Live.Domain.SESSION_JOIN_LOG", b =>
+                {
+                    b.Property<Guid>("SESSION_JOIN_LOG_ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("SESSION_JOIN_LOG_ID");
+
+                    b.Property<Guid?>("AUTH_SESSION_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("AUTH_SESSION_ID");
+
+                    b.Property<Guid>("COURSE_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("COURSE_ID");
+
+                    b.Property<string>("IP_ADDRESS")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("IP_ADDRESS");
+
+                    b.Property<DateTime>("JOINED_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("JOINED_AT_UTC");
+
+                    b.Property<string>("ROLE")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("ROLE");
+
+                    b.Property<Guid>("SESSION_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("SESSION_ID");
+
+                    b.Property<string>("USER_AGENT")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("USER_AGENT");
+
+                    b.Property<Guid>("USER_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("USER_ID");
+
+                    b.HasKey("SESSION_JOIN_LOG_ID")
+                        .HasName("PK_SESSION_JOIN_LOGS");
+
+                    b.HasIndex("SESSION_ID", "USER_ID")
+                        .HasDatabaseName("IX_SESSION_JOIN_LOGS_SESSION_USER");
+
+                    b.HasIndex("USER_ID", "COURSE_ID")
+                        .HasDatabaseName("IX_SESSION_JOIN_LOGS_USER_COURSE");
+
+                    b.ToTable("SESSION_JOIN_LOGS", "LIVE");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Live.Domain.SESSION_MEETING", b =>
+                {
+                    b.Property<Guid>("SESSION_MEETING_ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("SESSION_MEETING_ID");
+
+                    b.Property<int>("ATTEMPTS")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ATTEMPTS");
+
+                    b.Property<DateTime?>("ATTENDEE_SYNC_ALERT_SENT_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("ATTENDEE_SYNC_ALERT_SENT_AT_UTC");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("CREATED_BY");
+
+                    b.Property<string>("ERROR")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("ERROR");
+
+                    b.Property<int>("ICS_SEQUENCE")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ICS_SEQUENCE");
+
+                    b.Property<Guid?>("INSTRUCTOR_GOOGLE_ACCOUNT_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("INSTRUCTOR_GOOGLE_ACCOUNT_ID");
+
+                    b.Property<Guid?>("INSTRUCTOR_USER_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("INSTRUCTOR_USER_ID");
+
+                    b.Property<DateTime?>("LAST_SYNC_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("LAST_SYNC_AT_UTC");
+
+                    b.Property<DateTime?>("MEETING_ALERT_SENT_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("MEETING_ALERT_SENT_AT_UTC");
+
+                    b.Property<string>("MEET_URL_ENCRYPTED")
+                        .HasColumnType("text")
+                        .HasColumnName("MEET_URL_ENCRYPTED");
+
+                    b.Property<DateTime?>("NEXT_RETRY_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("NEXT_RETRY_AT_UTC");
+
+                    b.Property<string>("PROVIDER")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("PROVIDER");
+
+                    b.Property<string>("PROVIDER_EVENT_ID")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("PROVIDER_EVENT_ID");
+
+                    b.Property<DateTime?>("READINESS_ALERT_SENT_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("READINESS_ALERT_SENT_AT_UTC");
+
+                    b.Property<byte[]>("ROW_VERSION")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("ROW_VERSION");
+
+                    b.Property<Guid>("SESSION_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("SESSION_ID");
+
+                    b.Property<string>("SYNC_STATUS")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("SYNC_STATUS");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("UPDATED_AT_UTC");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UPDATED_BY");
+
+                    b.HasKey("SESSION_MEETING_ID")
+                        .HasName("PK_SESSION_MEETINGS");
+
+                    b.HasIndex("INSTRUCTOR_GOOGLE_ACCOUNT_ID")
+                        .HasDatabaseName("IX_SESSION_MEETINGS_GOOGLE_ACCT_ID");
+
+                    b.HasIndex("INSTRUCTOR_USER_ID")
+                        .HasDatabaseName("IX_SESSION_MEETINGS_INSTR_USER_ID");
+
+                    b.HasIndex("SESSION_ID")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SESSION_MEETINGS_SESSION_ID");
+
+                    b.HasIndex("SYNC_STATUS", "NEXT_RETRY_AT_UTC")
+                        .HasDatabaseName("IX_SESSION_MEETINGS_SYNC_DUE")
+                        .HasFilter("\"SYNC_STATUS\" IN ('Pending','PendingDelete')");
+
+                    b.ToTable("SESSION_MEETINGS", "LIVE");
+                });
+
             modelBuilder.Entity("Siri.Modules.Media.Domain.MEDIA_ASSET", b =>
                 {
                     b.Property<Guid>("MEDIA_ASSET_ID")
@@ -3670,6 +4046,15 @@ namespace Siri.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("BODY_HTML");
+
+                    b.Property<string>("CalendarIcs")
+                        .HasColumnType("text")
+                        .HasColumnName("CALENDAR_ICS");
+
+                    b.Property<string>("CalendarMethod")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("CALENDAR_METHOD");
 
                     b.Property<string>("LastError")
                         .HasMaxLength(2000)
@@ -4463,6 +4848,15 @@ namespace Siri.Persistence.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired()
                         .HasConstraintName("FK_WATCH_EVENTS_ENROLLMENTS_ENROLLMENT_ID");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Live.Domain.SESSION_MEETING", b =>
+                {
+                    b.HasOne("Siri.Modules.Live.Domain.INSTRUCTOR_GOOGLE_ACCOUNT", null)
+                        .WithMany()
+                        .HasForeignKey("INSTRUCTOR_GOOGLE_ACCOUNT_ID")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("FK_SESSION_MEETINGS_GOOGLE_ACCT");
                 });
 
             modelBuilder.Entity("Siri.Modules.Media.Domain.MEDIA_UPLOAD_SESSION", b =>

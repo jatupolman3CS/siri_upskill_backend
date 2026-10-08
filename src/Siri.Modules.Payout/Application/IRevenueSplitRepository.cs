@@ -50,6 +50,14 @@ public interface IRevenueSplitRepository
 
     Task<decimal> GetPendingEarningsAsync(Guid instructorId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Sum of <c>INSTRUCTOR_AMOUNT</c> over the instructor's (profile id) non-<c>Reversed</c> splits of <paramref name="periodKey"/>, including negative refund
+    /// adjustments (see <see cref="RevenueSplitQueries.NetForInstructorPeriod"/>). The default runs over <see cref="Query"/> in memory so existing test doubles keep
+    /// compiling and behaving correctly; <c>Infrastructure.RevenueSplitRepository</c> overrides it with a database-side <c>SUM</c>.
+    /// </summary>
+    Task<decimal> GetNetInstructorAmountForPeriodAsync(Guid instructorId, string periodKey, CancellationToken cancellationToken) =>
+        Task.FromResult(RevenueSplitQueries.NetForInstructorPeriod(Query(), instructorId, periodKey).Sum(r => r.INSTRUCTOR_AMOUNT));
+
     /// <summary>Stages a new row for insertion — does not persist until <see cref="SaveChangesAsync"/>.</summary>
     void Add(REVENUE_SPLIT revenueSplit);
 
