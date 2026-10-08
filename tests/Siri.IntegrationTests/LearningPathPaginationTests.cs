@@ -113,7 +113,7 @@ public sealed class LearningPathPaginationTests : IAsyncLifetime
         await using var scope = _app.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.MigrateAsync();
-        await SeedDataAsync(scope.ServiceProvider, dbContext);
+        await SeedOnceAsync(scope.ServiceProvider, dbContext);
     }
 
     public async Task DisposeAsync()
@@ -197,7 +197,7 @@ public sealed class LearningPathPaginationTests : IAsyncLifetime
         var hash = passwordHasher.HashPassword(throwaway, KnownPassword);
         var user = USER.Register(email, normalizedEmail, hash, "Test USER");
         user.ConfirmEmail(clock);
-        user.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
+        user.AssignRole(await dbContext.SeededRoleAsync(ROLE.AdminId));
 
         dbContext.Users().Add(user);
         await dbContext.SaveChangesAsync();
@@ -208,6 +208,31 @@ public sealed class LearningPathPaginationTests : IAsyncLifetime
 
         Assert.True(result.IsSuccess);
         return result.Value.AccessToken;
+    }
+
+    // These tests assert exact TotalCount values over the whole LEARNING_PATHS table (3 active / 4 total), and
+    // xUnit re-runs InitializeAsync for every test against the collection's single shared database — so the
+    // fixed set must be inserted once per database, not once per test (the slugs are unique-indexed).
+    private static readonly SemaphoreSlim SeedLock = new(1, 1);
+    private static string? s_seededDatabase;
+
+    private async Task SeedOnceAsync(IServiceProvider services, AppDbContext db)
+    {
+        await SeedLock.WaitAsync();
+        try
+        {
+            if (s_seededDatabase == _containers.SqlConnectionString)
+            {
+                return;
+            }
+
+            await SeedDataAsync(services, db);
+            s_seededDatabase = _containers.SqlConnectionString;
+        }
+        finally
+        {
+            SeedLock.Release();
+        }
     }
 
     private static async Task SeedDataAsync(IServiceProvider services, AppDbContext db)

@@ -243,7 +243,7 @@ public sealed class SeatCapAndEnrollmentDeadlineTests : IAsyncLifetime
     {
         await using var scope = _app.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var (_, token) = await CreateUserAndLoginAsync(scope.ServiceProvider, dbContext);
+        var (user, token) = await CreateUserAndLoginAsync(scope.ServiceProvider, dbContext);
         var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, enrollmentDeadlineUtc: DateTime.UtcNow.AddDays(-1));
 
         var request = AuthenticatedRequest(HttpMethod.Post, "/api/commerce/orders", token);
@@ -252,7 +252,8 @@ public sealed class SeatCapAndEnrollmentDeadlineTests : IAsyncLifetime
         using var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
 
-        var orderCount = await dbContext.Orders().AsNoTracking().CountAsync();
+        // Scoped to this test's own user: the collection's database also holds every other test class's orders.
+        var orderCount = await dbContext.Orders().AsNoTracking().CountAsync(o => o.USER_ID == user.Id);
         Assert.Equal(0, orderCount);
         var orderItemCount = await dbContext.OrderItems().AsNoTracking().CountAsync(i => i.COURSE_ID == course.Id);
         Assert.Equal(0, orderItemCount);
@@ -312,7 +313,9 @@ public sealed class SeatCapAndEnrollmentDeadlineTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         var courseDb = await dbContext.Courses().AsNoTracking().SingleAsync(c => c.Id == course.Id);
-        Assert.Equal(0, courseDb.SeatsUsed);
+        // The counter is deliberately kept even when no cap is set (docs/contracts/P11-11 §4.2: TryReserveSeatAsync "always succeeds when
+        // MaxSeats is null but SeatsUsed is still incremented"), so enabling a cap later starts from the real number of sold seats.
+        Assert.Equal(1, courseDb.SeatsUsed);
         Assert.Null(courseDb.MaxSeats);
         Assert.Null(courseDb.EnrollmentDeadlineUtc);
     }

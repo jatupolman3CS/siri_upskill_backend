@@ -42,6 +42,11 @@ public sealed class WishlistIntegrationTests : IAsyncLifetime
     };
 
     private readonly ContainersFixture _containers;
+
+    // Unique per test instance (see ContactIntegrationTests): the shared database keeps users across tests.
+    private readonly string _userAEmail = $"wishlist-a-{Guid.NewGuid():N}@example.test";
+    private readonly string _userBEmail = $"wishlist-b-{Guid.NewGuid():N}@example.test";
+    private readonly string _instructorEmail = $"wishlist-inst-{Guid.NewGuid():N}@example.test";
     private WebApplication _app = null!;
     private HttpClient _client = null!;
 
@@ -131,7 +136,7 @@ public sealed class WishlistIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task AddToWishlist_AuthenticatedUser_AddsAndReturnsOk()
     {
-        var userToken = await LoginAndGetAccessTokenAsync(_app.Services, "wishlist-a@example.test");
+        var userToken = await LoginAndGetAccessTokenAsync(_app.Services, _userAEmail);
         var userClient = _app.GetTestClient();
         userClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
 
@@ -149,13 +154,13 @@ public sealed class WishlistIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Wishlist_IsUserScoped_UserBDoesNotSeeUserAWishlist()
     {
-        var userAToken = await LoginAndGetAccessTokenAsync(_app.Services, "wishlist-a@example.test");
+        var userAToken = await LoginAndGetAccessTokenAsync(_app.Services, _userAEmail);
         var userAClient = _app.GetTestClient();
         userAClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userAToken);
 
         await userAClient.PostAsync($"/api/catalog/wishlist/{_course2Id}", null);
 
-        var userBToken = await LoginAndGetAccessTokenAsync(_app.Services, "wishlist-b@example.test");
+        var userBToken = await LoginAndGetAccessTokenAsync(_app.Services, _userBEmail);
         var userBClient = _app.GetTestClient();
         userBClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userBToken);
 
@@ -175,7 +180,7 @@ public sealed class WishlistIntegrationTests : IAsyncLifetime
         // resolved to null and silently fell back to the generic "ผู้สอน" placeholder. The seeded
         // instructor profile's Id (UuidV7, generated independently) is never equal to its UserId, so this
         // scenario reproduces the bug exactly as it manifested for every wishlisted course in production.
-        var userToken = await LoginAndGetAccessTokenAsync(_app.Services, "wishlist-a@example.test");
+        var userToken = await LoginAndGetAccessTokenAsync(_app.Services, _userAEmail);
         var userClient = _app.GetTestClient();
         userClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
 
@@ -194,7 +199,7 @@ public sealed class WishlistIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task RemoveFromWishlist_RemovesCourseFromUserWishlist()
     {
-        var userToken = await LoginAndGetAccessTokenAsync(_app.Services, "wishlist-a@example.test");
+        var userToken = await LoginAndGetAccessTokenAsync(_app.Services, _userAEmail);
         var userClient = _app.GetTestClient();
         userClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", userToken);
 
@@ -240,14 +245,14 @@ public sealed class WishlistIntegrationTests : IAsyncLifetime
     {
         var clock = services.GetRequiredService<IClock>();
 
-        var userA = await CreateUserAsync(services, db, "wishlist-a@example.test", KnownPassword);
-        userA.AssignRole(new ROLE(ROLE.LearnerId, ROLE.LearnerName));
+        var userA = await CreateUserAsync(services, db, _userAEmail, KnownPassword);
+        userA.AssignRole(await db.SeededRoleAsync(ROLE.LearnerId));
 
-        var userB = await CreateUserAsync(services, db, "wishlist-b@example.test", KnownPassword);
-        userB.AssignRole(new ROLE(ROLE.LearnerId, ROLE.LearnerName));
+        var userB = await CreateUserAsync(services, db, _userBEmail, KnownPassword);
+        userB.AssignRole(await db.SeededRoleAsync(ROLE.LearnerId));
 
-        var instructor = await CreateUserAsync(services, db, "wishlist-inst@example.test", KnownPassword);
-        instructor.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        var instructor = await CreateUserAsync(services, db, _instructorEmail, KnownPassword);
+        instructor.AssignRole(await db.SeededRoleAsync(ROLE.InstructorId));
 
         await db.SaveChangesAsync();
 
@@ -258,17 +263,17 @@ public sealed class WishlistIntegrationTests : IAsyncLifetime
         profile.Approve(clock);
         db.InstructorProfiles().Add(profile);
 
-        var category = CATEGORY.Create("wishlist-dev", "Wishlist Dev", "Wishlist Dev En", null, null, 0);
+        var category = CATEGORY.Create($"wishlist-dev-{Guid.NewGuid():N}", "Wishlist Dev", "Wishlist Dev En", null, null, 0);
         db.Categories().Add(category);
         await db.SaveChangesAsync();
 
-        var course1 = COURSE.Create("c1-wish", "COURSE 1 Wish", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var course1 = COURSE.Create($"c1-wish-{Guid.NewGuid():N}", "COURSE 1 Wish", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var s1 = course1.AddSection("Sec 1");
         s1.AddEpisode("Ep 1", null, false).AttachMedia(Guid.NewGuid(), 600);
         course1.SubmitForReview(clock);
         course1.Publish(clock);
 
-        var course2 = COURSE.Create("c2-wish", "COURSE 2 Wish", profile.Id, category.Id, CourseLevel.Intermediate, CourseLanguage.Thai, 1290m);
+        var course2 = COURSE.Create($"c2-wish-{Guid.NewGuid():N}", "COURSE 2 Wish", profile.Id, category.Id, CourseLevel.Intermediate, CourseLanguage.Thai, 1290m);
         var s2 = course2.AddSection("Sec 2");
         s2.AddEpisode("Ep 2", null, false).AttachMedia(Guid.NewGuid(), 600);
         course2.SubmitForReview(clock);

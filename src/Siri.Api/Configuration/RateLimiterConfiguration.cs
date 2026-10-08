@@ -26,6 +26,9 @@ public static class RateLimiterConfiguration
     /// <summary>The anonymous Google OAuth callback: 60 per minute per client address.</summary>
     public const string LiveGoogleCallbackPolicyName = "live-google-callback";
 
+    /// <summary>Read-only signed-in Payout endpoints (currently <c>GET /api/payout/policy</c>): 60 per minute per user.</summary>
+    public const string PayoutReadPolicyName = "payout-read";
+
     /// <summary>
     /// Registers every policy of the API and the shared 429 response (<see cref="WriteRejectedResponseAsync"/>) — the single place
     /// <c>Program</c> configures the rate limiter, so a test can build the exact production configuration.
@@ -80,6 +83,9 @@ public static class RateLimiterConfiguration
         options.AddPolicy<string>(LiveJoinPolicyName, CreateLiveJoinPartition);
         options.AddPolicy<string>(LiveUserPolicyName, CreateLiveUserPartition);
         options.AddPolicy<string>(LiveGoogleCallbackPolicyName, CreateLiveGoogleCallbackPartition);
+
+        // Payout reads: partitioned per user for the same reason as the Live ones — never the app-wide "default" window.
+        options.AddPolicy<string>(PayoutReadPolicyName, CreatePayoutReadPartition);
     }
 
     /// <summary>
@@ -148,6 +154,10 @@ public static class RateLimiterConfiguration
     /// <summary>Partitioned per authenticated user (60 requests per 60 seconds).</summary>
     public static RateLimitPartition<string> CreateLiveUserPartition(HttpContext httpContext) =>
         CreateUserPartition(httpContext, "live-user", permitLimit: 60, TimeSpan.FromSeconds(60));
+
+    /// <summary>Partitioned per authenticated user (60 requests per 60 seconds).</summary>
+    public static RateLimitPartition<string> CreatePayoutReadPartition(HttpContext httpContext) =>
+        CreateUserPartition(httpContext, "payout-read", permitLimit: 60, TimeSpan.FromSeconds(60));
 
     /// <summary>
     /// Partitioned per client address (60 requests per 60 seconds) — the OAuth callback is anonymous, so there is no user to key on.

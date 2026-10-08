@@ -147,7 +147,7 @@ public sealed class CategoryManagementTests : IAsyncLifetime
         {
             // Roles are migration-seeded fixed reference data (RoleConfiguration.HasData) — constructed
             // directly from the well-known id/name constants, same as Siri.UnitTests.Identity.UserTests.
-            user.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
+            user.AssignRole(await dbContext.SeededRoleAsync(ROLE.AdminId));
         }
 
         dbContext.Users().Add(user);

@@ -15,8 +15,6 @@ public sealed class RevenueSplitContract(
     IClock clock,
     ILogger<RevenueSplitContract>? logger = null) : IRevenueSplitContract
 {
-    private const decimal DefaultRevenueSharePercent = 70.00m;
-
     public async Task RecordRevenueSplitsAsync(
         Guid orderId,
         IReadOnlyList<OrderItemSplitInfo> items,
@@ -61,7 +59,7 @@ public sealed class RevenueSplitContract(
 
             var sharePercent = instructorSharePercents.TryGetValue(item.InstructorId, out var customPercent)
                 ? customPercent
-                : DefaultRevenueSharePercent;
+                : REVENUE_SPLIT.DefaultRevenueSharePercent;
 
             var gross = item.GrossAmount;
             var paymentFee = item.PaymentFee ?? Math.Round(gross * payoutOptions.EstimatedPaymentFeePercent / 100m, 2, MidpointRounding.AwayFromZero);

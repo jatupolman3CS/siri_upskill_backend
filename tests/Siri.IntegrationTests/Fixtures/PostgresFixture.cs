@@ -15,20 +15,32 @@ namespace Siri.IntegrationTests.Fixtures;
 public sealed class PostgresFixture : IAsyncLifetime
 {
     private PostgreSqlContainer? _container;
+    private ExternalTestServices.ExternalPostgresDatabase? _externalDatabase;
     private ServiceProvider _services = null!;
 
     public IServiceScope CreateScope() => _services.CreateScope();
 
     public async Task InitializeAsync()
     {
-        var connectionString = Environment.GetEnvironmentVariable("SIRI_TEST_POSTGRES_CONNECTION");
+        // Opt-in external mode (see ExternalTestServices): a throwaway local database per fixture instance.
+        string? connectionString;
+        if (ExternalTestServices.PostgresRequested)
+        {
+            _externalDatabase = await ExternalTestServices.CreatePostgresDatabaseAsync();
+            connectionString = _externalDatabase.ConnectionString;
+        }
+        else
+        {
+            connectionString = Environment.GetEnvironmentVariable("SIRI_TEST_POSTGRES_CONNECTION");
+        }
+
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             _container = new PostgreSqlBuilder("postgres:17-alpine").Build();
             await _container.StartAsync();
             connectionString = _container.GetConnectionString();
         }
-        else
+        else if (_externalDatabase is null)
         {
             var connection = new NpgsqlConnectionStringBuilder(connectionString);
             if (!IPAddress.TryParse(connection.Host, out var address) || !IPAddress.IsLoopback(address) ||
@@ -63,5 +75,6 @@ public sealed class PostgresFixture : IAsyncLifetime
     {
         if (_services is not null) await _services.DisposeAsync();
         if (_container is not null) await _container.DisposeAsync();
+        if (_externalDatabase is not null) await _externalDatabase.DisposeAsync();
     }
 }

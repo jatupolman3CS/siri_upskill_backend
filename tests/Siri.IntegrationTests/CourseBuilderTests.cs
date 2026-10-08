@@ -160,7 +160,7 @@ public sealed class CourseBuilderTests : IAsyncLifetime
         var email = $"instructor-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email, KnownPassword);
 
-        user.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        user.AssignRole(await dbContext.SeededRoleAsync(ROLE.InstructorId));
         var profile = INSTRUCTOR_PROFILE.Apply(user.Id, "Test Instructor", "Headline", "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);

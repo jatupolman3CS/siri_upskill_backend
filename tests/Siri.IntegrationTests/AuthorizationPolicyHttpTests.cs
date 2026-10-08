@@ -117,6 +117,7 @@ public sealed class AuthorizationPolicyHttpTests : IAsyncLifetime
 
         builder.Services.AddSiriAuthorizationPolicies();
         builder.Services.AddPersistence(builder.Configuration);
+        builder.Services.AddSharedRedis(builder.Configuration);
         builder.Services.AddIdentityModule(builder.Configuration);
         builder.Services.AddNotificationModule(builder.Configuration);
 

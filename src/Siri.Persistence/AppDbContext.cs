@@ -31,6 +31,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         }
 
         modelBuilder.ApplySoftDeleteQueryFilter();
+        modelBuilder.ApplyClientGeneratedGuidKeys();
         modelBuilder.ApplyUppercaseNamingConventions();
     }
 

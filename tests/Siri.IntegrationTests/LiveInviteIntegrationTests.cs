@@ -167,12 +167,15 @@ public sealed class LiveInviteIntegrationTests : IAsyncLifetime
     private static string Everything(EMAIL_OUTBOX_MESSAGE message) =>
         $"{message.Subject}\n{message.BodyHtml}\n{(message.CalendarIcs is null ? string.Empty : string.Join("\n", IcsLines(message.CalendarIcs)))}";
 
+    /// <summary>Pretends the invitations went out earlier. The reminder flags are cleared too: an invitation sent inside the 24 h window
+    /// legitimately marks the elapsed reminders as sent (<c>SessionInvitePolicy.SuppressElapsedReminders</c>), and these tests are about the
+    /// reminders an earlier invitation would still owe.</summary>
     private async Task SetInviteSentAtAsync(Guid sessionId, DateTime sentAtUtc)
     {
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE \"LIVE\".\"SESSION_INVITES\" SET \"INVITE_SENT_AT_UTC\" = {sentAtUtc} WHERE \"SESSION_ID\" = {sessionId}");
+            $"UPDATE \"LIVE\".\"SESSION_INVITES\" SET \"INVITE_SENT_AT_UTC\" = {sentAtUtc}, \"REMINDER_24H_SENT_AT_UTC\" = NULL, \"REMINDER_1H_SENT_AT_UTC\" = NULL WHERE \"SESSION_ID\" = {sessionId}");
     }
 
     // ---- 1. Purchase day -------------------------------------------------------------------------------------

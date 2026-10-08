@@ -101,6 +101,21 @@ public sealed class SiriApiFactory : WebApplicationFactory<Program>
                     "code path has opened a database connection yet. See SiriApiFactory's doc comment.");
             }
 
+            // External services mode (no Docker): the fixture already refused non-loopback endpoints before
+            // creating anything; assert it again on what the host will REALLY use, right before it can connect.
+            if (_containers.IsExternal)
+            {
+                ExternalTestServices.AssertLoopbackHost(
+                    new Npgsql.NpgsqlConnectionStringBuilder(actual).Host, "ConnectionStrings:Default");
+                foreach (var endpoint in ExternalTestServices.ParseRedis(
+                             context.Configuration["Redis:ConnectionString"]).EndPoints)
+                {
+                    ExternalTestServices.AssertLoopbackHost(
+                        endpoint is System.Net.DnsEndPoint dns ? dns.Host : (endpoint as System.Net.IPEndPoint)?.Address.ToString(),
+                        "Redis:ConnectionString");
+                }
+            }
+
             if (!context.HostingEnvironment.IsEnvironment(EnvironmentName))
             {
                 throw new InvalidOperationException(

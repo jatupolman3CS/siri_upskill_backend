@@ -8,6 +8,14 @@ namespace Siri.Modules.Payout.Domain;
 /// </summary>
 public sealed class REVENUE_SPLIT : IAuditable
 {
+    /// <summary>
+    /// The instructor's share of net revenue (percent) when the instructor has no explicit rate of their own — the locked default of
+    /// <c>InstructorProfile.RevenueSharePercent</c> (docs/DATABASE.md "default 70.00"). The one place the Payout module states it: the split
+    /// calculation (<c>RevenueSplitContract</c>) and the read-only policy shown to users (<c>PayoutPolicyService</c>) both use this constant, so what the
+    /// UI displays can never drift from what the splits are actually computed with.
+    /// </summary>
+    public const decimal DefaultRevenueSharePercent = 70.00m;
+
     private REVENUE_SPLIT()
     {
     }

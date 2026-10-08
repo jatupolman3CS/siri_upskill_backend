@@ -43,6 +43,11 @@ public sealed class ContactIntegrationTests : IAsyncLifetime
     };
 
     private readonly ContainersFixture _containers;
+
+    // Unique per test instance: xUnit builds a new instance (and re-runs InitializeAsync) for every test, and all tests
+    // share one database, so fixed addresses would hit IX_USERS_NORMALIZED_EMAIL from the second test on.
+    private readonly string _adminEmail = $"admin-contact-{Guid.NewGuid():N}@example.test";
+    private readonly string _learnerEmail = $"learner-contact-{Guid.NewGuid():N}@example.test";
     private WebApplication _app = null!;
     private HttpClient _client = null!;
 
@@ -229,7 +234,7 @@ public sealed class ContactIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, anonResponse.StatusCode);
 
         // Learner role
-        var learnerToken = await LoginAndGetAccessTokenAsync(_app.Services, "learner-contact@example.test");
+        var learnerToken = await LoginAndGetAccessTokenAsync(_app.Services, _learnerEmail);
         var learnerClient = _app.GetTestClient();
         learnerClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", learnerToken);
 
@@ -248,11 +253,11 @@ public sealed class ContactIntegrationTests : IAsyncLifetime
             await db.SaveChangesAsync();
         }
 
-        var adminToken = await LoginAndGetAccessTokenAsync(_app.Services, "admin-contact@example.test");
+        var adminToken = await LoginAndGetAccessTokenAsync(_app.Services, _adminEmail);
         var adminClient = _app.GetTestClient();
         adminClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
 
-        var response = await adminClient.GetAsync("/api/admin/contact-messages");
+        var response = await adminClient.GetAsync("/api/admin/contact-messages?page=1&pageSize=20");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var paged = await response.Content.ReadFromJsonAsync<PagedResult<ContactMessageListItemResponse>>(JsonOptions);
@@ -273,7 +278,7 @@ public sealed class ContactIntegrationTests : IAsyncLifetime
             messageId = msg.Id;
         }
 
-        var adminToken = await LoginAndGetAccessTokenAsync(_app.Services, "admin-contact@example.test");
+        var adminToken = await LoginAndGetAccessTokenAsync(_app.Services, _adminEmail);
         var adminClient = _app.GetTestClient();
         adminClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
 
@@ -322,11 +327,11 @@ public sealed class ContactIntegrationTests : IAsyncLifetime
 
     private async Task SeedUsersAsync(IServiceProvider services, AppDbContext db)
     {
-        var adminUser = await CreateUserAsync(services, db, "admin-contact@example.test", KnownPassword);
-        adminUser.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
+        var adminUser = await CreateUserAsync(services, db, _adminEmail, KnownPassword);
+        adminUser.AssignRole(await db.SeededRoleAsync(ROLE.AdminId));
 
-        var learnerUser = await CreateUserAsync(services, db, "learner-contact@example.test", KnownPassword);
-        learnerUser.AssignRole(new ROLE(ROLE.LearnerId, ROLE.LearnerName));
+        var learnerUser = await CreateUserAsync(services, db, _learnerEmail, KnownPassword);
+        learnerUser.AssignRole(await db.SeededRoleAsync(ROLE.LearnerId));
 
         await db.SaveChangesAsync();
 

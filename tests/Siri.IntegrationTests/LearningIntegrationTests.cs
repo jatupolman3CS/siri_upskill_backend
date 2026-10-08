@@ -134,7 +134,7 @@ public sealed class LearningIntegrationTests : IAsyncLifetime
 
         // 1. Instructor & Learner
         var instructor = await CreateUserAsync(services, dbContext, $"instructor_learn_{Guid.NewGuid():N}@test.com");
-        instructor.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        instructor.AssignRole(await dbContext.SeededRoleAsync(ROLE.InstructorId));
         _instructorUserId = instructor.Id;
 
         var learner = await CreateUserAsync(services, dbContext, $"learner_{Guid.NewGuid():N}@test.com");
@@ -387,17 +387,22 @@ public sealed class LearningIntegrationTests : IAsyncLifetime
             CancellationToken.None);
         Assert.True(updateProgResult.IsSuccess);
 
-        // 2. Issue certificate
-        var issueResult = await certificateService.CreateAsync(
+        // 2. Reaching 100% already issued the certificate (EnrollmentService.UpdateOwnProgressAsync does it in the same call), so an
+        // explicit issue for the same enrollment must be refused as a duplicate rather than minting a second certificate...
+        var duplicateIssue = await certificateService.CreateAsync(
             new IssueCertificateCommand(enrollmentId, null),
             CancellationToken.None);
-        Assert.True(issueResult.IsSuccess);
-        Assert.NotNull(issueResult.Value.VerifyCode);
+        Assert.True(duplicateIssue.IsFailure);
+
+        // ...and the auto-issued one is the certificate that gets verified publicly.
+        var issued = await certificateService.ListAsync(enrollmentId, 1, 10, CancellationToken.None);
+        var certificate = Assert.Single(issued.Items);
+        Assert.NotNull(certificate.VerifyCode);
 
         // 3. Verify public certificate
-        var verifyResult = await certificateService.VerifyByCodeAsync(issueResult.Value.VerifyCode, CancellationToken.None);
+        var verifyResult = await certificateService.VerifyByCodeAsync(certificate.VerifyCode, CancellationToken.None);
         Assert.True(verifyResult.IsSuccess);
-        Assert.Equal(issueResult.Value.VerifyCode, verifyResult.Value.VerifyCode);
+        Assert.Equal(certificate.VerifyCode, verifyResult.Value.VerifyCode);
         Assert.True(verifyResult.Value.IsValid);
     }
 
@@ -425,7 +430,10 @@ public sealed class LearningIntegrationTests : IAsyncLifetime
         Assert.True(enrollResult.IsSuccess);
         var enrollmentId = enrollResult.Value.Id;
 
-        var cutoffUtc = clock.UtcNow.AddDays(-90);
+        // OCCURRED_AT_UTC is timestamptz(3): a cutoff with finer ticks could never be reproduced exactly in the column, so the "exactly at the
+        // cutoff" row would land a fraction of a millisecond before it and be purged. Use a millisecond-precision cutoff.
+        var rawCutoffUtc = clock.UtcNow.AddDays(-90);
+        var cutoffUtc = new DateTime(rawCutoffUtc.Ticks - rawCutoffUtc.Ticks % TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
 
         // WATCH_EVENT.Create() always stamps IClock.UtcNow and OCCURRED_AT_UTC has a private setter, so
         // seed via the domain factory first, then backdate each row's timestamp with a direct SQL UPDATE

@@ -147,11 +147,11 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
 
         // 1. Instructor & Admin
         var instructor = await CreateUserAsync(services, dbContext, $"instructor_payout_{Guid.NewGuid():N}@test.com");
-        instructor.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        instructor.AssignRole(await dbContext.SeededRoleAsync(ROLE.InstructorId));
         _instructorUserId = instructor.Id;
 
         var admin = await CreateUserAsync(services, dbContext, $"admin_payout_{Guid.NewGuid():N}@test.com");
-        admin.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
+        admin.AssignRole(await dbContext.SeededRoleAsync(ROLE.AdminId));
         _adminUserId = admin.Id;
 
         // 2. Instructor Profile
@@ -299,7 +299,7 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
         // Second instructor, independent of the one seeded in InitializeAsync, so this batch aggregates
         // into two distinct PAYOUT_BATCH_ITEM rows.
         var secondInstructor = await CreateUserAsync(_app.Services, db, $"instructor_payout2_{Guid.NewGuid():N}@test.com");
-        secondInstructor.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        secondInstructor.AssignRole(await db.SeededRoleAsync(ROLE.InstructorId));
         var secondProfile = INSTRUCTOR_PROFILE.Apply(secondInstructor.Id, "Second Payout Instructor", "Headline", "Bio");
         secondProfile.Approve(clock);
         db.InstructorProfiles().Add(secondProfile);
@@ -380,7 +380,7 @@ public sealed class PayoutIntegrationTests : IAsyncLifetime
 
         // A second instructor whose money must stay invisible to the first.
         var other = await CreateUserAsync(_app.Services, db, $"instructor_payout3_{Guid.NewGuid():N}@test.com");
-        other.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        other.AssignRole(await db.SeededRoleAsync(ROLE.InstructorId));
         var otherProfile = INSTRUCTOR_PROFILE.Apply(other.Id, "Other Payout Instructor", "Headline", "Bio");
         otherProfile.Approve(clock);
         db.InstructorProfiles().Add(otherProfile);

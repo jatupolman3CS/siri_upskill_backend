@@ -139,7 +139,7 @@ public sealed class CmsAndCommunityIntegrationTests : IAsyncLifetime
 
         // 1. Admin & Learner
         var admin = await CreateUserAsync(services, dbContext, $"admin_cms_{Guid.NewGuid():N}@test.com");
-        admin.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
+        admin.AssignRole(await dbContext.SeededRoleAsync(ROLE.AdminId));
         _adminUserId = admin.Id;
 
         var learner = await CreateUserAsync(services, dbContext, $"learner_cms_{Guid.NewGuid():N}@test.com");

@@ -59,6 +59,7 @@ public sealed class ConcurrentSessionLimitTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddPersistence(configuration);
+        services.AddSharedRedis(configuration);
         services.AddIdentityModule(configuration);
         services.AddNotificationModule(configuration);
 

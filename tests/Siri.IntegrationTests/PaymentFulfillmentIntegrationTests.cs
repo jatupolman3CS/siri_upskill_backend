@@ -356,7 +356,10 @@ public sealed class PaymentFulfillmentIntegrationTests(PostgresFixture fixture) 
         course.SetThumbnail("https://example.test/course.png");
         course.SetAccessDuration(accessDurationDays);
         course.SetDeliveryFormat(DeliveryFormat.Hybrid);
-        var sessionStartsAtUtc = _clock.UtcNow.AddDays(10);
+        // timestamptz(3): the database keeps milliseconds, so the expected value must not carry finer ticks.
+        var rawSessionStart = _clock.UtcNow.AddDays(10);
+        var sessionStartsAtUtc = new DateTime(
+            rawSessionStart.Ticks - rawSessionStart.Ticks % TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
         course.AddLiveSession("Live session 1", null, sessionStartsAtUtc, sessionStartsAtUtc.AddHours(1), _clock);
         course.Publish(_clock);
         db.Courses().Add(course);

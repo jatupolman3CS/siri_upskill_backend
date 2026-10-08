@@ -153,7 +153,7 @@ public sealed class AnnouncementDispatchIntegrationTests : IAsyncLifetime
     private async Task<(USER User, INSTRUCTOR_PROFILE Profile)> CreateApprovedInstructorAsync(IServiceProvider services, AppDbContext dbContext, IClock clock)
     {
         var user = await CreateUserAsync(services, dbContext, $"instructor_{Guid.NewGuid():N}@test.com");
-        user.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        user.AssignRole(await dbContext.SeededRoleAsync(ROLE.InstructorId));
 
         var profile = INSTRUCTOR_PROFILE.Apply(user.Id, "Announcement Instructor", "Headline", "Bio");
         profile.Approve(clock);
@@ -179,7 +179,7 @@ public sealed class AnnouncementDispatchIntegrationTests : IAsyncLifetime
         IServiceProvider services, AppDbContext dbContext, IClock clock, Guid courseId, DateTime? expiresAtUtc = null, EnrollmentStatus status = EnrollmentStatus.Active)
     {
         var learner = await CreateUserAsync(services, dbContext, $"learner_{Guid.NewGuid():N}@test.com");
-        learner.AssignRole(new ROLE(ROLE.LearnerId, ROLE.LearnerName));
+        learner.AssignRole(await dbContext.SeededRoleAsync(ROLE.LearnerId));
         await dbContext.SaveChangesAsync();
 
         var enrollment = ENROLLMENT.Create(learner.Id, courseId, null, EnrollmentSource.Purchase, expiresAtUtc, clock);

@@ -30,6 +30,7 @@ public static class PayoutModule
         services.AddScoped<InstructorPayoutAccountService>();
         services.AddScoped<PayoutBatchService>();
         services.AddScoped<InstructorEarningsService>();
+        services.AddScoped<PayoutPolicyService>();
 
         services.AddScoped<IValidator<CreateRevenueSplitCommand>, CreateRevenueSplitValidator>();
         services.AddScoped<IValidator<CreateInstructorPayoutAccountCommand>, CreateInstructorPayoutAccountValidator>();

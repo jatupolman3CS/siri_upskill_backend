@@ -42,6 +42,11 @@ public sealed class CourseModerationIntegrationTests : IAsyncLifetime
     };
 
     private readonly ContainersFixture _containers;
+
+    // Unique per test instance (see ContactIntegrationTests): the shared database keeps users across tests.
+    private readonly string _adminEmail = $"admin-mod-{Guid.NewGuid():N}@example.test";
+    private readonly string _instructorEmail = $"instructor-mod-{Guid.NewGuid():N}@example.test";
+    private readonly string _learnerEmail = $"learner-mod-{Guid.NewGuid():N}@example.test";
     private WebApplication _app = null!;
     private HttpClient _client = null!;
 
@@ -133,7 +138,7 @@ public sealed class CourseModerationIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, anonResponse.StatusCode);
 
         // Instructor role (cannot unpublish via admin route)
-        var instToken = await LoginAndGetAccessTokenAsync(_app.Services, "instructor-mod@example.test");
+        var instToken = await LoginAndGetAccessTokenAsync(_app.Services, _instructorEmail);
         var instClient = _app.GetTestClient();
         instClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", instToken);
 
@@ -141,7 +146,7 @@ public sealed class CourseModerationIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, instResponse.StatusCode);
 
         // Learner role
-        var learnerToken = await LoginAndGetAccessTokenAsync(_app.Services, "learner-mod@example.test");
+        var learnerToken = await LoginAndGetAccessTokenAsync(_app.Services, _learnerEmail);
         var learnerClient = _app.GetTestClient();
         learnerClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", learnerToken);
 
@@ -152,7 +157,7 @@ public sealed class CourseModerationIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task UnpublishCourse_DraftCourse_ReturnsConflict()
     {
-        var adminToken = await LoginAndGetAccessTokenAsync(_app.Services, "admin-mod@example.test");
+        var adminToken = await LoginAndGetAccessTokenAsync(_app.Services, _adminEmail);
         var adminClient = _app.GetTestClient();
         adminClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
 
@@ -165,7 +170,7 @@ public sealed class CourseModerationIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task UnpublishCourse_PublishedCourse_AdminRole_UnpublishesWritesAuditAndNotifiesInstructor()
     {
-        var adminToken = await LoginAndGetAccessTokenAsync(_app.Services, "admin-mod@example.test");
+        var adminToken = await LoginAndGetAccessTokenAsync(_app.Services, _adminEmail);
         var adminClient = _app.GetTestClient();
         adminClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
 
@@ -200,7 +205,7 @@ public sealed class CourseModerationIntegrationTests : IAsyncLifetime
         var outbox = await db.Set<Siri.Modules.Notification.Domain.EMAIL_OUTBOX_MESSAGE>()
             .FirstOrDefaultAsync(e => e.TemplateKey == "course-unpublished-notification");
         Assert.NotNull(outbox);
-        Assert.Equal("instructor-mod@example.test", outbox.ToEmail);
+        Assert.Equal(_instructorEmail, outbox.ToEmail);
         Assert.Contains(reason, outbox.BodyHtml);
     }
 
@@ -235,14 +240,14 @@ public sealed class CourseModerationIntegrationTests : IAsyncLifetime
     {
         var clock = services.GetRequiredService<IClock>();
 
-        var adminUser = await CreateUserAsync(services, db, "admin-mod@example.test", KnownPassword);
-        adminUser.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
+        var adminUser = await CreateUserAsync(services, db, _adminEmail, KnownPassword);
+        adminUser.AssignRole(await db.SeededRoleAsync(ROLE.AdminId));
 
-        var instructorUser = await CreateUserAsync(services, db, "instructor-mod@example.test", KnownPassword);
-        instructorUser.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        var instructorUser = await CreateUserAsync(services, db, _instructorEmail, KnownPassword);
+        instructorUser.AssignRole(await db.SeededRoleAsync(ROLE.InstructorId));
 
-        var learnerUser = await CreateUserAsync(services, db, "learner-mod@example.test", KnownPassword);
-        learnerUser.AssignRole(new ROLE(ROLE.LearnerId, ROLE.LearnerName));
+        var learnerUser = await CreateUserAsync(services, db, _learnerEmail, KnownPassword);
+        learnerUser.AssignRole(await db.SeededRoleAsync(ROLE.LearnerId));
 
         await db.SaveChangesAsync();
 
@@ -254,17 +259,17 @@ public sealed class CourseModerationIntegrationTests : IAsyncLifetime
         profile.Approve(clock);
         db.InstructorProfiles().Add(profile);
 
-        var category = CATEGORY.Create("moderation-cat", "Moderation Cat", "Moderation Cat En", null, null, 0);
+        var category = CATEGORY.Create($"moderation-cat-{Guid.NewGuid():N}", "Moderation Cat", "Moderation Cat En", null, null, 0);
         db.Categories().Add(category);
         await db.SaveChangesAsync();
 
-        var publishedCourse = COURSE.Create("course-to-unpublish", "COURSE To Unpublish", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var publishedCourse = COURSE.Create($"course-to-unpublish-{Guid.NewGuid():N}", "COURSE To Unpublish", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var s1 = publishedCourse.AddSection("Sec 1");
         s1.AddEpisode("Ep 1", null, false).AttachMedia(Guid.NewGuid(), 600);
         publishedCourse.SubmitForReview(clock);
         publishedCourse.Publish(clock);
 
-        var draftCourse = COURSE.Create("draft-course", "Draft COURSE", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var draftCourse = COURSE.Create($"draft-course-{Guid.NewGuid():N}", "Draft COURSE", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
 
         db.Courses().AddRange(publishedCourse, draftCourse);
         await db.SaveChangesAsync();

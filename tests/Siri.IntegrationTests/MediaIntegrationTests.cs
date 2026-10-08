@@ -13,6 +13,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Siri.Api.Authorization;
 using Siri.IntegrationTests.Fixtures;
+using Siri.Integrations.Video;
+using Siri.Integrations.Video.Bunny;
 using Siri.Modules.Catalog;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
@@ -119,6 +121,10 @@ public sealed class MediaIntegrationTests : IAsyncLifetime
         builder.Services.AddCatalogModule(builder.Configuration);
         builder.Services.AddLearningModule();
         builder.Services.AddMediaModule(builder.Configuration);
+        // Creating a video / an upload URL is a call to the real Bunny API, which a test must never make (and the placeholder API key
+        // above is deliberately treated as "not configured"). Only the signed-playback-URL calculation stays real: it is a local HMAC.
+        builder.Services.AddScoped<IVideoProvider>(serviceProvider =>
+            new OfflineVideoProvider(ActivatorUtilities.CreateInstance<BunnyVideoProvider>(serviceProvider)));
 
         _app = builder.Build();
 
@@ -151,7 +157,7 @@ public sealed class MediaIntegrationTests : IAsyncLifetime
 
         // 1. Users
         var instructor = await CreateUserAsync(services, dbContext, $"inst_media_{Guid.NewGuid():N}@test.com");
-        instructor.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        instructor.AssignRole(await dbContext.SeededRoleAsync(ROLE.InstructorId));
         _instructorUserId = instructor.Id;
 
         var enrolled = await CreateUserAsync(services, dbContext, $"enrolled_media_{Guid.NewGuid():N}@test.com");
@@ -188,7 +194,7 @@ public sealed class MediaIntegrationTests : IAsyncLifetime
         // 3. Media Asset linked to paid episode
         var mediaAsset = MEDIA_ASSET.Create(
             "BunnyStream",
-            "bunny-vid-guid-9999",
+            $"bunny-vid-{Guid.NewGuid():N}",
             instructor.Id,
             false);
         mediaAsset.MarkReady("bunny-playback-id-9999", 600, "https://cdn.example/thumb.jpg", clock);
@@ -322,7 +328,7 @@ public sealed class MediaIntegrationTests : IAsyncLifetime
         var createAssetCmd = new CreateMediaAssetCommand("Lesson 2 Video");
 
         var assetResult = await mediaAssetService.CreateAsync(_instructorUserId, createAssetCmd, CancellationToken.None);
-        Assert.True(assetResult.IsSuccess);
+        Assert.True(assetResult.IsSuccess, assetResult.IsSuccess ? null : $"{assetResult.Error.Code}: {assetResult.Error.Message}");
         var assetId = assetResult.Value.Id;
 
         // 2. Instructor initiates upload session
@@ -341,5 +347,29 @@ public sealed class MediaIntegrationTests : IAsyncLifetime
         // Verify status in DB
         var updatedAsset = await db.MediaAssets().FirstAsync(a => a.MEDIA_ASSET_ID == assetId);
         Assert.Equal(MediaAssetStatus.Ready, updatedAsset.STATUS);
+    }
+
+    /// <summary>No-network stand-in for the Bunny API: creating a video / an upload URL is canned, everything that is a pure local
+    /// computation (the signed playback URL) is delegated to the real provider so the playback tests keep exercising it.</summary>
+    private sealed class OfflineVideoProvider(IVideoProvider real) : IVideoProvider
+    {
+        public Task<Result<VideoAsset>> CreateVideoAsync(string title, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success(new VideoAsset($"bunny-vid-{Guid.NewGuid():N}", title)));
+
+        public Task<Result<VideoUploadUrl>> GetUploadUrlAsync(string providerVideoId, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success(new VideoUploadUrl(
+                $"https://video.siriupskill.test/upload/{providerVideoId}", DateTime.UtcNow.AddHours(1))));
+
+        // The webhook handler treats the callback as a hint and re-reads the provider's state (authoritative), so "transcode finished"
+        // has to be what the provider reports here.
+        public Task<Result<VideoStatus>> GetStatusAsync(string providerVideoId, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success(new VideoStatus(providerVideoId, VideoProcessingStatus.Ready, TimeSpan.FromSeconds(12))));
+
+        public Task<Result> DeleteVideoAsync(string providerVideoId, CancellationToken cancellationToken) =>
+            Task.FromResult(Result.Success());
+
+        public Task<Result<SignedPlaybackUrl>> GetSignedPlaybackUrlAsync(
+            string providerVideoId, TimeSpan timeToLive, CancellationToken cancellationToken) =>
+            real.GetSignedPlaybackUrlAsync(providerVideoId, timeToLive, cancellationToken);
     }
 }

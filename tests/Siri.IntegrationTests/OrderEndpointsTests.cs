@@ -175,12 +175,12 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
         var user1 = await CreateUserAsync(_app.Services, dbContext, $"user1_{Guid.NewGuid():N}@test.local", KnownPassword);
         var user2 = await CreateUserAsync(_app.Services, dbContext, $"user2_{Guid.NewGuid():N}@test.local", KnownPassword);
 
-        var order1 = ORDER.Create($"SU-{Guid.NewGuid():N}[..8]", user1.Id, 1000m, 100m, 58.88m, 900m);
+        var order1 = ORDER.Create($"SU-{Guid.NewGuid().ToString("N")[..8]}", user1.Id, 1000m, 100m, 58.88m, 900m);
         order1.AddItem(Guid.NewGuid(), "Angular Pro COURSE", 1000m, 900m);
         order1.MarkAwaitingPayment();
         order1.MarkPaid(clock);
 
-        var order2 = ORDER.Create($"SU-{Guid.NewGuid():N}[..8]", user2.Id, 2000m, 0m, 130.84m, 2000m);
+        var order2 = ORDER.Create($"SU-{Guid.NewGuid().ToString("N")[..8]}", user2.Id, 2000m, 0m, 130.84m, 2000m);
         order2.AddItem(Guid.NewGuid(), "DotNet 10 Masterclass", 2000m, 2000m);
 
         dbContext.Orders().AddRange(order1, order2);
@@ -208,7 +208,7 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
         var user1 = await CreateUserAsync(_app.Services, dbContext, $"owner_{Guid.NewGuid():N}@test.local", KnownPassword);
         var user2 = await CreateUserAsync(_app.Services, dbContext, $"stranger_{Guid.NewGuid():N}@test.local", KnownPassword);
 
-        var order = ORDER.Create($"SU-{Guid.NewGuid():N}[..8]", user1.Id, 1000m, 0m, 65.42m, 1000m);
+        var order = ORDER.Create($"SU-{Guid.NewGuid().ToString("N")[..8]}", user1.Id, 1000m, 0m, 65.42m, 1000m);
         dbContext.Orders().Add(order);
         await dbContext.SaveChangesAsync();
 
@@ -228,7 +228,7 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
         var user = await CreateUserAsync(_app.Services, dbContext, $"taxuser_{Guid.NewGuid():N}@test.local", KnownPassword);
-        var order = ORDER.Create($"SU-{Guid.NewGuid():N}[..8]", user.Id, 1070m, 0m, 70m, 1070m);
+        var order = ORDER.Create($"SU-{Guid.NewGuid().ToString("N")[..8]}", user.Id, 1070m, 0m, 70m, 1070m);
         order.MarkAwaitingPayment();
         order.MarkPaid(clock);
         dbContext.Orders().Add(order);

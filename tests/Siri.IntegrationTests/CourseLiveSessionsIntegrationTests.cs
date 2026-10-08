@@ -102,6 +102,10 @@ public sealed class CourseLiveSessionsIntegrationTests : IAsyncLifetime
         builder.Services.AddIdentityModule(builder.Configuration);
         builder.Services.AddNotificationModule(builder.Configuration);
         builder.Services.AddCatalogModule(builder.Configuration);
+
+        // Program.cs registers the same converter globally; without it the minimal-API enum bodies below (PUT delivery-format) cannot bind.
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
         builder.Services.AddScoped<Siri.SharedKernel.Contracts.IMediaAssetContract, Siri.Modules.Media.Application.MediaAssetContractService>();
 
         _app = builder.Build();
@@ -160,7 +164,7 @@ public sealed class CourseLiveSessionsIntegrationTests : IAsyncLifetime
         var email = $"instructor-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email, KnownPassword);
 
-        user.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        user.AssignRole(await dbContext.SeededRoleAsync(ROLE.InstructorId));
         var profile = INSTRUCTOR_PROFILE.Apply(user.Id, "Test Instructor", "Headline", "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
@@ -319,7 +323,10 @@ public sealed class CourseLiveSessionsIntegrationTests : IAsyncLifetime
         var category = await CreateCategoryAsync(dbContext);
         var course = await CreateCourseAsync(dbContext, profile.Id, category.Id, DeliveryFormat.Live);
 
+        // timestamptz(3): a start with finer ticks would be stored rounded, and "exactly at the previous end" would then fall a hair
+        // inside it. Use whole seconds so what the request sends is exactly what the database holds.
         var baseStart = DateTime.UtcNow.AddDays(4);
+        baseStart = new DateTime(baseStart.Ticks - baseStart.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
         var firstEnd = baseStart.AddHours(2);
         course.AddLiveSession("Session 1", null, baseStart, firstEnd, clock);
         await dbContext.SaveChangesAsync();

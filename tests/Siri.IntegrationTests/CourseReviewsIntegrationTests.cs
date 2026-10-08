@@ -158,11 +158,11 @@ public sealed class CourseReviewsIntegrationTests : IAsyncLifetime
         profile.Approve(clock);
         db.InstructorProfiles().Add(profile);
 
-        var category = CATEGORY.Create("course-review-dev", "Course Review Dev", "Course Review Dev En", null, null, 0);
+        var category = CATEGORY.Create($"course-review-{Guid.NewGuid():N}", "Course Review Dev", "Course Review Dev En", null, null, 0);
         db.Categories().Add(category);
         await db.SaveChangesAsync();
 
-        var course = COURSE.Create("c1-review", "COURSE 1 Review", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
+        var course = COURSE.Create($"c1-review-{Guid.NewGuid():N}", "COURSE 1 Review", profile.Id, category.Id, CourseLevel.Beginner, CourseLanguage.Thai, 990m);
         var section = course.AddSection("Sec 1");
         section.AddEpisode("Ep 1", null, false).AttachMedia(Guid.NewGuid(), 600);
         course.SubmitForReview(clock);

@@ -20,6 +20,7 @@ using Siri.Modules.Analytics.Infrastructure;
 using Siri.Modules.Catalog;
 using Siri.Modules.Commerce;
 using Siri.Modules.Identity;
+using Siri.Modules.Learning;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Features.Login;
 using Siri.Modules.Identity.Infrastructure;
@@ -102,6 +103,7 @@ public sealed class AnalyticsIntegrationTests : IAsyncLifetime
         builder.Services.AddNotificationModule(builder.Configuration);
         builder.Services.AddCatalogModule(builder.Configuration);
         builder.Services.AddCommerceModule(builder.Configuration);
+        builder.Services.AddLearningModule();
         builder.Services.AddAnalyticsModule();
 
         _app = builder.Build();
@@ -133,7 +135,7 @@ public sealed class AnalyticsIntegrationTests : IAsyncLifetime
 
         // 1. Admin & Learner
         var admin = await CreateUserAsync(services, dbContext, $"admin_analytics_{Guid.NewGuid():N}@test.com");
-        admin.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
+        admin.AssignRole(await dbContext.SeededRoleAsync(ROLE.AdminId));
         _adminUserId = admin.Id;
 
         var learner = await CreateUserAsync(services, dbContext, $"learner_analytics_{Guid.NewGuid():N}@test.com");

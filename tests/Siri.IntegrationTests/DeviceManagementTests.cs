@@ -111,6 +111,7 @@ public sealed class DeviceManagementTests : IAsyncLifetime
 
         builder.Services.AddSiriAuthorizationPolicies();
         builder.Services.AddPersistence(builder.Configuration);
+        builder.Services.AddSharedRedis(builder.Configuration);
         builder.Services.AddIdentityModule(builder.Configuration);
         builder.Services.AddNotificationModule(builder.Configuration);
 
@@ -275,12 +276,21 @@ public sealed class DeviceManagementTests : IAsyncLifetime
     private static string StripTraceId(string problemDetailsJson) =>
         Regex.Replace(problemDetailsJson, "\"traceId\"\\s*:\\s*\"[^\"]*\"", "\"traceId\":\"STRIPPED\"");
 
+    /// <summary>Runs a refresh in a FRESH scope. The test's own scope already tracks the sessions and refresh tokens it created through
+    /// <see cref="LoginHandler"/>; a handler resolved from it would be handed those stale in-memory entities (EF does not overwrite a
+    /// tracked entity with newer database values) instead of what the revoke endpoint committed from its own scope.</summary>
+    private async Task<Result<RefreshResult>> RefreshInFreshScopeAsync(string rawRefreshToken)
+    {
+        await using var freshScope = _app.Services.CreateAsyncScope();
+        return await freshScope.ServiceProvider.GetRequiredService<RefreshHandler>().HandleAsync(
+            new RefreshCommand(rawRefreshToken, "UA", "203.0.113.50"), CancellationToken.None);
+    }
+
     [Fact]
     public async Task RevokeSession_OwnOtherSession_RevokesSessionAndRefreshTokenAndWritesAudit()
     {
         await using var scope = _app.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var refreshHandler = scope.ServiceProvider.GetRequiredService<RefreshHandler>();
 
         var email = $"revoke-one-{Guid.NewGuid():N}@example.test";
         var user = await CreateActiveUserAsync(scope.ServiceProvider, dbContext, email, KnownPassword);
@@ -309,8 +319,7 @@ public sealed class DeviceManagementTests : IAsyncLifetime
 
         // The revoked session's refresh token must no longer work — same style of proof
         // ConcurrentSessionLimitTests/LoginAndRefreshTests already use.
-        var refreshAttempt = await refreshHandler.HandleAsync(
-            new RefreshCommand(deviceTwo.RawRefreshToken, "UA", "203.0.113.50"), CancellationToken.None);
+        var refreshAttempt = await RefreshInFreshScopeAsync(deviceTwo.RawRefreshToken);
         Assert.True(refreshAttempt.IsFailure);
     }
 
@@ -364,7 +373,6 @@ public sealed class DeviceManagementTests : IAsyncLifetime
     {
         await using var scope = _app.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var refreshHandler = scope.ServiceProvider.GetRequiredService<RefreshHandler>();
 
         var email = $"revoke-others-{Guid.NewGuid():N}@example.test";
         await CreateActiveUserAsync(scope.ServiceProvider, dbContext, email, KnownPassword);
@@ -388,14 +396,12 @@ public sealed class DeviceManagementTests : IAsyncLifetime
         Assert.False(deviceThreeRow.IsActive);
         Assert.Equal("revoked_by_user_bulk_others", deviceTwoRow.RevokeReason);
 
-        var refreshAttemptTwo = await refreshHandler.HandleAsync(
-            new RefreshCommand(deviceTwo.RawRefreshToken, "UA", "203.0.113.50"), CancellationToken.None);
+        var refreshAttemptTwo = await RefreshInFreshScopeAsync(deviceTwo.RawRefreshToken);
         Assert.True(refreshAttemptTwo.IsFailure);
 
         // device-1's own refresh token must still work — this endpoint must never touch the caller's
         // own current session.
-        var refreshAttemptOne = await refreshHandler.HandleAsync(
-            new RefreshCommand(deviceOne.RawRefreshToken, "UA", "203.0.113.50"), CancellationToken.None);
+        var refreshAttemptOne = await RefreshInFreshScopeAsync(deviceOne.RawRefreshToken);
         Assert.True(refreshAttemptOne.IsSuccess);
     }
 
@@ -427,7 +433,6 @@ public sealed class DeviceManagementTests : IAsyncLifetime
     {
         await using var scope = _app.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var refreshHandler = scope.ServiceProvider.GetRequiredService<RefreshHandler>();
 
         var email = $"revoke-all-{Guid.NewGuid():N}@example.test";
         await CreateActiveUserAsync(scope.ServiceProvider, dbContext, email, KnownPassword);
@@ -447,12 +452,10 @@ public sealed class DeviceManagementTests : IAsyncLifetime
         Assert.False(deviceTwoRow.IsActive);
         Assert.Equal("revoked_by_user_bulk_all", deviceOneRow.RevokeReason);
 
-        var refreshAttemptOne = await refreshHandler.HandleAsync(
-            new RefreshCommand(deviceOne.RawRefreshToken, "UA", "203.0.113.50"), CancellationToken.None);
+        var refreshAttemptOne = await RefreshInFreshScopeAsync(deviceOne.RawRefreshToken);
         Assert.True(refreshAttemptOne.IsFailure);
 
-        var refreshAttemptTwo = await refreshHandler.HandleAsync(
-            new RefreshCommand(deviceTwo.RawRefreshToken, "UA", "203.0.113.50"), CancellationToken.None);
+        var refreshAttemptTwo = await RefreshInFreshScopeAsync(deviceTwo.RawRefreshToken);
         Assert.True(refreshAttemptTwo.IsFailure);
     }
 }

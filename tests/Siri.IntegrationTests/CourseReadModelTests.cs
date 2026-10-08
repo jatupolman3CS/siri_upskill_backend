@@ -174,7 +174,7 @@ public sealed class CourseReadModelTests : IAsyncLifetime
     {
         var email = $"admin-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email);
-        user.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
+        user.AssignRole(await dbContext.SeededRoleAsync(ROLE.AdminId));
         await dbContext.SaveChangesAsync();
         return await LoginAndGetAccessTokenAsync(services, email);
     }

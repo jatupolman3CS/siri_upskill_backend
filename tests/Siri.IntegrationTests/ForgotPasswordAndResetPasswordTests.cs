@@ -63,6 +63,7 @@ public sealed class ForgotPasswordAndResetPasswordTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddPersistence(configuration);
+        services.AddSharedRedis(configuration);
         services.AddIdentityModule(configuration);
         services.AddNotificationModule(configuration);
 

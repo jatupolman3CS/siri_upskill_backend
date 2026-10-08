@@ -66,6 +66,7 @@ public sealed class GoogleLoginTests : IAsyncLifetime
 
         var services = new ServiceCollection();
         services.AddPersistence(configuration);
+        services.AddSharedRedis(configuration);
         services.AddIdentityModule(configuration);
         services.AddNotificationModule(configuration);
         services.AddSingleton<IGoogleIdTokenVerifier>(_google);

@@ -172,7 +172,7 @@ public sealed class CourseManagementTests : IAsyncLifetime
         var email = $"instructor-{Guid.NewGuid():N}@example.test";
         var user = await CreateUserAsync(services, dbContext, email, KnownPassword);
 
-        user.AssignRole(new ROLE(ROLE.InstructorId, ROLE.InstructorName));
+        user.AssignRole(await dbContext.SeededRoleAsync(ROLE.InstructorId));
         var profile = INSTRUCTOR_PROFILE.Apply(user.Id, "Test Instructor", "Headline", "Bio");
         profile.Approve(clock);
         dbContext.InstructorProfiles().Add(profile);
@@ -291,7 +291,7 @@ public sealed class CourseManagementTests : IAsyncLifetime
         // (defense in depth), not just the role-claim gate.
         var email = $"admin-{Guid.NewGuid():N}@example.test";
         var adminUser = await CreateUserAsync(scope.ServiceProvider, dbContext, email, KnownPassword);
-        adminUser.AssignRole(new ROLE(ROLE.AdminId, ROLE.AdminName));
+        adminUser.AssignRole(await dbContext.SeededRoleAsync(ROLE.AdminId));
         await dbContext.SaveChangesAsync();
         var adminToken = await LoginAndGetAccessTokenAsync(scope.ServiceProvider, email);
         var category = await CreateCategoryAsync(dbContext);
