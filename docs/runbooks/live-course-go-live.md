@@ -29,7 +29,7 @@
 |---|---|
 | `ASPNETCORE_ENVIRONMENT=Production` | |
 | `ConnectionStrings__Default` | Npgsql (host จริงของ cluster — ห้ามชี้ `127.0.0.1:5433` ของเครื่อง dev) |
-| `Redis__ConnectionString` | |
+| `Redis__ConnectionString` | ต้องเชื่อมต่อได้จริง (ไม่ใช่แค่ไม่ว่าง) — Redis ใช้กับ session mirror, cache, state ของ OAuth Google · ถ้า Redis ล่ม เว็บยังทำงานได้ (ส่วนใหญ่ fail-open) และปุ่ม "เชื่อมต่อ Google Calendar" ยังใช้ได้โดยเก็บ state ไว้ในหน่วยความจำของ API pod (**ใช้ได้เฉพาะเมื่อมี API pod เดียว** · มี warning `Google OAuth state: Redis is not connected` ใน log ทุกครั้ง) · scale เป็นหลาย pod ต้องแก้ Redis ก่อน |
 | `Identity__Jwt__SigningKey` | ≥ 32 ตัวอักษร ไม่มีคำว่า CHANGE_ME |
 | `DataProtection__EncryptionKeyBase64` | 32 ไบต์ base64 (`openssl rand -base64 32`) — **เก็บให้ดี เปลี่ยนแล้วข้อมูลเข้ารหัสเดิม (เลขบัญชี, token Google) ถอดไม่ได้** |
 | `Cors__AllowedOrigins__0` | origin เว็บจริง (https, ห้าม localhost/`*`) |
