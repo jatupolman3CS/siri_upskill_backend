@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Siri.Integrations.Google;
 using Siri.Modules.Live.Application;
+using Siri.SharedKernel;
 using StackExchange.Redis;
 
 namespace Siri.Modules.Live.Infrastructure;
@@ -12,14 +14,23 @@ namespace Siri.Modules.Live.Infrastructure;
 /// caller whose delete succeeds gets the payload: the dev stack runs Garnet, which may lack <c>GETDEL</c>, and this is equally safe
 /// on Redis (a replayed callback loses the delete race and gets nothing).
 /// <para>
-/// Fail-closed, the opposite of the cache-style Redis consumers: if Redis is unreachable <see cref="TrySaveAsync"/> reports failure
-/// and <see cref="TryConsumeAsync"/> returns <c>null</c>, so an OAuth flow can never complete without a recorded state. Nothing about
-/// the state, verifier or payload is logged.
+/// <b>Redis down → this process's memory.</b> If Redis is unreachable (or refuses the write), the state is kept in a bounded, expiring,
+/// single-use in-process table instead of failing the connect button. A state is still always <em>recorded</em> before the browser is sent to
+/// Google, and still single-use (<see cref="ConcurrentDictionary{TKey,TValue}.TryRemove(TKey, out TValue)"/> is the "delete wins" step), so the
+/// OAuth flow can never complete with an unrecorded or replayed state. The one limit is that the callback must reach the <em>same API process</em>:
+/// with several replicas and Redis down, a callback landing on another replica finds nothing and ends in <c>state_invalid</c> (the instructor
+/// just tries again). Production runs one API pod; give the replicas a working Redis before scaling out. Every fallback save is logged as a warning.
 /// </para>
+/// Nothing about the state, verifier or payload is logged.
 /// </summary>
-public sealed class RedisGoogleOAuthStateStore(IConnectionMultiplexer redis, ILogger<RedisGoogleOAuthStateStore> logger) : IGoogleOAuthStateStore
+public sealed class RedisGoogleOAuthStateStore(IConnectionMultiplexer redis, IClock clock, ILogger<RedisGoogleOAuthStateStore> logger) : IGoogleOAuthStateStore
 {
     internal const string KeyPrefix = "live:google:oauth:";
+
+    /// <summary>Upper bound on states held in memory — a connect click stores one, so this is far above real use and only stops abuse from growing the table.</summary>
+    internal const int MaxInMemoryStates = 1000;
+
+    private readonly ConcurrentDictionary<string, (GoogleOAuthState Payload, DateTime ExpiresAtUtc)> _inMemory = new(StringComparer.Ordinal);
 
     public async Task<bool> TrySaveAsync(string state, GoogleOAuthState payload, TimeSpan timeToLive, CancellationToken cancellationToken)
     {
@@ -29,21 +40,28 @@ public sealed class RedisGoogleOAuthStateStore(IConnectionMultiplexer redis, ILo
 
         if (!redis.IsConnected)
         {
-            logger.LogWarning("Google OAuth state could not be stored: Redis is not connected (failing closed).");
-            return false;
+            logger.LogWarning("Google OAuth state: Redis is not connected, keeping it in this process's memory (single API replica only).");
+            return SaveInMemory(state, payload, timeToLive);
         }
 
         try
         {
             var json = JsonSerializer.Serialize(payload);
-            return await redis.GetDatabase()
+            var stored = await redis.GetDatabase()
                 .StringSetAsync(KeyFor(state), json, timeToLive, When.NotExists)
                 .ConfigureAwait(false);
+            if (stored)
+            {
+                return true;
+            }
+
+            // `NotExists` refused: this state value already exists. It is random, so that is not a normal event — never reuse it.
+            return false;
         }
         catch (Exception ex) when (ex is RedisException or TimeoutException)
         {
-            logger.LogWarning("Google OAuth state could not be stored: {ExceptionType} (failing closed).", ex.GetType().Name);
-            return false;
+            logger.LogWarning("Google OAuth state: Redis write failed ({ExceptionType}), keeping it in this process's memory (single API replica only).", ex.GetType().Name);
+            return SaveInMemory(state, payload, timeToLive);
         }
     }
 
@@ -55,6 +73,12 @@ public sealed class RedisGoogleOAuthStateStore(IConnectionMultiplexer redis, ILo
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        // A state saved while Redis was down lives here; whoever removes it owns it (single use), and an expired one is refused.
+        if (_inMemory.TryRemove(KeyFor(state), out var local))
+        {
+            return local.ExpiresAtUtc > clock.UtcNow ? local.Payload : null;
+        }
 
         if (!redis.IsConnected)
         {
@@ -86,6 +110,30 @@ public sealed class RedisGoogleOAuthStateStore(IConnectionMultiplexer redis, ILo
             logger.LogWarning("Google OAuth state could not be read: {ExceptionType}.", ex.GetType().Name);
             return null;
         }
+    }
+
+    private bool SaveInMemory(string state, GoogleOAuthState payload, TimeSpan timeToLive)
+    {
+        var now = clock.UtcNow;
+
+        if (_inMemory.Count >= MaxInMemoryStates)
+        {
+            foreach (var entry in _inMemory)
+            {
+                if (entry.Value.ExpiresAtUtc <= now)
+                {
+                    _inMemory.TryRemove(entry.Key, out _);
+                }
+            }
+
+            if (_inMemory.Count >= MaxInMemoryStates)
+            {
+                // Still full of live states: refuse rather than grow — the caller reports "try again later".
+                return false;
+            }
+        }
+
+        return _inMemory.TryAdd(KeyFor(state), (payload, now + timeToLive));
     }
 
     private static string KeyFor(string state) => KeyPrefix + GoogleOAuthPkce.HashState(state);

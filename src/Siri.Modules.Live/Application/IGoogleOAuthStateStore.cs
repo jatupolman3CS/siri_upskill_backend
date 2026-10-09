@@ -12,7 +12,8 @@ public sealed record GoogleOAuthState(Guid UserId, string CodeVerifier, string R
 /// </summary>
 public interface IGoogleOAuthStateStore
 {
-    /// <summary>Stores the payload under <paramref name="state"/>. <c>false</c> = the store is unavailable — callers fail
+    /// <summary>Stores the payload under <paramref name="state"/>. <c>false</c> = it could not be recorded anywhere (the implementation
+    /// already falls back to this process's memory when Redis is down, so this means that fallback is full too) — callers fail
     /// <em>closed</em> (an OAuth flow must never proceed with an unrecorded state).</summary>
     Task<bool> TrySaveAsync(string state, GoogleOAuthState payload, TimeSpan timeToLive, CancellationToken cancellationToken);
 
