@@ -6,6 +6,7 @@
   <ItemGroup>
     <!-- Versions below were all resolved via `dotnet add package` (latest stable compatible with
          net10.0 at the time), not guessed. -->
+    <PackageVersion Include="Confluent.Kafka" Version="2.16.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="DotNetEnv" Version="3.1.1" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
@@ -46,6 +47,7 @@
     <PackageVersion Include="Stripe.net" Version="52.3.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
+    <PackageVersion Include="Testcontainers.Kafka" Version="4.14.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.14.0" />
     <PackageVersion Include="Testcontainers.Redis" Version="4.14.0" />
     <PackageVersion Include="QuestPDF" Version="2024.12.3" />

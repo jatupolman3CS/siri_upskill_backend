@@ -1,5 +1,8 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Siri.Integrations.Video;
 using Siri.Modules.Catalog.Contracts;
+using Siri.Modules.Identity.Contracts;
 using Siri.Modules.Learning.Contracts;
 using Siri.Modules.Media.Application;
 using Siri.Modules.Media.Domain;
@@ -132,6 +135,43 @@ public sealed class PlaybackSessionServiceTests
             Task.FromResult<IReadOnlyDictionary<Guid, decimal>>(new Dictionary<Guid, decimal>());
     }
 
+    private sealed class FakeUserContactReader : IUserContactReader
+    {
+        public readonly Dictionary<Guid, (string? Email, string? DisplayName)> Contacts = [];
+        public readonly List<Guid> RequestedUserIds = [];
+        public Exception? ExceptionToThrow { get; set; }
+
+        public Task<string?> GetEmailAsync(Guid userId, CancellationToken cancellationToken) =>
+            Task.FromResult(Contacts.TryGetValue(userId, out var contact) ? contact.Email : null);
+
+        public Task<(string? Email, string? DisplayName)> GetUserContactInfoAsync(Guid userId, CancellationToken cancellationToken)
+        {
+            RequestedUserIds.Add(userId);
+
+            if (ExceptionToThrow is not null)
+            {
+                throw ExceptionToThrow;
+            }
+
+            return Task.FromResult(Contacts.TryGetValue(userId, out var contact) ? contact : (null, null));
+        }
+    }
+
+    private sealed class ListLogger : ILogger<PlaybackSessionService>
+    {
+        public readonly List<(LogLevel Level, string Message)> Entries = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            // Include the exception text too: a PII leak through the exception object must fail the tests.
+            Entries.Add((logLevel, formatter(state, exception) + (exception?.ToString() ?? string.Empty)));
+        }
+    }
+
     [Fact]
     public async Task CreateAsync_WhenAssetIsReady_IssuesSignedUrlAndWatermark()
     {
@@ -140,14 +180,16 @@ public sealed class PlaybackSessionServiceTests
         var provider = new FakeVideoProvider();
         var learning = new FakeLearningAccessContract();
         var catalog = new FakeCatalogPriceContract();
+        var contacts = new FakeUserContactReader();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
-        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, contacts, NullLogger<PlaybackSessionService>.Instance, clock);
 
         var userId = Guid.NewGuid();
         var episodeId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
+        contacts.Contacts[userId] = ("jane.doe@example.com", "Jane Doe");
 
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
         asset.MarkProcessing();
@@ -159,7 +201,7 @@ public sealed class PlaybackSessionServiceTests
 
         Assert.True(result.IsSuccess);
         Assert.Contains("playlist.m3u8", result.Value.ManifestUrl);
-        Assert.Contains(userId.ToString(), result.Value.WatermarkPayload);
+        Assert.Equal("Jane Doe · jane.doe@example.com · 2026-08-21 10:00:00 UTC", result.Value.WatermarkPayload);
         Assert.Single(sessionRepo.Sessions);
 
         var recorded = sessionRepo.Sessions[0];
@@ -178,10 +220,11 @@ public sealed class PlaybackSessionServiceTests
         var provider = new FakeVideoProvider();
         var learning = new FakeLearningAccessContract { AccessGranted = true }; // Free preview allows access
         var catalog = new FakeCatalogPriceContract();
+        var contacts = new FakeUserContactReader();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
-        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, contacts, NullLogger<PlaybackSessionService>.Instance, clock);
 
         var episodeId = Guid.NewGuid();
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-free", Guid.NewGuid(), true);
@@ -193,7 +236,8 @@ public sealed class PlaybackSessionServiceTests
         var result = await service.CreateAsync(null, Guid.Empty, "198.51.100.1", command, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Contains("Guest", result.Value.WatermarkPayload);
+        Assert.Equal("SIRI UpSkill · Guest · 2026-08-21 10:00:00 UTC", result.Value.WatermarkPayload);
+        Assert.Empty(contacts.RequestedUserIds); // a guest has no account to look up — nothing may be invented
         Assert.Single(sessionRepo.Sessions);
         Assert.Equal("guest-device", sessionRepo.Sessions[0].DEVICE_ID);
     }
@@ -206,6 +250,7 @@ public sealed class PlaybackSessionServiceTests
         var provider = new FakeVideoProvider();
         var learning = new FakeLearningAccessContract();
         var catalog = new FakeCatalogPriceContract();
+        var contacts = new FakeUserContactReader();
         var now = new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc);
         var clock = new FakeClock(now);
 
@@ -217,7 +262,7 @@ public sealed class PlaybackSessionServiceTests
 
         catalog.EpisodeMediaAssets[episodeId] = asset.MEDIA_ASSET_ID;
 
-        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, contacts, NullLogger<PlaybackSessionService>.Instance, clock);
 
         var result = await service.GetByEpisodeIdAsync(
             Guid.NewGuid(), Guid.NewGuid(), "127.0.0.1", null, episodeId, CancellationToken.None);
@@ -234,9 +279,10 @@ public sealed class PlaybackSessionServiceTests
         var provider = new FakeVideoProvider();
         var learning = new FakeLearningAccessContract { AccessGranted = false };
         var catalog = new FakeCatalogPriceContract();
+        var contacts = new FakeUserContactReader();
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, contacts, NullLogger<PlaybackSessionService>.Instance, clock);
 
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
         asset.MarkProcessing();
@@ -248,6 +294,7 @@ public sealed class PlaybackSessionServiceTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("forbidden", result.Error.Code);
+        Assert.Empty(contacts.RequestedUserIds); // a denied request never reads the viewer's name/email
     }
 
     [Fact]
@@ -258,9 +305,10 @@ public sealed class PlaybackSessionServiceTests
         var provider = new FakeVideoProvider();
         var learning = new FakeLearningAccessContract();
         var catalog = new FakeCatalogPriceContract();
+        var contacts = new FakeUserContactReader();
         var clock = new FakeClock(DateTime.UtcNow);
 
-        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, clock);
+        var service = new PlaybackSessionService(sessionRepo, assetRepo, provider, learning, catalog, contacts, NullLogger<PlaybackSessionService>.Instance, clock);
 
         var asset = MEDIA_ASSET.Create("BunnyStream", "vid-1", Guid.NewGuid(), true);
         assetRepo.Add(asset); // Status is Uploading
@@ -270,5 +318,183 @@ public sealed class PlaybackSessionServiceTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("conflict", result.Error.Code);
+    }
+
+    /// <summary>A service wired with a ready asset, a capturing logger and a fixed clock, for the watermark (SE-02 / Q8) tests.</summary>
+    private sealed class WatermarkHarness
+    {
+        public WatermarkHarness()
+        {
+            var clock = new FakeClock(new DateTime(2026, 10, 9, 8, 7, 6, DateTimeKind.Utc));
+
+            var asset = MEDIA_ASSET.Create("BunnyStream", "vid-wm", Guid.NewGuid(), true);
+            asset.MarkProcessing();
+            asset.MarkReady("playback-wm", 120, "https://cdn/thumb.jpg", clock);
+            AssetId = asset.MEDIA_ASSET_ID;
+
+            var assetRepo = new FakeMediaAssetRepository();
+            assetRepo.Add(asset);
+
+            Service = new PlaybackSessionService(
+                Sessions,
+                assetRepo,
+                new FakeVideoProvider(),
+                new FakeLearningAccessContract(),
+                new FakeCatalogPriceContract(),
+                Contacts,
+                Logger,
+                clock);
+        }
+
+        public Guid UserId { get; } = Guid.NewGuid();
+
+        public Guid AssetId { get; }
+
+        public FakePlaybackSessionRepository Sessions { get; } = new();
+
+        public FakeUserContactReader Contacts { get; } = new();
+
+        public ListLogger Logger { get; } = new();
+
+        public PlaybackSessionService Service { get; }
+
+        public Task<Result<PlaybackSessionResponse>> PlayAsync(Guid? userId) =>
+            Service.CreateAsync(
+                userId,
+                Guid.NewGuid(),
+                "203.0.113.9",
+                new CreatePlaybackSessionCommand(Guid.NewGuid(), AssetId, "dev-wm"),
+                CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NamedUser_WatermarkHasNameEmailAndTimestampFromServerLookup()
+    {
+        var h = new WatermarkHarness();
+        h.Contacts.Contacts[h.UserId] = ("somchai@example.com", "Somchai Jaidee");
+
+        var result = await h.PlayAsync(h.UserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("Somchai Jaidee · somchai@example.com · 2026-10-09 08:07:06 UTC", result.Value.WatermarkPayload);
+        Assert.Equal([h.UserId], h.Contacts.RequestedUserIds); // looked up by the authenticated user id only
+        Assert.Empty(h.Logger.Entries); // happy path logs nothing — in particular not the payload or the email
+    }
+
+    [Fact]
+    public async Task CreateAsync_UserWithoutDisplayName_WatermarkFallsBackToEmailAndTimestamp()
+    {
+        var h = new WatermarkHarness();
+        h.Contacts.Contacts[h.UserId] = ("no.name@example.com", "   ");
+
+        var result = await h.PlayAsync(h.UserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("no.name@example.com · 2026-10-09 08:07:06 UTC", result.Value.WatermarkPayload);
+        var warning = Assert.Single(h.Logger.Entries);
+        Assert.Equal(LogLevel.Warning, warning.Level);
+        Assert.DoesNotContain("no.name@example.com", warning.Message);
+    }
+
+    [Fact]
+    public async Task CreateAsync_UserWithoutEmail_WatermarkKeepsNameAndAddsUserIdSoItStaysUnique()
+    {
+        var h = new WatermarkHarness();
+        h.Contacts.Contacts[h.UserId] = (null, "Somchai Jaidee");
+
+        var result = await h.PlayAsync(h.UserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal($"Somchai Jaidee · {h.UserId} · 2026-10-09 08:07:06 UTC", result.Value.WatermarkPayload);
+        var warning = Assert.Single(h.Logger.Entries);
+        Assert.Equal(LogLevel.Warning, warning.Level);
+        Assert.DoesNotContain("Somchai", warning.Message);
+    }
+
+    [Fact]
+    public async Task CreateAsync_UserNotFoundByContactReader_WatermarkFallsBackToUserIdForm()
+    {
+        var h = new WatermarkHarness(); // no contact registered -> reader returns (null, null)
+
+        var result = await h.PlayAsync(h.UserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal($"SIRI UpSkill · {h.UserId} · 2026-10-09 08:07:06 UTC", result.Value.WatermarkPayload);
+        Assert.Single(h.Sessions.Sessions); // playback is not blocked
+        Assert.Equal(LogLevel.Warning, Assert.Single(h.Logger.Entries).Level);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ContactLookupThrows_PlaybackStillSucceedsWithUserIdFormAndLogsNoPii()
+    {
+        var h = new WatermarkHarness();
+        h.Contacts.Contacts[h.UserId] = ("leaky@example.com", "Leaky Name");
+        // The exception text itself carries PII on purpose: neither its message nor the object may reach the log.
+        h.Contacts.ExceptionToThrow = new InvalidOperationException("db down for leaky@example.com / Leaky Name");
+
+        var result = await h.PlayAsync(h.UserId);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal($"SIRI UpSkill · {h.UserId} · 2026-10-09 08:07:06 UTC", result.Value.WatermarkPayload);
+        Assert.Single(h.Sessions.Sessions);
+        Assert.NotEmpty(h.Logger.Entries);
+        Assert.All(h.Logger.Entries, entry =>
+        {
+            Assert.Equal(LogLevel.Warning, entry.Level);
+            Assert.DoesNotContain("leaky@example.com", entry.Message);
+            Assert.DoesNotContain("Leaky Name", entry.Message);
+        });
+    }
+
+    [Fact]
+    public async Task CreateAsync_ContactLookupCancelled_PropagatesCancellationInsteadOfSwallowingIt()
+    {
+        var h = new WatermarkHarness();
+        h.Contacts.ExceptionToThrow = new OperationCanceledException();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => h.PlayAsync(h.UserId));
+
+        Assert.Empty(h.Sessions.Sessions);
+    }
+
+    [Fact]
+    public async Task CreateAsync_GuestUser_WatermarkIsNeutralLabelWithoutAnyLookup()
+    {
+        var h = new WatermarkHarness();
+
+        var result = await h.PlayAsync(null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("SIRI UpSkill · Guest · 2026-10-09 08:07:06 UTC", result.Value.WatermarkPayload);
+        Assert.Empty(h.Contacts.RequestedUserIds);
+        Assert.Empty(h.Logger.Entries);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NameAndEmailWithControlCharsAndNewlines_PayloadIsSingleLineAndSanitised()
+    {
+        var h = new WatermarkHarness();
+        h.Contacts.Contacts[h.UserId] = ("evil@example.com\r\nX-Injected: 1", "Jane\r\n\tDoe\u0000 · fake@victim.com");
+
+        var result = await h.PlayAsync(h.UserId);
+
+        Assert.True(result.IsSuccess);
+        var payload = result.Value.WatermarkPayload;
+        Assert.DoesNotContain(payload, c => char.IsControl(c));
+        Assert.Equal("Jane Doe fake@victim.com · evil@example.com X-Injected: 1 · 2026-10-09 08:07:06 UTC", payload);
+    }
+
+    [Fact]
+    public async Task CreateAsync_VeryLongNameAndEmail_PayloadIsCappedAndKeepsTimestamp()
+    {
+        var h = new WatermarkHarness();
+        h.Contacts.Contacts[h.UserId] = (new string('e', 200) + "@example.com", new string('N', 300));
+
+        var result = await h.PlayAsync(h.UserId);
+
+        Assert.True(result.IsSuccess);
+        var payload = result.Value.WatermarkPayload;
+        Assert.True(payload.Length <= WatermarkPayloadBuilder.MaxLength, $"payload was {payload.Length} chars");
+        Assert.EndsWith(" · 2026-10-09 08:07:06 UTC", payload);
     }
 }

@@ -1,12 +1,17 @@
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Siri.IntegrationTests.Fixtures;
+using Siri.IntegrationTests.TestData;
+using Siri.Modules.Catalog.Application;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Features.ApproveCourse;
 using Siri.Modules.Catalog.Features.SubmitCourseForReview;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Modules.Catalog.Infrastructure.Contracts;
+using Siri.Modules.Catalog.Infrastructure.Search;
 using Siri.Modules.Media.Domain;
 using Siri.Modules.Media.Application;
 using Siri.Modules.Media.Infrastructure;
@@ -75,14 +80,17 @@ public sealed class CoursePublicationIntegrationTests(PostgresFixture fixture) :
             }
 
             var cache = new RecordingCache();
+            var searchIndex = new RecordingCourseSearchIndex();
             using (var scope = fixture.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var contract = new MediaAssetContractService(db);
                 var success = approving
-                    ? (await new ApproveCourseHandler(db, clock, cache, contract, new NullLiveMeetingReadinessReader()).HandleAsync(courseId, CancellationToken.None)).IsSuccess
+                    ? (await new ApproveCourseHandler(db, clock, cache, contract, new NullLiveMeetingReadinessReader(), SearchIndexer(db, searchIndex)).HandleAsync(courseId, CancellationToken.None)).IsSuccess
                     : (await new SubmitCourseForReviewHandler(db, contract, clock, new NullLiveMeetingReadinessReader()).HandleAsync(userId, courseId, CancellationToken.None)).IsSuccess;
                 Assert.Equal(mediaState == "Ready", success);
+                // An approval that publishes the course also tells the search index; one that is refused (or a mere submit) must not.
+                Assert.Equal(approving && mediaState == "Ready", searchIndex.Upserted.Any(document => document.CourseId == courseId));
             }
             using (var scope = fixture.CreateScope())
             {
@@ -131,6 +139,10 @@ public sealed class CoursePublicationIntegrationTests(PostgresFixture fixture) :
         var reader = new CatalogPriceContract(verification.ServiceProvider.GetRequiredService<AppDbContext>());
         Assert.Equal(published && freePreview, await reader.IsEpisodeFreePreviewAsync(episodeId, default));
     }
+
+    /// <summary>Approval syncs the published course to the search index; a recording index lets the test see whether it did.</summary>
+    private static CourseSearchIndexer SearchIndexer(AppDbContext db, RecordingCourseSearchIndex index) =>
+        new(db, index, Options.Create(new MeilisearchOptions()), NullLogger<CourseSearchIndexer>.Instance);
 
     private sealed class RecordingCache : IOutputCacheStore
     {

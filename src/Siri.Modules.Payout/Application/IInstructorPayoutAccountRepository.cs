@@ -24,5 +24,9 @@ public interface IInstructorPayoutAccountRepository
     /// <summary>Stages a new row for insertion — does not persist until <see cref="SaveChangesAsync"/>.</summary>
     void Add(INSTRUCTOR_PAYOUT_ACCOUNT account);
 
+    /// <summary>Stops tracking an account that was staged with <see cref="Add"/> but never persisted (its insert lost a race on the unique instructor key),
+    /// so the next <see cref="SaveChangesAsync"/> does not try to insert it again.</summary>
+    void Discard(INSTRUCTOR_PAYOUT_ACCOUNT account);
+
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

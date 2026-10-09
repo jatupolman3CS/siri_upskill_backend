@@ -8,6 +8,7 @@ using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Json;
 using Siri.Integrations.Email;
+using Siri.Integrations.Messaging;
 using Siri.Modules.Analytics;
 using Siri.Modules.Catalog;
 using Siri.Modules.Cms;
@@ -18,6 +19,7 @@ using Siri.Modules.Learning;
 using Siri.Modules.Live;
 using Siri.Modules.Media;
 using Siri.Modules.Notification;
+using Siri.Modules.Notification.Infrastructure.Delivery;
 using Siri.Modules.Payout;
 using Siri.Persistence.DependencyInjection;
 
@@ -150,14 +152,18 @@ public static class Program
                         new KeyValuePair<string, object>("service.instance.id", Environment.MachineName),
                     ]))
                 .WithTracing(tracing => tracing
-                    .AddHttpClientInstrumentation(options => options.FilterHttpRequestMessage = IsNotOtlpExportRequest))
+                    .AddHttpClientInstrumentation(options => options.FilterHttpRequestMessage = IsNotOtlpExportRequest)
+                    // Kafka consumption spans (continue the producer's trace via the traceparent header).
+                    .AddSource(MessagingTelemetry.SourceName))
                 .WithMetrics(metrics => metrics
                     // MeterProviderBuilder.AddHttpClientInstrumentation() (1.17.0) takes no configure
                     // delegate — only the tracing overload supports FilterHttpRequestMessage, so metrics
                     // still aggregate the exporter's own OTLP calls. That's noise, not a feedback loop
                     // (no new export is triggered by recording a metric), so it's left as-is.
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation());
+                    .AddRuntimeInstrumentation()
+                    // Notification pipeline counters (relay published/failed, email delivered/failed/exhausted/skipped/throttled).
+                    .AddMeter(NotificationTelemetry.MeterName));
 
             if (otlpExportEnabled && Uri.TryCreate(otlpEndpointUrl, UriKind.Absolute, out var uri))
             {
@@ -198,6 +204,7 @@ public static class Program
                 .AddCmsModule()
                 .AddCommunityModule()
                 .AddNotificationModule(builder.Configuration)
+                .AddNotificationDelivery(builder.Configuration)
                 .AddLiveModule(builder.Configuration)
                 .AddAnalyticsModule();
 

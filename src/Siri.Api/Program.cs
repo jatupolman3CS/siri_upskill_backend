@@ -14,7 +14,9 @@ using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Formatting.Json;
 using Siri.Api.Authorization;
+using Siri.Api.Bootstrap;
 using Siri.Api.Configuration;
+using Siri.Api.Diagnostics;
 using Siri.Api.ErrorHandling;
 using Siri.Api.Middleware;
 using Siri.Api.Observability;
@@ -219,9 +221,13 @@ try
             // every probe would drown real request spans in noise.
             .AddAspNetCoreInstrumentation(options =>
                 options.Filter = httpContext => httpContext.Request.Path != "/health")
-            .AddHttpClientInstrumentation(options => options.FilterHttpRequestMessage = IsNotOtlpExportRequest))
+            .AddHttpClientInstrumentation(options => options.FilterHttpRequestMessage = IsNotOtlpExportRequest)
+            // Kafka consumption spans — this host runs the notification pipeline when it hosts the Hangfire server (Hangfire:ServerInApi).
+            .AddSource(Siri.Integrations.Messaging.MessagingTelemetry.SourceName))
         .WithMetrics(metrics => metrics
             .AddAspNetCoreInstrumentation()
+            // Notification pipeline counters (relay published/failures, email delivered/failed/exhausted/skipped/throttled).
+            .AddMeter(Siri.Modules.Notification.Infrastructure.Delivery.NotificationTelemetry.MeterName)
             // MeterProviderBuilder.AddHttpClientInstrumentation() (1.17.0) takes no configure delegate —
             // only the tracing overload supports FilterHttpRequestMessage, so metrics still aggregate the
             // exporter's own OTLP calls. That's noise, not a feedback loop (recording a metric doesn't
@@ -300,7 +306,9 @@ try
         // Shared IConnectionMultiplexer for every Redis consumer (Identity's session mirror, Catalog's
         // category-tree cache, ...) — must run before any module that resolves IConnectionMultiplexer.
         .AddSharedRedis(builder.Configuration)
-        .AddHangfireClient(builder.Configuration)
+        // Storage always; the Hangfire processing server + recurring-job scheduling too unless Hangfire:ServerInApi=false (a dedicated
+        // Siri.Workers deployment then owns background work). Default true so a single-container deployment is complete on its own.
+        .AddHangfireForApi(builder.Configuration, builder.Environment)
         .AddIdentityModule(builder.Configuration)
         .AddCatalogModule(builder.Configuration)
         .AddMediaModule(builder.Configuration)
@@ -312,6 +320,13 @@ try
         .AddNotificationModule(builder.Configuration)
         .AddLiveModule(builder.Configuration)
         .AddAnalyticsModule();
+
+    // Admin Live status endpoint + the one-shot Production startup check (needs the registrations above).
+    builder.Services.AddLiveDiagnostics();
+
+    // First administrator of an empty deployment: grants every role (+ an Approved instructor profile) to the account(s) listed in
+    // Identity__Bootstrap__OwnerEmails__N once they exist and have confirmed their e-mail. No owner configured = does nothing.
+    builder.Services.AddOwnerBootstrap(builder.Configuration);
 
     builder.Services.AddControllers(options =>
     {

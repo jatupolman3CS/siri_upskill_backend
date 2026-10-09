@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Application;
 using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
@@ -33,7 +34,8 @@ public sealed class ApproveCourseHandler(
     IClock clock,
     IOutputCacheStore outputCacheStore,
     IMediaAssetContract mediaAssets,
-    ILiveMeetingReadinessReader liveMeetingReadiness)
+    ILiveMeetingReadinessReader liveMeetingReadiness,
+    CourseSearchIndexer searchIndexer)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
     private static readonly DomainError NotInReviewError = DomainError.Conflict("อนุมัติได้เฉพาะคอร์สที่อยู่ระหว่างตรวจสอบเท่านั้น");
@@ -90,6 +92,10 @@ public sealed class ApproveCourseHandler(
         // this codebase already follows (e.g. Login's SE-03 Redis eviction, RevokeSession's session-registry
         // removal).
         await outputCacheStore.EvictByTagAsync(CourseOutputCache.Tag, cancellationToken).ConfigureAwait(false);
+
+        // Same moment, same reason: the course just became publicly visible, so the search index (Meilisearch) must learn about it now rather
+        // than at the next hourly reindex. Best effort by design — it logs instead of throwing, so a search-engine outage never fails an approval.
+        await searchIndexer.SyncCourseAsync(course.Id, cancellationToken).ConfigureAwait(false);
 
         return new ApproveCourseResponse(course.Id, course.Status, course.PublishedAtUtc);
     }

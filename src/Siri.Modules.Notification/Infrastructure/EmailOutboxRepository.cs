@@ -15,6 +15,9 @@ public sealed class EmailOutboxRepository(AppDbContext dbContext) : IEmailOutbox
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+    public Task<EMAIL_OUTBOX_MESSAGE?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.EmailOutboxMessages().FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
+
     public async Task AddAsync(EMAIL_OUTBOX_MESSAGE message, CancellationToken cancellationToken)
     {
         dbContext.EmailOutboxMessages().Add(message);

@@ -85,6 +85,15 @@ public sealed class EMAIL_OUTBOX_MESSAGE
 
     public string? LastError { get; private set; }
 
+    /// <summary>When the message was last handed to the message broker (<see cref="MarkQueued"/>); <c>null</c> while it has
+    /// never been (always, under the database-polling transport). Together with <see cref="EmailOutboxStatus.Queued"/> it lets the
+    /// relay notice a record that was published but never acted on, and publish it again.</summary>
+    public DateTime? QueuedAtUtc { get; private set; }
+
+    /// <summary><c>true</c> once every delivery attempt has failed and no retry is scheduled — the message is a dead letter that
+    /// needs a human (the row, with <see cref="LastError"/>, is the dead-letter record).</summary>
+    public bool IsExhausted => Status == EmailOutboxStatus.Failed && NextRetryAtUtc is null;
+
     /// <summary>The iCalendar (RFC 5545) document attached to this email as a <c>text/calendar</c> part, or
     /// <c>null</c> for an ordinary email (task P11-04, docs/contracts/P11-04-live-invites-ics-reminders.md
     /// §2.1). Always set together with <see cref="CalendarMethod"/>. The builder of the document is
@@ -166,6 +175,63 @@ public sealed class EMAIL_OUTBOX_MESSAGE
         {
             throw new ArgumentException("Calendar content must start with BEGIN:VCALENDAR.", nameof(calendarIcs));
         }
+    }
+
+    /// <summary>
+    /// Records that the message was handed to the broker and now waits for a consumer. Allowed from
+    /// <see cref="EmailOutboxStatus.Pending"/>, from <see cref="EmailOutboxStatus.Failed"/> (a retry that has come due), and from
+    /// <see cref="EmailOutboxStatus.Queued"/> itself (re-publishing a record that went stale). Clears
+    /// <see cref="NextRetryAtUtc"/>: from here on the consumer decides the next step. <see cref="Attempts"/> is untouched, so the
+    /// retry budget is shared across publishes.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Already sent, or every attempt is used up — there is nothing left to deliver.</exception>
+    public void MarkQueued(IClock clock)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+
+        if (Status == EmailOutboxStatus.Sent)
+        {
+            throw new InvalidOperationException("Cannot queue an already-sent message.");
+        }
+
+        if (IsExhausted)
+        {
+            throw new InvalidOperationException("Cannot queue a message that already exhausted every attempt.");
+        }
+
+        Status = EmailOutboxStatus.Queued;
+        QueuedAtUtc = clock.UtcNow;
+        NextRetryAtUtc = null;
+    }
+
+    /// <summary>
+    /// Undoes a <see cref="MarkQueued"/> whose record the broker never accepted, putting the row back exactly as it was so the relay picks
+    /// it up again on its next cycle (a <see cref="EmailOutboxStatus.Failed"/> row keeps its retry time, a <see cref="EmailOutboxStatus.Pending"/>
+    /// one stays pending). Compare-and-swap: it only acts while the row is still <see cref="EmailOutboxStatus.Queued"/> with exactly the
+    /// <paramref name="queuedAtUtc"/> stamp of that claim — if a consumer (or another claim) has moved the row on since, it does nothing and returns
+    /// <c>false</c>, never overwriting a newer outcome.
+    /// </summary>
+    /// <returns><c>true</c> when the row was restored.</returns>
+    public bool RevertQueued(
+        EmailOutboxStatus previousStatus,
+        DateTime? previousNextRetryAtUtc,
+        DateTime? previousQueuedAtUtc,
+        DateTime queuedAtUtc)
+    {
+        if (previousStatus is not (EmailOutboxStatus.Pending or EmailOutboxStatus.Failed or EmailOutboxStatus.Queued))
+        {
+            throw new ArgumentOutOfRangeException(nameof(previousStatus), previousStatus, "A claimed row was Pending, Failed or Queued before it was claimed.");
+        }
+
+        if (Status != EmailOutboxStatus.Queued || QueuedAtUtc != queuedAtUtc)
+        {
+            return false;
+        }
+
+        Status = previousStatus;
+        NextRetryAtUtc = previousNextRetryAtUtc;
+        QueuedAtUtc = previousQueuedAtUtc;
+        return true;
     }
 
     /// <summary>Records a successful delivery. Idempotent if already <see cref="EmailOutboxStatus.Sent"/>.</summary>

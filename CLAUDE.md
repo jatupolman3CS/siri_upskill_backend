@@ -41,6 +41,7 @@ E-Learning marketplace (แนว SkillLane / FutureSkill): ผู้เรี�
 | ORM | EF Core (**Npgsql** provider) | **10.x** |
 | Database | **PostgreSQL** (collation ICU `th-TH`) | **17** |
 | Cache/Session | Redis | 7+ |
+| Messaging (opt-in) | **Apache Kafka** (KRaft) — pipeline อีเมล/แจ้งเตือน outbox → Kafka → consumer + Redis (`D-23`, เปิดด้วย `Notification:Delivery:Transport=Kafka`, default ปิด) | 4.x (`apache/kafka:4.2.2`) |
 | Jobs | Hangfire (**PostgreSQL** storage, schema `hangfire`) | latest |
 | **Video/DRM** | **Bunny Stream** (หลัง `IVideoProvider`) | — |
 | **Payment** | **Stripe** (PromptPay QR ผ่าน PaymentIntent + webhook — v1 ยังไม่เปิดบัตร, ไม่มีผ่อน) | — |

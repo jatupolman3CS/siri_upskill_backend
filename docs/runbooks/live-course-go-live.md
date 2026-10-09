@@ -1,0 +1,120 @@
+# Runbook — เปิดใช้ระบบคอร์สสอนสด (Live / Google Meet) บน production
+
+> เขียนหลัง integrator-qa gate 2026-10-09 ที่เดินระบบทั้งเส้นทางบนเครื่อง dev ด้วย topology เดียวกับ production (**API process เดียว ไม่มี Workers, DB ว่าง**) — รายละเอียดผลตรวจอยู่ท้ายไฟล์ · ไม่มี secret ในไฟล์นี้ (ค่าจริงอยู่ใน env/secret ของ cluster เท่านั้น)
+
+## 1) production พังตรงไหน และตอนนี้แก้อะไรไว้แล้ว
+
+| # | อาการเดิมบน production | สาเหตุจริง | แก้ใน code (ต้อง deploy image ใหม่ถึงมีผล) |
+|---|---|---|---|
+| 1 | ไม่มีอีเมลเลย (ยืนยันอีเมล/คำเชิญ/เตือน), ห้องไม่ถูกตัดสิน | มี **Hangfire job server เฉพาะใน `Siri.Workers`** แต่ pod production รันแค่ `Siri.Api` → ไม่มี job ใดรันเลย | `Hangfire__ServerInApi` (default **true**): API รัน job server + ลงทะเบียน recurring job เอง · Workers แยกยังรันคู่กันได้ปลอดภัย |
+| 2 | คาบที่สร้างใหม่ค้างสถานะ "รอ" จน job ทำงาน | provider ของห้องถูกตัดสินโดย job เท่านั้น | ตัดสิน **ทันทีตอนสร้างคาบ**: ยังไม่เชื่อ Google → `AwaitingLink`/`PasteLink` ในคำขอเดียวกัน |
+| 3 | DB ว่าง ผู้สอนสร้างคอร์สไม่ได้ (ต้องเลือกหมวดหมู่) และไม่มีที่อนุมัติผู้สอน | ไม่มีหน้า admin | เพิ่ม `/admin/categories`, `/admin/instructors`, `/admin/live-status` (+ `GET /api/live/admin/status`) |
+| 4 | **ไม่มีทางมี Admin คนแรกใน DB ว่าง** | `OwnerAccountBootstrapper` ถูกเขียนไว้แต่ **ไม่เคยถูก register หรือเรียกที่ไหนเลย** (dead code) | **แก้ใน gate นี้:** `OwnerBootstrapService` (`src/Siri.Api/Bootstrap/`) ผูกเข้า `Program.cs` — ตั้ง `Identity__Bootstrap__OwnerEmails__0` แล้วบัญชีนั้นได้ครบทุก role + โปรไฟล์ผู้สอนที่อนุมัติแล้วเอง ภายใน ~30 วินาทีหลังสมัคร+ยืนยันอีเมล **ไม่ต้อง restart** |
+| 5 | ผู้สอนกด "เผยแพร่คอร์ส" ของคอร์ส Live ที่มีแต่คาบสอน (ไม่มีวิดีโอ) ไม่ได้ ขึ้น "กรุณาอัปโหลดวิดีโอ…" | FE `mediaReadyForReview` บังคับต้องมีบทเรียนวิดีโอทุกคอร์ส ทั้งที่ backend อนุญาต Live/Hybrid ที่มีคาบอนาคต | **แก้ใน gate นี้:** `course-builder-page.ts` รู้ format ของคอร์ส (live tab รายงาน / ถามจาก `live-schedule` ตอนกดส่ง) — Live/Hybrid ไม่มีบทเรียนก็ส่งตรวจได้ (server ยังเป็นคนตัดสินว่าห้องครบ) · OnDemand ยังต้องมีวิดีโอเหมือนเดิม |
+| 6 | ผู้เรียนเปิด `/learn/<คอร์ส Live>` เห็นจอดำ + spinner "กำลังเตรียมเครื่องเล่นวิดีโอ…" ไม่จบ | คอร์สไม่มีบทเรียนให้เล่น | **แก้ใน gate นี้:** แสดงข้อความ "คอร์สนี้สอนสด ยังไม่มีบทเรียนวิดีโอ" + ปุ่มไปแท็บตารางสอนสด |
+
+## 2) ลำดับ deploy (ทำตามนี้ทีละข้อ)
+
+1. **migration ก่อน image เสมอ** — `dotnet ef migrations list --project src/Siri.Persistence --startup-project src/Siri.Api` (หรือ bundle `scripts/migrate-bundle.sh`) · ตอนเขียนไฟล์นี้ working tree มี `20261008201343_AddNotificationKafkaDelivery` (เพิ่ม `NOTIFY.EMAIL_OUTBOX.QUEUED_AT_UTC`, `NOTIFY.NOTIFICATIONS.PUBLISHED_AT_UTC` + index) สร้าง **หลัง** การตรวจ "0 pending" ของ 2026-10-08 → น่าจะยัง pending · **ถ้า image ใหม่ขึ้นก่อน migration นี้ อีเมล/แจ้งเตือนจะ error 500 เพราะคอลัมน์ไม่มี** · ห้าม apply ด้วยมือบน DB จริงโดยไม่รู้ตัว — เป็นคำสั่งของเจ้าของระบบ
+2. ตั้ง env ของ **API pod** ตามหัวข้อ 3 (ไม่มีค่าไหนใน repo)
+3. build + push image `Dockerfile.api` (+ image frontend ของ repo `siri_upskill_ui`) แล้ว rollout
+4. รอ ~2 นาที → เปิด `/admin/live-status` (หัวข้อ 4) · หรือค้น log pod ด้วยคำว่า `Live system check` (log 1 บรรทัดที่ ~90 วินาทีหลัง start: `no warnings` หรือ Warning พร้อมรหัส)
+5. (ถ้ามี pod Workers เดิมอยู่) ปล่อยไว้ได้ — ซ้ำกับ API server ไม่เกิดงานซ้ำ (recurring job id เดียวกัน + lock ใน storage) · Workers ต้องได้ `DataProtection__EncryptionKeyBase64` **ตัวจริงเดียวกับ API** ไม่งั้นถอดรหัส token Google ของผู้สอนไม่ได้
+
+## 3) Environment ที่ API pod ต้องมี
+
+**บังคับ (ไม่ครบ = pod boot ไม่ขึ้น — `ProductionConfigurationGuard` fail-fast และบอกชื่อที่ขาด):**
+
+| env | ความหมาย |
+|---|---|
+| `ASPNETCORE_ENVIRONMENT=Production` | |
+| `ConnectionStrings__Default` | Npgsql (host จริงของ cluster — ห้ามชี้ `127.0.0.1:5433` ของเครื่อง dev) |
+| `Redis__ConnectionString` | |
+| `Identity__Jwt__SigningKey` | ≥ 32 ตัวอักษร ไม่มีคำว่า CHANGE_ME |
+| `DataProtection__EncryptionKeyBase64` | 32 ไบต์ base64 (`openssl rand -base64 32`) — **เก็บให้ดี เปลี่ยนแล้วข้อมูลเข้ารหัสเดิม (เลขบัญชี, token Google) ถอดไม่ได้** |
+| `Cors__AllowedOrigins__0` | origin เว็บจริง (https, ห้าม localhost/`*`) |
+| `Seo__PublicBaseUrl` | `https://…` ของเว็บ |
+| `Live__PublicBaseUrl` | `https://…` (ถ้าไม่ตั้งใช้ `Seo__PublicBaseUrl`) — ใช้สร้างลิงก์ `/live/{sid}/join` ในอีเมล/ICS |
+| `Email__Provider=Smtp`, `Email__Smtp__Host`, `__Port`, `__Username`, `__Password`, `__FromAddress` (โดเมนจริง), `__FromDisplayName`, `__UseStartTls=true` | `AllowInsecure` ต้อง false |
+| `Payment__Stripe__SecretKey` (`sk_live_`), `__PublishableKey` (`pk_live_`), `__WebhookSecret` (`whsec_`) | webhook ชี้ `POST https://<api>/api/commerce/webhooks/stripe` · events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled` |
+| `VideoProvider__LibraryId`, `__ApiKey`, `__ReadOnlyApiKey`, `__PullZone`, `__CdnHostname`, **`__TokenAuthenticationKey`** | Bunny — ครบทุกตัว · webhook Bunny: `POST https://<api>/api/media/webhooks/bunny` |
+| `Payout__PayerCompanyName`, `__PayerTaxId` (13 หลัก), `__PayerAddress` | นิติบุคคลจริง (ใช้เป็นผู้ขายบนใบเสร็จด้วย ถ้าไม่ตั้ง `Commerce__Seller__*`) |
+
+**สำหรับระบบ Live (ตั้งแล้วระบบทำงานครบ):**
+
+| env | ค่า | หมายเหตุ |
+|---|---|---|
+| `Identity__Bootstrap__OwnerEmails__0` | อีเมลเจ้าของระบบ (ใส่ `__1`, `__2` เพิ่มได้) | **ไม่ใช่ secret** · บัญชีต้องสมัครเอง + ยืนยันอีเมลก่อน (Active) ถึงได้สิทธิ์ · ได้ role ครบ + audit `OwnerBootstrapRolesGranted` · role มีผลตอน **login ครั้งถัดไป** |
+| `Hangfire__ServerInApi` | ไม่ต้องตั้ง (default `true`) | ตั้ง `false` เฉพาะเมื่อมี Workers แยกและต้องการให้ API ไม่รันงาน |
+| `Live__Provider` | ไม่ต้องตั้ง (default `GoogleMeet`) | ยังไม่มี Google credential → ระบบตกเป็น "ผู้สอนวางลิงก์เอง" อัตโนมัติ (ใช้งานได้เต็มที่ แค่ `/admin/live-status` จะเตือน `google_not_configured`) · `ManualOnly` = ไม่เรียก Google เลย · **ห้าม `Logging`** (production ไม่ยอมบูต) |
+| `Integrations__Google__ClientId` / `__ClientSecret` / `__RedirectUri` | จาก Google Cloud (ข้างล่าง) | ตั้ง ClientId แล้วต้องมี Secret + RedirectUri `https://` ครบ ไม่งั้นบูตไม่ขึ้น · ตั้งให้ **API และ Workers ทั้งคู่** ถ้ามี Workers |
+
+**Google Cloud (ทำเมื่อพร้อมเปิดสร้าง Meet อัตโนมัติ — ไม่บล็อกการใช้งานตอนนี้):**
+1. สร้าง/เลือก project → **Enable "Google Calendar API"**
+2. OAuth consent screen: ใส่ชื่อแอป/อีเมลติดต่อ/โดเมน, scopes `openid`, `email`, `https://www.googleapis.com/auth/calendar.events.owned` (เป็น sensitive scope → ต้องส่งตรวจสอบแอปก่อนเปิดให้ผู้ใช้ทั่วไป) · ระหว่างสถานะ **Testing** ต้องเพิ่มอีเมลผู้สอนใน **Test users** ทุกคน และ (ตามนโยบาย Google) refresh token ของแอปสถานะ Testing หมดอายุเร็ว (~7 วัน) → ผู้สอนต้องกดเชื่อมใหม่ — ตรวจเงื่อนไขล่าสุดใน console
+3. Credentials → OAuth client ID ชนิด **Web application** → Authorized redirect URI = ค่า `Integrations__Google__RedirectUri` **ตรงทุกตัวอักษร**: `https://<api origin>/api/live/instructor/google/callback`
+4. เอา Client ID/Secret ใส่ env แล้ว rollout → `/admin/live-status` ต้องเลิกเตือน `google_not_configured` → ผู้สอนเข้า `/instructor/live-settings` กด "เชื่อม Google Calendar"
+5. ผล: คาบใหม่ของผู้สอนที่เชื่อมแล้วจะสร้าง event + Meet ให้เอง (job `live-meeting-sync` ทุกนาที) · ผู้ไม่ได้เชื่อมยังวางลิงก์เองได้เหมือนเดิม
+
+## 4) เช็คครั้งแรกบนเบราว์เซอร์ (เจ้าของระบบ ~15 นาที)
+
+1. **สมัครบัญชีเจ้าของ** ด้วยอีเมลใน `Identity__Bootstrap__OwnerEmails__0` → กดลิงก์ยืนยันในอีเมล (ถ้าอีเมลไม่มา = SMTP/job server ยังไม่ทำงาน ดูหัวข้อ 6) → **รอ ≤ 1 นาที แล้ว logout/login ใหม่** → avatar menu ต้องมี "ผู้ดูแลระบบ" และ "สตูดิโอผู้สอน"
+2. **`/admin/live-status`** ต้องเห็น: Hangfire "ทำงานอยู่" ชื่อเซิร์ฟเวอร์ขึ้นต้น `api:` · งานประจำ 5 ตัว (`email-outbox-send`, `live-meeting-sync`, `live-invite-reconcile`, `live-session-reminders`, `course-enrollment-recount`) มี "รันล่าสุด" ใหม่ ๆ · อีเมล = SMTP · คำเตือนที่ยอมรับได้มีแค่ `google_not_configured` (จนกว่าจะตั้ง Google) — อย่างอื่นให้ดูตารางหัวข้อ 5
+3. **`/admin/categories`** → สร้างหมวดหมู่หลัก (+ย่อย) อย่างน้อย 1 รายการ (ไม่มีหมวด = ผู้สอนสร้างคอร์สไม่ได้)
+4. ให้ผู้สอนสมัคร → `/become-instructor` → เจ้าของไป **`/admin/instructors`** กดอนุมัติ → ผู้สอน login ใหม่ (role มีผลตอน login) · บัญชีรับเงินไม่อยู่ในฟอร์มสมัครแล้ว: ผู้สอนที่อนุมัติแล้วเพิ่มได้ที่ `/instructor/earnings` (แก้ข้อมูลบัญชี = แอดมินต้องตรวจสอบใหม่ก่อนโอน)
+5. ผู้สอน: `/instructor/courses/new` → กรอกชื่อ/หมวด/ราคา → "บันทึกร่าง" → แท็บ **ตารางสอนสด** → รูปแบบ "สอนสด" → "เพิ่มคาบ" (≥1 คาบในอนาคต) → แต่ละคาบต้องขึ้น "รอลิงก์ห้อง" **ทันที** → กด "สร้างห้อง Google Meet" (เปิดแท็บ meet.google.com/new) → คัดลอกลิงก์มาวาง "บันทึกลิงก์" → ครบทุกคาบ → "เผยแพร่คอร์ส" (ถ้ามีคาบไหนไม่มีห้อง ระบบปฏิเสธและทำเครื่องหมายคาบนั้น)
+6. เจ้าของ `/admin/courses` → "อนุมัติเผยแพร่" → หน้า `/courses/<slug>` ต้องเห็นตารางสอนสด **โดยไม่มีลิงก์ห้อง**
+7. **ซื้อทดสอบ**: สร้างโค้ดส่วนลด 100% (admin → การตลาด/โค้ด) ซื้อด้วยบัญชีผู้เรียน → ภายใน ~2 นาทีต้องได้อีเมล "ยืนยันตารางเรียนสด" + ไฟล์ .ics (เฉพาะคาบอนาคต, ลิงก์เป็น `…/live/{sid}/join` เท่านั้น) · ก่อนเริ่ม 15 นาทีผู้เรียนกด "เข้าห้องเรียน" ที่ `/my-courses` หรือ `/learn/<slug>?tab=live` → ไปห้อง Meet · จ่ายจริงด้วย PromptPay ก็ทำได้ แต่ **ยังไม่เคยทดสอบ webhook จนจบ** (ดูข้อจำกัด)
+
+## 5) อ่าน `/admin/live-status` และ log
+
+หน้านี้รีเฟรชเองทุก 30 วินาที · log บรรทัด `Live system check` ใช้รหัสเดียวกัน (เฉพาะ Production, ~90 วินาทีหลัง start)
+
+| รหัส | แปลว่า | ทำอะไร |
+|---|---|---|
+| `no_job_server` | ไม่มี Hangfire server heartbeat สด → ไม่มีงานใดรัน | ตรวจว่า `Hangfire__ServerInApi` ไม่ใช่ `false` (ถ้าใช่ต้องมี Workers) · ดู log pod · เซิร์ฟเวอร์ที่ตายแล้วค้างในลิสต์ได้ ~5 นาที (ปกติ) |
+| `job_storage_unreadable` | อ่านตาราง `hangfire.*` ไม่ได้ | ตรวจ DB/สิทธิ์ schema `hangfire` |
+| `recurring_jobs_missing` | ยังไม่มี host ลงทะเบียน recurring job | รอ 1 นาทีหลัง start · ถ้ายังไม่ขึ้นดู log `Recurring background jobs registered` |
+| `recurring_job_overdue` / `recurring_job_failing` | งานเลยเวลา / ครั้งล่าสุดล้ม | ดู exception ที่ `/hangfire` (เข้าได้เฉพาะ localhost เช่น `kubectl port-forward` ไปที่ pod) หรือใน log pod |
+| `email_unconfigured` | `Email__Provider` ไม่ใช่ `Smtp` | ตั้ง SMTP ตามหัวข้อ 3 |
+| `outbox_backlog` / `outbox_failures` | อีเมลค้าง/ส่งไม่ออกครบ retry | ตรวจ SMTP host/port/user/pass/StartTLS/From domain |
+| `public_base_url_not_https` | `Live__PublicBaseUrl`/`Seo__PublicBaseUrl` ไม่ใช่ https | ตั้งเป็น https จริง (localhost จะเตือนตลอด — ปกติบน dev) |
+| `google_not_configured` | provider เป็น GoogleMeet แต่ไม่มี Google client | ปกติถ้ายังไม่ตั้ง Google (ผู้สอนวางลิงก์เอง) |
+| `live_provider_logging` | provider ปลอมสำหรับ dev | production ไม่ยอมบูต — ไม่ควรเห็น |
+| `meetings_stuck_pending` / `meetings_failed` | ห้องค้างเกินรอบ job / สร้างไม่สำเร็จหลัง retry | ผู้สอนกด "ลองสร้างห้องใหม่" หรือวางลิงก์เอง · เช็ค job server |
+| `email_status_unreadable` / `live_status_unreadable` | อ่านตัวเลขไม่ได้ (ตาราง/สิทธิ์) | เช็ค migration ว่าครบ |
+
+## 6) แก้ปัญหาตามอาการ
+
+| อาการ | ตรวจ | แก้ |
+|---|---|---|
+| สมัครแล้วไม่มีอีเมลยืนยัน | `/admin/live-status` (ยังเข้าไม่ได้ถ้ายังไม่เป็น admin → ดู log `Live system check`) · log `Email` | job server ไม่รัน หรือ SMTP ผิด (ตาราง 5) · อีเมลไม่หายเพราะค้างใน `NOTIFY.EMAIL_OUTBOX` และ retry เอง |
+| login เจ้าของแล้วไม่เห็น "ผู้ดูแลระบบ" | log `Owner bootstrap:` · สถานะบัญชี | อีเมลไม่ตรงค่า env / ยังไม่ยืนยัน (ได้เฉพาะบัญชี Active) / ยังไม่ login ใหม่ · ไม่ต้อง restart |
+| `/admin/*` 403 | role ใน token | login ใหม่หลังได้ role |
+| ผู้สอนสร้างคอร์สไม่ได้ ไม่มีหมวดให้เลือก | `GET /api/catalog/categories` = `[]` | เจ้าของสร้างที่ `/admin/categories` |
+| ส่งตรวจคอร์ส Live ไม่ผ่าน "คาบ N คาบยังไม่มีลิงก์ห้อง" | หน้า ตารางสอนสด (คาบที่ติดแถบเตือน) | วางลิงก์ให้ครบ (https จาก meet.google.com / zoom.us / teams.microsoft.com) |
+| กดเชื่อม Google ได้ 503 `live.google_not_configured` | env Google | ตั้ง client (หัวข้อ 3) หรือใช้วางลิงก์ |
+| Google: `redirect_uri_mismatch` | `Integrations__Google__RedirectUri` เทียบ console | ต้องตรงทุกตัวอักษร (`https`, host, path `/api/live/instructor/google/callback`) |
+| Google: access blocked / ผู้สอนเชื่อมไม่ได้ | consent screen อยู่ Testing | เพิ่มอีเมลใน Test users หรือส่งตรวจสอบแอป |
+| ผู้เรียนกดเข้าห้อง 409 `live.window_not_open` | — | ปกติ: เปิดก่อนเริ่ม 15 นาที (`Live__JoinWindowBeforeMinutes`) |
+| ผู้เรียนที่ซื้อแล้วเข้าห้องได้ 404 | enrollment หมดอายุ/ถูกเพิกถอน/คนละคอร์ส | ตรวจ `LEARNING.ENROLLMENTS` · 404 ตั้งใจให้เหมือนไม่มีคาบนี้ (กันเดา id) |
+| ผู้เรียนไม่ได้รับอีเมลเชิญ | อีเมลถูกซื้อ < 24 ชม. ก่อนคาบ? job รันไหม | เชิญส่งแน่ ๆ ภายใน ~2 นาทีเมื่อ job รัน · **reminder 24 ชม. จะไม่ส่ง** ถ้าเชิญหลังเข้ากรอบ 24 ชม. แล้ว (ตั้งใจ — อีเมลเชิญคือการแจ้งเตือนแล้ว) |
+| จ่ายเงิน 503 `payment.provider_not_configured` | `Payment__Stripe__*` | ตั้ง key (production ต้อง `sk_live_`) |
+| จ่ายแล้วแต่ไม่ได้สิทธิ์เรียน | log `/api/commerce/webhooks/stripe` · Stripe dashboard → Webhooks | URL/`whsec_`/events ผิด · สถานะที่ต้องการ `Succeeded` มาจาก webhook เท่านั้น |
+| วิดีโอบันทึกการสอนเล่นไม่ได้ (CDN 404) | Bunny pull zone | เปิด Token Authentication + ตั้ง `VideoProvider__TokenAuthenticationKey` ตรงกัน (ยังไม่เคยพิสูจน์จนเล่นได้ — ดูข้อจำกัด) |
+| error 500 ที่หน้าที่เกี่ยวกับอีเมล/แจ้งเตือนหลัง deploy | `dotnet ef migrations list` | ขาด `AddNotificationKafkaDelivery` → apply migration (หัวข้อ 2 ข้อ 1) |
+| อีเมล "คุณถูกออกจากระบบ…" ถี่ผิดปกติ | — | จำกัด 2 อุปกรณ์/บัญชี (`Identity__Security__MaxConcurrentSessions`) ทุกครั้งที่ login เกินโควตาจะส่ง 1 ฉบับ — ปกติถ้าทดสอบ login รัว ๆ |
+
+## 7) ข้อจำกัดที่รู้แล้ว (ยังไม่ใช่ blocker ของ go-live แต่ต้องรู้)
+
+- **ผู้เรียนที่ผ่าน join gate แล้วส่งต่อลิงก์ห้องได้** — ลิงก์ Meet คือ secret ที่ส่งต่อได้ ระบบกันไม่ได้ในระดับ Google · ลดความเสี่ยงโดยตั้งห้องเป็น "ต้องให้เจ้าของห้องอนุญาต" (host must admit — UI แนะนำให้ผู้สอนแล้ว) · ระบบไม่ส่งลิงก์ห้องทางอีเมล/ICS/หน้าสาธารณะเลย (พิสูจน์แล้ว)
+- **Google สร้าง Meet อัตโนมัติ: ทดสอบกับ Google จริงแล้ว (2026-10-09, เครื่อง dev)** — ผู้สอนเชื่อมบัญชี → สร้างคาบ → ภายใน ~1 นาทีได้ห้อง `meet.google.com` จริง และกิจกรรมโผล่ในปฏิทิน → ยกเลิกคาบ → กิจกรรมถูกลบจากปฏิทิน (`PendingDelete` → `Deleted`) · ยังไม่เคยทดสอบบน production (ต้องตั้ง `Integrations__Google__*` ที่นั่นก่อน) · แอป Google ยังไม่ผ่านการตรวจ ผู้สอนจะเห็นหน้า "ยังไม่ได้ยืนยันแอป" และจำกัด 100 คน
+- **จ่ายเงินจริง (PromptPay/บัตร) จนจบ: ยังไม่เคยทดสอบ** ในรอบนี้ (ไม่มี Stripe key/webhook forwarding) — enroll ทดสอบด้วยโค้ด 100% (order → enrollment → อีเมลเชิญ ทำงานจริง) · ใบเสร็จ/ภาษี/revenue split หลังจ่ายจริงต้องทดสอบด้วยการซื้อจริง 1 ครั้ง
+- **Bunny Token Authentication**: signed manifest เคยได้ 404 ที่ CDN บน dev (pull zone ยังไม่เปิด token auth) → การดูวิดีโอ/บันทึกย้อนหลังจนเล่นได้ยังไม่ผ่านการทดสอบ
+- **บัญชีรับเงินผู้สอน (X-33): แก้แล้ว** — backend เพิ่ม `PUT /api/payout/instructor/payout-account` (upsert ของตัวเอง, แก้ข้อมูลบัญชี/ภาษี = ล้างสถานะ verified, ข้ามบัญชีนี้ในรอบจ่ายจนกว่าแอดมินตรวจใหม่) และ FE ย้ายขั้นนี้ไปหน้ารายได้หลังอนุมัติ · ยังต้องตัดสินใจก่อนรอบจ่ายแรก: (ก) ยังไม่มี audit trail ที่แก้ย้อนหลังไม่ได้เมื่อเปลี่ยนบัญชีธนาคาร (มีแค่ UpdatedAtUtc/UpdatedBy) (ข) ปุ่ม verify ของแอดมินไม่ผูกกับเวอร์ชันข้อมูล — แอดมินที่เปิดดูค่าเก่าแล้วกด verify หลังผู้สอนเพิ่งแก้ จะ verify ค่าใหม่ที่ไม่ได้เห็น
+- ข้อความใน UI อีก ~60 ไฟล์ (หน้า admin อื่น/instructor/cart ฯลฯ) ยัง hardcode ภาษาไทยนอกไฟล์ i18n (หนี้เดิม ไม่เกี่ยวหน้าที่เพิ่มใหม่)
+- `Siri.Workers/appsettings.json` มี `DataProtection` key แบบ dev placeholder — ถ้า deploy Workers ต้องส่ง key จริงตัวเดียวกับ API ทาง env เสมอ
+
+## 8) ผลตรวจ gate นี้ (สรุป)
+
+รันบน local (PG18 + Garnet + Mailpit, DB ว่างใหม่, **API process เดียว `Hangfire__ServerInApi=true` ไม่มี Workers**): สมัคร/ยืนยันอีเมลผ่าน UI+Mailpit (14 วินาที) · owner bootstrap · หน้า admin ทั้งสาม · ผู้สอนสมัคร→อนุมัติ→สร้างคอร์ส Live 3 คาบ→วางลิงก์→ส่งตรวจ→อนุมัติ · หน้า public ไม่มีลิงก์ห้อง · enroll ผ่านโค้ด 100% · อีเมลเชิญ+ICS ภายใน ~1 นาที · reminder 24 ชม. · อีเมลเลื่อนเวลา/ยกเลิก (ICS CANCEL) · join gate (ใน/นอก window, ไม่ได้ลงทะเบียน = 404 เหมือน session ไม่มีจริง, anonymous 401) · dashboard ผู้สอนตัวเลขจริง · header/avatar หลัง hard reload · `/admin/live-status` ไม่มีคำเตือนนอกจากที่คาดไว้ · `Live__Provider=GoogleMeet` ไม่มี credential → ตัดสินห้องทันที · ตัวเลข test ละเอียดอยู่ที่ `docs/PROGRESS.md` บล็อก 2026-10-09 (integrator-qa final gate)

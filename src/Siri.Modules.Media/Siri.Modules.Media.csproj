@@ -6,6 +6,9 @@
     <!-- P2-02: IVideoProvider + BunnyVideoProvider + VideoProviderOptions registration. -->
     <ProjectReference Include="..\Siri.Integrations.Video\Siri.Integrations.Video.csproj" />
     <ProjectReference Include="..\Siri.Modules.Learning\Siri.Modules.Learning.csproj" />
+    <!-- SE-02 / Q8: the dynamic watermark names the viewer. Only Identity.Contracts.IUserContactReader (read-only)
+         is used — never Identity's Domain/Infrastructure (ArchitectureTests enforce that). -->
+    <ProjectReference Include="..\Siri.Modules.Identity\Siri.Modules.Identity.csproj" />
   </ItemGroup>
 
   <ItemGroup>

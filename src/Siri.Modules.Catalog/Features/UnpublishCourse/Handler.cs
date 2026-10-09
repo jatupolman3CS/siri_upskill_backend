@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.OutputCaching;
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Application;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Modules.Identity.Contracts;
@@ -14,7 +15,8 @@ public sealed class UnpublishCourseHandler(
     ISecurityAuditContract securityAudit,
     IUserContactReader userContactReader,
     IEmailOutbox emailOutbox,
-    IOutputCacheStore outputCacheStore)
+    IOutputCacheStore outputCacheStore,
+    CourseSearchIndexer searchIndexer)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
     private static readonly DomainError NotPublishedError = DomainError.Conflict("ระงับหรือยกเลิกการเผยแพร่ได้เฉพาะคอร์สที่เผยแพร่อยู่เท่านั้น");
@@ -88,6 +90,10 @@ public sealed class UnpublishCourseHandler(
         // Without this, a freshly-unpublished course could still be served to new visitors out of the
         // 5-minute output cache.
         await outputCacheStore.EvictByTagAsync(CourseOutputCache.Tag, cancellationToken).ConfigureAwait(false);
+
+        // Drop it from the search index too. Not needed for correctness (the search re-checks Status = Published in PostgreSQL, so a stale
+        // entry is never returned) but it stops the engine ranking/returning an ineligible course. Best effort — logs instead of throwing.
+        await searchIndexer.SyncCourseAsync(course.Id, cancellationToken).ConfigureAwait(false);
 
         return new UnpublishCourseResponse(course.Id, course.Status, command.Reason);
     }

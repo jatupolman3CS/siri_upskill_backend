@@ -58,7 +58,7 @@ public sealed class LiveMeetingsIntegrationTests : IAsyncLifetime
     // ---- The meeting row is staged by the real sink, atomically with the session ------------------------
 
     [Fact]
-    public async Task CreateSession_StagesAPendingMeetingRow_InTheSameTransaction()
+    public async Task CreateSession_StagesTheMeetingRow_InTheSameTransaction_AlreadyDecidedAsPasteALink()
     {
         var instructor = await LiveIntegrationSupport.CreateInstructorAsync(_factory, _client);
         var (courseId, _) = await LiveIntegrationSupport.CreateLiveCourseAsync(_factory, instructor.ProfileId);
@@ -68,8 +68,13 @@ public sealed class LiveMeetingsIntegrationTests : IAsyncLifetime
         await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var meeting = await db.SessionMeetings().AsNoTracking().SingleAsync(m => m.SESSION_ID == sessionId);
-        Assert.Equal(MeetingSyncStatus.Pending, meeting.SYNC_STATUS);
-        Assert.Null(meeting.PROVIDER);
+
+        // Changed from "Pending, provider undecided": the sink now makes the no-network part of the provider decision in the same SaveChanges as the class
+        // (docs/DEPLOYMENT.md "Background jobs"), so this host - Google switched off, and no worker running at all - already says "paste the link". The
+        // Pending-first behaviour survives only for rooms that need a Google call (see LiveProviderDecisionIntegrationTests).
+        Assert.Equal(MeetingSyncStatus.AwaitingLink, meeting.SYNC_STATUS);
+        Assert.Equal(MeetingProvider.Manual, meeting.PROVIDER);
+        Assert.Equal(instructor.UserId, meeting.INSTRUCTOR_USER_ID);
         Assert.Null(meeting.MEET_URL_ENCRYPTED);
     }
 
@@ -418,7 +423,9 @@ public sealed class LiveMeetingsIntegrationTests : IAsyncLifetime
         Assert.Equal([earlier, later], items.Select(i => i.GetProperty("sessionId").GetGuid()).ToArray());
         Assert.Equal("None", items[0].GetProperty("needsAction").GetString());
         Assert.True(items[0].GetProperty("hasMeetingLink").GetBoolean());
-        Assert.Equal("Waiting", items[1].GetProperty("needsAction").GetString());
+        // Was "Waiting" (Pending until a worker ran). With Google off the sink decides at creation, so the instructor is told what to do straight away
+        // instead of waiting for a job that, in a single-container deployment, would never have come.
+        Assert.Equal("PasteLink", items[1].GetProperty("needsAction").GetString());
         Assert.False(items[1].GetProperty("hasMeetingLink").GetBoolean());
         LiveIntegrationSupport.AssertNoRoomUrl(body, "987654321", "SECRETPASSCODE", "zoom.us");
     }

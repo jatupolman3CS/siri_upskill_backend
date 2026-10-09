@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Notification.Application;
 using Siri.Modules.Notification.Infrastructure;
 using Siri.Persistence;
 using Siri.SharedKernel;
 
 namespace Siri.Modules.Notification.Features.MarkNotificationRead;
 
-public sealed class MarkNotificationReadHandler(AppDbContext dbContext, IClock clock)
+public sealed class MarkNotificationReadHandler(AppDbContext dbContext, IClock clock, IUnreadNotificationCounter unreadCounter)
 {
     public async Task<Result> HandleAsync(
         Guid userId,
@@ -28,6 +29,9 @@ public sealed class MarkNotificationReadHandler(AppDbContext dbContext, IClock c
 
         notification.MarkRead(clock);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // The badge must drop right away, not after the cached count expires.
+        await unreadCounter.InvalidateAsync(userId, cancellationToken).ConfigureAwait(false);
 
         return Result.Success();
     }

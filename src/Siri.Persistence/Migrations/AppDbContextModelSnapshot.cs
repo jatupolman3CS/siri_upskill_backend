@@ -95,7 +95,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.CATEGORY", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -168,7 +167,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -391,7 +389,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_EPISODE", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -470,7 +467,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_LIVE_SESSION", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -561,7 +557,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_OUTCOME", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -609,7 +604,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_REQUIREMENT", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -657,7 +651,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_REVIEW", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -716,7 +709,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.COURSE_SECTION", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -821,7 +813,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.INSTRUCTOR_PROFILE", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -1026,7 +1017,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Cms.Domain.BANNER", b =>
                 {
                     b.Property<Guid>("BANNER_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("BANNER_ID");
 
@@ -1106,7 +1096,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Cms.Domain.FEATURE_FLAG", b =>
                 {
                     b.Property<Guid>("FEATURE_FLAG_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("FEATURE_FLAG_ID");
 
@@ -1160,7 +1149,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Cms.Domain.MENU_ITEM", b =>
                 {
                     b.Property<Guid>("MENU_ITEM_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("MENU_ITEM_ID");
 
@@ -1218,7 +1206,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Cms.Domain.POST", b =>
                 {
                     b.Property<Guid>("POST_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("POST_ID");
 
@@ -1319,7 +1306,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Cms.Domain.REDIRECT", b =>
                 {
                     b.Property<Guid>("REDIRECT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("REDIRECT_ID");
 
@@ -1370,7 +1356,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.BUNDLE", b =>
                 {
                     b.Property<Guid>("BUNDLE_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("BUNDLE_ID");
 
@@ -1439,7 +1424,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.CART", b =>
                 {
                     b.Property<Guid>("CART_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("CART_ID");
 
@@ -1465,7 +1449,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.CART_ITEM", b =>
                 {
                     b.Property<Guid>("CART_ITEM_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("CART_ITEM_ID");
 
@@ -1500,7 +1483,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.FLASH_SALE", b =>
                 {
                     b.Property<Guid>("FLASH_SALE_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("FLASH_SALE_ID");
 
@@ -1533,7 +1515,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.FLASH_SALE_ITEM", b =>
                 {
                     b.Property<Guid>("FLASH_SALE_ITEM_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("FLASH_SALE_ITEM_ID");
 
@@ -1563,7 +1544,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.ORDER", b =>
                 {
                     b.Property<Guid>("ORDER_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ORDER_ID");
 
@@ -1657,7 +1637,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.ORDER_ITEM", b =>
                 {
                     b.Property<Guid>("ORDER_ITEM_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ORDER_ITEM_ID");
 
@@ -1697,7 +1676,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.PAYMENT", b =>
                 {
                     b.Property<Guid>("PAYMENT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("PAYMENT_ID");
 
@@ -1765,7 +1743,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.PAYMENT_OPS_QUEUE", b =>
                 {
                     b.Property<Guid>("PAYMENT_OPS_QUEUE_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("PAYMENT_OPS_QUEUE_ID");
 
@@ -1815,7 +1792,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.PROMO_CODE", b =>
                 {
                     b.Property<Guid>("PROMO_CODE_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("PROMO_CODE_ID");
 
@@ -1896,7 +1872,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.PROMO_REDEMPTION", b =>
                 {
                     b.Property<Guid>("PROMO_REDEMPTION_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("PROMO_REDEMPTION_ID");
 
@@ -1936,7 +1911,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.REFUND", b =>
                 {
                     b.Property<Guid>("REFUND_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("REFUND_ID");
 
@@ -2014,7 +1988,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.STRIPE_WEBHOOK_EVENT", b =>
                 {
                     b.Property<Guid>("STRIPE_WEBHOOK_EVENT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("STRIPE_WEBHOOK_EVENT_ID");
 
@@ -2063,7 +2036,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.TAX_INVOICE", b =>
                 {
                     b.Property<Guid>("TAX_INVOICE_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("TAX_INVOICE_ID");
 
@@ -2122,7 +2094,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Community.Domain.DISCUSSION", b =>
                 {
                     b.Property<Guid>("DISCUSSION_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("DISCUSSION_ID");
 
@@ -2204,7 +2175,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Community.Domain.REPORT", b =>
                 {
                     b.Property<Guid>("REPORT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("REPORT_ID");
 
@@ -2266,7 +2236,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Identity.Domain.REFRESH_TOKEN", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -2320,7 +2289,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Identity.Domain.ROLE", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -2365,7 +2333,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Identity.Domain.SECURITY_AUDIT", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -2405,7 +2372,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Identity.Domain.USER", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -2498,7 +2464,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Identity.Domain.USER_EXTERNAL_LOGIN", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -2550,7 +2515,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Identity.Domain.USER_SECURITY_TOKEN", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -2597,7 +2561,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Identity.Domain.USER_SESSION", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -2662,7 +2625,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.ASSIGNMENT", b =>
                 {
                     b.Property<Guid>("ASSIGNMENT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ASSIGNMENT_ID");
 
@@ -2726,7 +2688,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.ASSIGNMENT_SUBMISSION", b =>
                 {
                     b.Property<Guid>("ASSIGNMENT_SUBMISSION_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ASSIGNMENT_SUBMISSION_ID");
 
@@ -2812,7 +2773,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.CERTIFICATE", b =>
                 {
                     b.Property<Guid>("CERTIFICATE_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("CERTIFICATE_ID");
 
@@ -2886,7 +2846,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.ENROLLMENT", b =>
                 {
                     b.Property<Guid>("ENROLLMENT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ENROLLMENT_ID");
 
@@ -2984,7 +2943,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.EPISODE_PROGRESS", b =>
                 {
                     b.Property<Guid>("EPISODE_PROGRESS_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("EPISODE_PROGRESS_ID");
 
@@ -3033,7 +2991,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.QUIZ", b =>
                 {
                     b.Property<Guid>("QUIZ_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("QUIZ_ID");
 
@@ -3089,7 +3046,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.QUIZ_ATTEMPT", b =>
                 {
                     b.Property<Guid>("QUIZ_ATTEMPT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("QUIZ_ATTEMPT_ID");
 
@@ -3155,7 +3111,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.QUIZ_ATTEMPT_ANSWER", b =>
                 {
                     b.Property<Guid>("QUIZ_ATTEMPT_ANSWER_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("QUIZ_ATTEMPT_ANSWER_ID");
 
@@ -3189,7 +3144,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.QUIZ_OPTION", b =>
                 {
                     b.Property<Guid>("QUIZ_OPTION_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("QUIZ_OPTION_ID");
 
@@ -3223,7 +3177,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Learning.Domain.QUIZ_QUESTION", b =>
                 {
                     b.Property<Guid>("QUIZ_QUESTION_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("QUIZ_QUESTION_ID");
 
@@ -3312,7 +3265,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Live.Domain.INSTRUCTOR_GOOGLE_ACCOUNT", b =>
                 {
                     b.Property<Guid>("INSTRUCTOR_GOOGLE_ACCOUNT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_GOOGLE_ACCOUNT_ID");
 
@@ -3399,7 +3351,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Live.Domain.SESSION_INVITE", b =>
                 {
                     b.Property<Guid>("SESSION_INVITE_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("SESSION_INVITE_ID");
 
@@ -3501,7 +3452,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Live.Domain.SESSION_JOIN_LOG", b =>
                 {
                     b.Property<Guid>("SESSION_JOIN_LOG_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("SESSION_JOIN_LOG_ID");
 
@@ -3557,7 +3507,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Live.Domain.SESSION_MEETING", b =>
                 {
                     b.Property<Guid>("SESSION_MEETING_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("SESSION_MEETING_ID");
 
@@ -3682,7 +3631,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Media.Domain.MEDIA_ASSET", b =>
                 {
                     b.Property<Guid>("MEDIA_ASSET_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("MEDIA_ASSET_ID");
 
@@ -3767,7 +3715,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Media.Domain.MEDIA_UPLOAD_SESSION", b =>
                 {
                     b.Property<Guid>("MEDIA_UPLOAD_SESSION_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("MEDIA_UPLOAD_SESSION_ID");
 
@@ -3822,7 +3769,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Media.Domain.PLAYBACK_SESSION", b =>
                 {
                     b.Property<Guid>("PLAYBACK_SESSION_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("PLAYBACK_SESSION_ID");
 
@@ -3873,7 +3819,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Notification.Domain.ANNOUNCEMENT", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -3943,7 +3888,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Notification.Domain.CONTACT_MESSAGE", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -4034,7 +3978,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Notification.Domain.EMAIL_OUTBOX_MESSAGE", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -4065,6 +4008,11 @@ namespace Siri.Persistence.Migrations
                         .HasPrecision(3)
                         .HasColumnType("timestamp(3) with time zone")
                         .HasColumnName("NEXT_RETRY_AT_UTC");
+
+                    b.Property<DateTime?>("QueuedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("QUEUED_AT_UTC");
 
                     b.Property<DateTime?>("SentAtUtc")
                         .HasPrecision(3)
@@ -4106,7 +4054,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Notification.Domain.USER_NOTIFICATION", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("ID");
 
@@ -4125,6 +4072,11 @@ namespace Siri.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("LINK_URL");
+
+                    b.Property<DateTime?>("PublishedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("PUBLISHED_AT_UTC");
 
                     b.Property<DateTime?>("ReadAtUtc")
                         .HasPrecision(3)
@@ -4150,6 +4102,10 @@ namespace Siri.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("PK_NOTIFICATIONS");
 
+                    b.HasIndex("Id")
+                        .HasDatabaseName("IX_NOTIFICATIONS_UNPUBLISHED")
+                        .HasFilter("\"PUBLISHED_AT_UTC\" IS NULL");
+
                     b.HasIndex("UserId", "CreatedAtUtc")
                         .HasDatabaseName("IX_NOTIFICATIONS_USER_ID_CREATED_AT_UTC");
 
@@ -4162,7 +4118,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Payout.Domain.INSTRUCTOR_PAYOUT_ACCOUNT", b =>
                 {
                     b.Property<Guid>("INSTRUCTOR_PAYOUT_ACCOUNT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_PAYOUT_ACCOUNT_ID");
 
@@ -4235,7 +4190,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Payout.Domain.PAYOUT_BATCH", b =>
                 {
                     b.Property<Guid>("PAYOUT_BATCH_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("PAYOUT_BATCH_ID");
 
@@ -4294,7 +4248,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Payout.Domain.PAYOUT_BATCH_ITEM", b =>
                 {
                     b.Property<Guid>("PAYOUT_BATCH_ITEM_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("PAYOUT_BATCH_ITEM_ID");
 
@@ -4370,7 +4323,6 @@ namespace Siri.Persistence.Migrations
             modelBuilder.Entity("Siri.Modules.Payout.Domain.REVENUE_SPLIT", b =>
                 {
                     b.Property<Guid>("REVENUE_SPLIT_ID")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("REVENUE_SPLIT_ID");
 

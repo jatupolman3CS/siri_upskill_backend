@@ -13,6 +13,7 @@ using Siri.Api.Controllers.Payout;
 using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Payout;
 using Siri.Modules.Payout.Application;
+using Siri.Modules.Payout.Domain;
 using Siri.SharedKernel;
 using Xunit;
 
@@ -293,5 +294,208 @@ public sealed class PayoutControllersContractTests
         Assert.IsType<UnauthorizedHttpResult>(result);
         Assert.Equal("no-store", controller.Response.Headers.CacheControl.ToString());
         Assert.Equal(0, profiles.Calls);
+    }
+
+    // ---- PUT /api/payout/instructor/payout-account (X-33) --------------------------------------------------------------
+
+    private static ActionInfo UpsertAction() =>
+        Actions(typeof(InstructorPayoutController)).Single(a => a.Method.Name == nameof(InstructorPayoutController.UpsertPayoutAccount));
+
+    [Fact]
+    public void TheUpsertEndpoint_IsPutOnTheInstructorAccountRoute_InstructorOnly_NotAnonymous()
+    {
+        var action = UpsertAction();
+
+        Assert.Equal("PUT", action.HttpMethod);
+        Assert.Equal("api/payout/instructor/payout-account", action.Route);
+        Assert.Null(action.Method.GetCustomAttribute<AllowAnonymousAttribute>());
+        var authorize = Assert.Single(action.Method.GetCustomAttributes<AuthorizeAttribute>());
+        Assert.Equal(AuthorizationPolicyNames.InstructorOnly, authorize.Policy);
+    }
+
+    [Fact]
+    public void TheUpsertEndpoint_TakesOnlyTheBankDetailsInTheBody_NeverAnInstructorOrUserId()
+    {
+        var parameters = UpsertAction().Method.GetParameters();
+
+        var body = Assert.Single(parameters, p => p.GetCustomAttribute<FromBodyAttribute>() is not null);
+        Assert.Equal(typeof(CreateInstructorPayoutAccountCommand), body.ParameterType);
+        Assert.DoesNotContain(parameters, p => p.GetCustomAttribute<FromQueryAttribute>() is not null || p.GetCustomAttribute<FromRouteAttribute>() is not null);
+
+        // The body record itself must not offer a way to name whose account it is.
+        var bodyProperties = typeof(CreateInstructorPayoutAccountCommand).GetProperties().Select(p => p.Name).ToArray();
+        Assert.DoesNotContain(bodyProperties, name => name.Contains("Id", StringComparison.OrdinalIgnoreCase) && !name.Equals("TaxId", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void TheUpsertEndpoint_UsesItsOwnPartitionedWriteRateLimit_NeverTheGlobalDefaultNorTheReadOne()
+    {
+        var policy = UpsertAction().Method.GetCustomAttribute<EnableRateLimitingAttribute>()?.PolicyName;
+
+        Assert.Equal(RateLimiterConfiguration.PayoutWritePolicyName, policy);
+        Assert.NotEqual("default", policy);
+        Assert.NotEqual(RateLimiterConfiguration.PayoutReadPolicyName, policy);
+    }
+
+    [Fact]
+    public void TheUpsertEndpoint_DocumentsItsStatusCodes_AndThePostEndpointIsUnchanged()
+    {
+        var statuses = UpsertAction().Method.GetCustomAttributes<ProducesResponseTypeAttribute>().Select(a => a.StatusCode).ToArray();
+        foreach (var expected in new[] { 200, 201, 400, 401, 403, 429 })
+        {
+            Assert.Contains(expected, statuses);
+        }
+
+        var post = Actions(typeof(InstructorPayoutController)).Single(a => a.Method.Name == nameof(InstructorPayoutController.CreatePayoutAccount));
+        Assert.Equal("POST", post.HttpMethod);
+        Assert.Equal("api/payout/instructor/payout-account", post.Route);
+        Assert.Contains(201, post.Method.GetCustomAttributes<ProducesResponseTypeAttribute>().Select(a => a.StatusCode));
+    }
+
+    [Fact]
+    public void PayoutWritePartition_IsPerUser_IndependentOfTheOtherPolicies()
+    {
+        var alice = RateLimiterConfiguration.CreatePayoutWritePartition(ContextFor("usr-alice"));
+        var bob = RateLimiterConfiguration.CreatePayoutWritePartition(ContextFor("usr-bob"));
+        var aliceRead = RateLimiterConfiguration.CreatePayoutReadPartition(ContextFor("usr-alice"));
+
+        Assert.NotEqual(alice.PartitionKey, bob.PartitionKey);
+        Assert.NotEqual(alice.PartitionKey, aliceRead.PartitionKey);
+    }
+
+    [Fact]
+    public void PayoutWriteLimiter_Allows10RequestsPer10Minutes_RejectsThe11th_AndOneUsersBurstNeverTouchesAnother()
+    {
+        var alice = RateLimiterConfiguration.CreatePayoutWritePartition(ContextFor("usr-alice-write-limit"));
+        var aliceLimiter = alice.Factory(alice.PartitionKey);
+
+        for (var i = 1; i <= 10; i++)
+        {
+            using var lease = aliceLimiter.AttemptAcquire();
+            Assert.True(lease.IsAcquired, $"request {i} should be allowed");
+        }
+
+        using (var rejected = aliceLimiter.AttemptAcquire())
+        {
+            Assert.False(rejected.IsAcquired);
+        }
+
+        var bob = RateLimiterConfiguration.CreatePayoutWritePartition(ContextFor("usr-bob-write-limit"));
+        using var bobLease = bob.Factory(bob.PartitionKey).AttemptAcquire();
+        Assert.True(bobLease.IsAcquired);
+    }
+
+    private static readonly ISensitiveDataProtector TestProtector =
+        new SensitiveDataProtector(Options.Create(new DataProtectionOptions { EncryptionKeyBase64 = Convert.ToBase64String(new byte[32]) }));
+
+    private sealed class FixedClock : IClock
+    {
+        public DateTime UtcNow { get; } = new(2026, 10, 9, 8, 0, 0, DateTimeKind.Utc);
+    }
+
+    private static (InstructorPayoutController Controller, InstructorPayoutAccountService Service, FakeInstructorPayoutAccountRepository Repo, FakeInstructorProfileReader Profiles) ArrangeUpsert()
+    {
+        var repo = new FakeInstructorPayoutAccountRepository();
+        var profiles = new FakeInstructorProfileReader();
+        var service = new InstructorPayoutAccountService(repo, TestProtector, new FixedClock(), profiles);
+        var controller = new InstructorPayoutController { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
+        return (controller, service, repo, profiles);
+    }
+
+    private static CreateInstructorPayoutAccountCommand Body(string accountNo = "0123456789") =>
+        new("KBANK", accountNo, "สมชาย สบายดี", "1234567890123", TaxPayerType.Individual);
+
+    [Fact]
+    public async Task UpsertPayoutAccount_FirstSave_Is201WithTheMaskedAccount_NoStore_AndOnlyTheDocumentedFields()
+    {
+        var (controller, service, _, profiles) = ArrangeUpsert();
+        var userId = Guid.NewGuid();
+        profiles.Map(userId, Guid.NewGuid());
+
+        var result = await controller.UpsertPayoutAccount(Body(), service, new FakeUserContext(userId), CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status201Created, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        var body = Assert.IsType<InstructorPayoutAccountResponse>(Assert.IsAssignableFrom<IValueHttpResult>(result).Value);
+        Assert.Equal("***-***-6789", body.MaskedAccountNo);
+        Assert.Equal("***-***-0123", body.TaxId);
+        Assert.Null(body.VerifiedAtUtc);
+        Assert.Equal("no-store", controller.Response.Headers.CacheControl.ToString());
+
+        // The JSON contract (camelCase) the frontend codes against — and no field that could carry the plaintext account number.
+        var json = System.Text.Json.JsonSerializer.SerializeToElement(body, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.Equal(
+            ["accountName", "bankCode", "id", "instructorId", "maskedAccountNo", "taxId", "taxPayerType", "verifiedAtUtc"],
+            json.EnumerateObject().Select(p => p.Name).Order().ToArray());
+        Assert.DoesNotContain("0123456789", json.GetRawText());
+        Assert.DoesNotContain("1234567890123", json.GetRawText());
+    }
+
+    [Fact]
+    public async Task UpsertPayoutAccount_SecondSave_Is200_AndASaveOfTheSameDetailsAgainIsStill200()
+    {
+        var (controller, service, repo, profiles) = ArrangeUpsert();
+        var userId = Guid.NewGuid();
+        profiles.Map(userId, Guid.NewGuid());
+        await controller.UpsertPayoutAccount(Body(), service, new FakeUserContext(userId), CancellationToken.None);
+
+        var changed = await controller.UpsertPayoutAccount(Body("9998887776"), service, new FakeUserContext(userId), CancellationToken.None);
+        var same = await controller.UpsertPayoutAccount(Body("9998887776"), service, new FakeUserContext(userId), CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(changed).StatusCode);
+        Assert.Equal(StatusCodes.Status200OK, Assert.IsAssignableFrom<IStatusCodeHttpResult>(same).StatusCode);
+        Assert.Equal("***-***-7776", Assert.IsType<InstructorPayoutAccountResponse>(Assert.IsAssignableFrom<IValueHttpResult>(same).Value).MaskedAccountNo);
+        Assert.Single(repo.Accounts);
+    }
+
+    [Fact]
+    public async Task UpsertPayoutAccount_NoUserInTheContext_Is401_AndNothingIsReadOrWritten()
+    {
+        var (controller, service, repo, profiles) = ArrangeUpsert();
+
+        var result = await controller.UpsertPayoutAccount(Body(), service, new FakeUserContext(null), CancellationToken.None);
+
+        Assert.IsType<UnauthorizedHttpResult>(result);
+        Assert.Equal(0, profiles.Calls);
+        Assert.Empty(repo.Accounts);
+    }
+
+    [Fact]
+    public async Task UpsertPayoutAccount_CallerWithoutAnInstructorProfile_Is403AndStoresNothing()
+    {
+        var (controller, service, repo, _) = ArrangeUpsert();
+
+        var result = await controller.UpsertPayoutAccount(Body(), service, new FakeUserContext(Guid.NewGuid()), CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.Empty(repo.Accounts);
+    }
+
+    [Fact]
+    public async Task UpsertPayoutAccount_TheAccountIsAlwaysTheCallersOwn_EvenWhenAnotherInstructorAlreadyHasOne()
+    {
+        var (controller, service, repo, profiles) = ArrangeUpsert();
+        var userA = Guid.NewGuid();
+        var userB = Guid.NewGuid();
+        var profileA = profiles.Map(userA, Guid.NewGuid());
+        var profileB = profiles.Map(userB, Guid.NewGuid());
+        await controller.UpsertPayoutAccount(Body("1111111111"), service, new FakeUserContext(userA), CancellationToken.None);
+
+        var asB = await controller.UpsertPayoutAccount(Body("2222222222"), service, new FakeUserContext(userB), CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status201Created, Assert.IsAssignableFrom<IStatusCodeHttpResult>(asB).StatusCode);
+        Assert.Equal(profileB, Assert.IsType<InstructorPayoutAccountResponse>(Assert.IsAssignableFrom<IValueHttpResult>(asB).Value).InstructorId);
+        Assert.Equal("1111111111", TestProtector.Decrypt(repo.Accounts.Values.Single(a => a.INSTRUCTOR_ID == profileA).ACCOUNT_NO_ENCRYPTED));
+    }
+
+    [Fact]
+    public void TheUpsertValidator_IsTheSameOneThatGuardsPost_SoPutRejectsTheSameBadBodies()
+    {
+        var validator = new CreateInstructorPayoutAccountValidator();
+
+        Assert.True(validator.Validate(Body()).IsValid);
+        Assert.False(validator.Validate(Body() with { BankCode = "" }).IsValid);
+        Assert.False(validator.Validate(Body() with { AccountNo = new string('9', CreateInstructorPayoutAccountValidator.MaxAccountNoLength + 1) }).IsValid);
+        Assert.False(validator.Validate(Body() with { AccountName = "" }).IsValid);
+        Assert.False(validator.Validate(Body() with { TaxPayerType = (TaxPayerType)99 }).IsValid);
     }
 }

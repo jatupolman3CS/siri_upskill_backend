@@ -166,10 +166,14 @@ community.Reports(Id, DiscussionId, ReportedByUserId, Reason, Status, ResolvedAt
 
 notify.Announcements(Id, CourseId, InstructorId, Title, Body, SendEmail bit,
                      ScheduledAtUtc, SentAtUtc, RecipientCount)
-notify.Notifications(Id, UserId, Type, Title, Body, LinkUrl, ReadAtUtc, CreatedAtUtc)
+notify.Notifications(Id, UserId, Type, Title, Body, LinkUrl, ReadAtUtc, CreatedAtUtc,
+                     PublishedAtUtc timestamptz(3) NULL)             -- D-23 (migration AddNotificationKafkaDelivery, ยังไม่ apply): outbox ของ event "มีแจ้งเตือนใหม่" · NULL = relay ยังไม่ประกาศ (migration backfill แถวเดิมเป็น `PUBLISHED_AT_UTC = CREATED_AT_UTC`) ·
+                                                                     --   partial index IX_NOTIFICATIONS_UNPUBLISHED (ID) WHERE "PUBLISHED_AT_UTC" IS NULL
 notify.EmailOutbox(Id, ToEmail, Subject, BodyHtml, TemplateKey, Status,
                    Attempts, NextRetryAtUtc, SentAtUtc, LastError,
-                   CalendarIcs text NULL, CalendarMethod varchar(10) NULL)   -- P11-04 (migration AddEmailOutboxCalendarPart, ยังไม่ apply) ดูส่วน "ส่วนขยาย P11–P12"
+                   CalendarIcs text NULL, CalendarMethod varchar(10) NULL,   -- P11-04 (migration AddEmailOutboxCalendarPart, ยังไม่ apply) ดูส่วน "ส่วนขยาย P11–P12"
+                   QueuedAtUtc timestamptz(3) NULL)                          -- D-23 (AddNotificationKafkaDelivery): relay ส่งเข้า Kafka เมื่อไหร่ · Status ใหม่ 'Queued' (เก็บเป็น string เหมือนเดิม ไม่ต้อง migrate ค่า)
+                                                                             --   Pending → Queued → Sent | Failed(retry → Queued อีกรอบ) · Failed + NextRetryAtUtc NULL = หมดสิทธิ์ (dead letter)
 
 analytics.DailyCourseStats(Date, CourseId, Views, Enrollments, Revenue, CompletionRate) PK(Date,CourseId)
 analytics.EpisodeDropOff(Date, EpisodeId, StartCount, CompleteCount, AvgWatchPercent) PK(Date,EpisodeId)

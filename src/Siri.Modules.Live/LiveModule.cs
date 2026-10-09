@@ -78,6 +78,9 @@ public static class LiveModule
         // The attendance facts Live publishes to Commerce (refund rule, P11-12) and Analytics (dashboard, P11-10).
         services.AddScoped<ILiveAttendanceReader, LiveAttendanceReader>();
 
+        // ---- Operator diagnostics (admin status endpoint) -----------------------------------------------
+        services.AddScoped<ILiveDiagnosticsReader, LiveDiagnosticsReader>();
+
         // ---- Cross-module implementations (Catalog declares the contracts; a plain AddScoped here wins over its
         // TryAdd* null defaults whatever the registration order is) -----------------------------------------
         services.AddScoped<ILiveMeetingSink, LiveMeetingSink>();

@@ -346,11 +346,12 @@ public sealed class LiveMeetingSyncJob(
 
         // An instructor whose Google connection FAILED (token revoked/expired/too narrow) was already told to reconnect, once, when it
         // failed — their other classes wait for that reconnect (NeedsReconnect), they are not asked to paste a link each time. Someone who
-        // never connected, or disconnected on purpose, gets the paste-a-link prompt.
+        // never connected, or disconnected on purpose, gets the paste-a-link prompt. (The same rule LiveMeetingSink applies synchronously when the
+        // class is created — MeetingProviderDecision — so a row decided there and a row decided here can never disagree.)
         if (Mode != LiveProviderMode.ManualOnly
-            && await googleAccounts.GetAccountAsync(context.InstructorUserId, cancellationToken).ConfigureAwait(false)
-                is { IsActive: false, REVOKED_REASON: { } revokedReason }
-            && revokedReason != GoogleAccountRevokedReason.UserDisconnected)
+            && MeetingProviderDecision.BrokenConnectionReason(
+                    await googleAccounts.GetAccountAsync(context.InstructorUserId, cancellationToken).ConfigureAwait(false))
+                is { } revokedReason)
         {
             meeting.RecordNeedsReconnect(revokedReason);
             return;

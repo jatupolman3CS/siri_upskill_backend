@@ -77,6 +77,7 @@ public class LiveModuleRegistrationTests
         Assert.NotNull(services.GetRequiredService<IGoogleOAuthStateStore>());
         Assert.NotNull(services.GetRequiredService<IGoogleOAuthService>());
         Assert.NotNull(services.GetRequiredService<ICalendarProvider>());
+        Assert.NotNull(services.GetRequiredService<ILiveDiagnosticsReader>());
     }
 
     [Fact]

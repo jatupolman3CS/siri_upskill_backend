@@ -2,6 +2,9 @@ using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Siri.Modules.Notification.Infrastructure.Delivery;
 using Siri.Persistence.DependencyInjection;
 
 namespace Siri.Workers;
@@ -19,8 +22,49 @@ public static class WorkersServiceCollectionExtensions
     }
 
     /// <summary>
+    /// Registers Hangfire for the web host (<c>Siri.Api</c>): storage always (enqueue + dashboard), and — when <c>Hangfire:ServerInApi</c> is on
+    /// (<see cref="HangfireHostingOptions"/>, default <c>true</c>) — the <b>same</b> processing server the dedicated Workers host runs
+    /// (<see cref="AddHangfireWorker"/>: identical queues and worker-count defaults, so the two can never drift apart) plus the scheduling of the same
+    /// recurring jobs under the same ids (<see cref="RecurringJobsRegistrationService"/>). That makes a single-container deployment complete on its own;
+    /// a dedicated Workers deployment can still run alongside it — see <c>docs/DEPLOYMENT.md</c> for why that is safe.
+    /// </summary>
+    public static IServiceCollection AddHangfireForApi(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
+
+        var serverInApi = HangfireHostingOptions.ResolveServerInApi(configuration, environment);
+
+        services.AddOptions<HangfireHostingOptions>()
+            .Bind(configuration.GetSection(HangfireHostingOptions.SectionName))
+            .PostConfigure(options => options.ServerInApi = serverInApi) // the effective value (IntegrationTest default etc.)
+            .ValidateOnStart();
+
+        if (!serverInApi)
+        {
+            return services.AddHangfireClient(configuration);
+        }
+
+        // A recognisable name in the dashboard and in the admin status: "api:<host>" next to the Workers host's plain "<host>".
+        services.AddHangfireWorker(configuration, server => server.ServerName = $"api:{Environment.MachineName.ToLowerInvariant()}");
+        services.AddHostedService<RecurringJobsRegistrationService>();
+
+        // Email delivery moves with the Hangfire server: when the notification transport is Kafka the e-mail sender job stands down
+        // wherever it runs, so the relays and consumers must run wherever the server does — otherwise a single-container deployment
+        // (this branch) would stop sending mail. No-op for the default Database transport. Running it in a Workers host as well is
+        // safe by construction (relays claim rows with SKIP LOCKED, consumers share a group and a Redis claim).
+        services.AddNotificationDelivery(configuration);
+
+        return services;
+    }
+
+    /// <summary>
     /// Registers Hangfire PostgreSQL storage AND starts the background job processing server (AddHangfireServer).
-    /// Used by the standalone worker host (Siri.Workers).
+    /// Used by the standalone worker host (Siri.Workers), and by <see cref="AddHangfireForApi"/> when the API hosts the server itself.
     /// </summary>
     public static IServiceCollection AddHangfireWorker(
         this IServiceCollection services,
@@ -84,6 +128,9 @@ public static class WorkersServiceCollectionExtensions
             // gives enough time to notice and investigate a failed run (e.g. the email outbox
             // sender) over a weekend without letting the job-history tables grow unbounded.
             .WithJobExpirationTimeout(TimeSpan.FromDays(7)));
+
+        // Read-only monitoring view for the admin status endpoint (JobStorage itself is registered by AddHangfire above).
+        services.TryAddSingleton<IBackgroundJobStatusReader, HangfireBackgroundJobStatusReader>();
 
         return services;
     }

@@ -20,6 +20,11 @@ public sealed class USER_NOTIFICATION
     public DateTime? ReadAtUtc { get; private set; }
     public DateTime CreatedAtUtc { get; private set; }
 
+    /// <summary>When the "notification created" event was handed to the message broker; <c>null</c> until then. The row is the
+    /// event's outbox record: writers stage it in their own transaction, and the relay publishes whatever is still <c>null</c>.
+    /// Under the database-only transport nothing publishes, so it simply stays <c>null</c>.</summary>
+    public DateTime? PublishedAtUtc { get; private set; }
+
     public static USER_NOTIFICATION Create(
         Guid userId,
         string type,
@@ -44,6 +49,13 @@ public sealed class USER_NOTIFICATION
             ReadAtUtc = null,
             CreatedAtUtc = clock.UtcNow,
         };
+    }
+
+    /// <summary>Records that the creation event reached the broker. Idempotent — the first timestamp wins.</summary>
+    public void MarkPublished(IClock clock)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
+        PublishedAtUtc ??= clock.UtcNow;
     }
 
     public void MarkRead(IClock clock)

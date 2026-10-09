@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Siri.Integrations.Email;
 using Siri.Modules.Live;
+using Siri.Modules.Notification.Infrastructure.Delivery;
 using Siri.SharedKernel.Configuration;
 
 namespace Siri.Workers;
@@ -13,6 +14,7 @@ namespace Siri.Workers;
 /// cannot read what the API encrypted with the real one.</description></item>
 /// <item><description><see cref="EmailProductionRequirements"/> — it drains the email outbox, so mail must not be dropped.</description></item>
 /// <item><description><see cref="LiveProductionRequirements"/> — it runs <c>live-meeting-sync</c>, so no fake provider / half-configured Google client.</description></item>
+/// <item><description><see cref="NotificationDeliveryProductionRequirements"/> — when the notification pipeline runs on Kafka (<c>Notification:Delivery:Transport=Kafka</c>), the broker address and transport security must be set.</description></item>
 /// </list>
 /// </summary>
 public static class WorkersProductionRequirements
@@ -25,6 +27,7 @@ public static class WorkersProductionRequirements
         return DataProtectionProductionRequirements.GetProblems(configuration)
             .Concat(EmailProductionRequirements.GetProblems(configuration))
             .Concat(LiveProductionRequirements.GetProblems(configuration))
+            .Concat(NotificationDeliveryProductionRequirements.GetProblems(configuration))
             .ToList();
     }
 }

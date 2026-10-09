@@ -13,9 +13,10 @@ public sealed record OwnerAccount(Guid UserId, string DisplayName);
 
 /// <summary>
 /// Gives every account listed in <see cref="OwnerBootstrapOptions.OwnerEmails"/> all platform roles.
-/// Runs from <c>Siri.Api/Program.cs</c> at startup (all environments, including Production — unlike the
-/// dev-only <c>--seed</c> flag) using the application's own database role, so it works when nobody can
-/// reach the database by hand.
+/// Runs from the API's <c>OwnerBootstrapService</c> hosted service (registered by <c>AddOwnerBootstrap</c> in
+/// <c>Siri.Api/Program.cs</c>): at start and then periodically until every configured owner qualifies, in all
+/// environments including Production — unlike the dev-only <c>--seed</c> flag — using the application's own
+/// database role, so it works when nobody can reach the database by hand.
 /// <para>
 /// <b>Safety rules</b> (this is privilege escalation driven by an email address, so it is deliberately
 /// narrow):
@@ -77,7 +78,7 @@ public sealed class OwnerAccountBootstrapper(
             if (user is null)
             {
                 logger.LogWarning(
-                    "Owner bootstrap: configured owner #{Index} has no account yet — sign in once, then restart the API.",
+                    "Owner bootstrap: configured owner #{Index} has no account yet — register it and confirm the e-mail; the check repeats shortly (no restart needed).",
                     index);
                 continue;
             }

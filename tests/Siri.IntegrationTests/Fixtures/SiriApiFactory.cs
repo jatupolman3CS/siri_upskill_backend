@@ -80,6 +80,11 @@ public sealed class SiriApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Identity:Jwt:AccessTokenLifetimeMinutes", "15");
         builder.UseSetting("Email:Provider", "Log"); // never a real SMTP send
 
+        // No background jobs in the test host: the API would otherwise run a Hangfire server (Hangfire:ServerInApi defaults to true) that starts
+        // executing recurring jobs against the throwaway database on its own schedule and makes every test non-deterministic. Tests run the jobs they
+        // care about by hand (they resolve the job class and call RunAsync). A test of the hosting itself opts in through extraSettings.
+        builder.UseSetting("Hangfire:ServerInApi", "false");
+
         foreach (var (key, value) in _extraSettings)
         {
             builder.UseSetting(key, value);

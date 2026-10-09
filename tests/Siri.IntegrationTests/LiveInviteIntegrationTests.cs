@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Siri.Integrations.Google;
 using Siri.IntegrationTests.Fixtures;
 using Siri.IntegrationTests.TestData;
 using Siri.Modules.Identity.Contracts;
@@ -52,6 +53,11 @@ public sealed class LiveInviteIntegrationTests : IAsyncLifetime
         await using var scope = _factory.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 
+        // The reconcile job sweeps every course but handles at most SessionInviteService.MaxCoursesPerRun (100) per run, rotating which ones by the clock. With
+        // the live courses every earlier class leaves in this shared database, a single reconcile call could miss the course a test just created - so start
+        // from a clean slate of live courses: each test here builds its own.
+        await LiveIntegrationSupport.RetireAllLiveCoursesAsync(_factory);
+
         _client = _factory.CreateClient();
     }
 
@@ -67,10 +73,21 @@ public sealed class LiveInviteIntegrationTests : IAsyncLifetime
 
     private sealed record Learner(Guid UserId, string Email, Guid EnrollmentId);
 
-    /// <summary>An approved instructor, a Live course and <paramref name="sessionCount"/> sessions (2, 3, ... days ahead) created through the real endpoint.</summary>
-    private async Task<Arranged> ArrangeAsync(int sessionCount, bool pasteRooms = false)
+    /// <summary>An approved instructor, a Live course and <paramref name="sessionCount"/> sessions (2, 3, ... days ahead) created through the real endpoint.
+    /// With <paramref name="withActiveGoogleAccount"/> the instructor has a connected Google account, so the sink leaves each room undecided (Pending, no
+    /// provider yet) for the job instead of deciding "paste a link" at creation - the state a room needing a Google call is really in.</summary>
+    private async Task<Arranged> ArrangeAsync(int sessionCount, bool pasteRooms = false, bool withActiveGoogleAccount = false)
     {
         var instructor = await LiveIntegrationSupport.CreateInstructorAsync(_factory, _client);
+        if (withActiveGoogleAccount)
+        {
+            await using var scope = _factory.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.InstructorGoogleAccounts().Add(INSTRUCTOR_GOOGLE_ACCOUNT.Connect(
+                instructor.UserId, $"sub-{Guid.NewGuid():N}", "teacher@gmail.test", "enc-refresh", GoogleScopes.CalendarEventsOwned, scope.ServiceProvider.GetRequiredService<IClock>()));
+            await db.SaveChangesAsync();
+        }
+
         var (courseId, slug) = await LiveIntegrationSupport.CreateLiveCourseAsync(_factory, instructor.ProfileId);
 
         var sessionIds = new List<Guid>();
@@ -389,7 +406,9 @@ public sealed class LiveInviteIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task Instructor_IsInvitedOnlyOnceTheRoomIsDecided_WithAPublishCalendar()
     {
-        var arranged = await ArrangeAsync(sessionCount: 2);
+        // With a connected Google account the room needs a Google call, so the sink leaves it undecided for the job (without one it would already be
+        // "paste a link" - a decided provider - and the instructor invited at once).
+        var arranged = await ArrangeAsync(sessionCount: 2, withActiveGoogleAccount: true);
         var instructorEmail = await EmailOfAsync(arranged.Instructor.UserId);
 
         await RunReconcileAsync();
@@ -405,6 +424,19 @@ public sealed class LiveInviteIntegrationTests : IAsyncLifetime
         Assert.Equal(2, Events(email));
         Assert.Contains($"/instructor/sessions/{arranged.SessionIds[0]:D}", email.BodyHtml, StringComparison.Ordinal);
         Assert.Contains(await NotificationsOfAsync(arranged.Instructor.UserId), n => n.Type == "live.invite");
+    }
+
+    [Fact]
+    public async Task Instructor_WithoutGoogle_IsInvitedAtOnce_BecauseTheProviderIsDecidedWhenTheClassIsCreated()
+    {
+        var arranged = await ArrangeAsync(sessionCount: 2);
+        var instructorEmail = await EmailOfAsync(arranged.Instructor.UserId);
+
+        await RunReconcileAsync(); // no worker has run, no room was pasted - the sink already decided "paste a link" (a decided provider)
+
+        var email = Assert.Single(await EmailsToAsync(instructorEmail));
+        Assert.Equal("live-instructor-batch", email.TemplateKey);
+        Assert.Equal(2, Events(email));
     }
 
     // ---- 7. Reminders ------------------------------------------------------------------------------------------------------

@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\src\Siri.Integrations.Payment\Siri.Integrations.Payment.csproj" />
     <ProjectReference Include="..\..\src\Siri.Integrations.Storage\Siri.Integrations.Storage.csproj" />
     <ProjectReference Include="..\..\src\Siri.Integrations.Email\Siri.Integrations.Email.csproj" />
+    <ProjectReference Include="..\..\src\Siri.Integrations.Messaging\Siri.Integrations.Messaging.csproj" />
     <ProjectReference Include="..\..\src\Siri.Integrations.Google\Siri.Integrations.Google.csproj" />
   </ItemGroup>
 

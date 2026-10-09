@@ -53,6 +53,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Siri.Modules.Live", "src\Si
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Siri.Integrations.Google", "src\Siri.Integrations.Google\Siri.Integrations.Google.csproj", "{07C84ED1-0F12-4B14-ADD1-BB575F6E1E8A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Siri.Integrations.Messaging", "src\Siri.Integrations.Messaging\Siri.Integrations.Messaging.csproj", "{915AB7B7-3774-471B-8486-1D08E5223304}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -339,6 +341,18 @@ Global
 		{07C84ED1-0F12-4B14-ADD1-BB575F6E1E8A}.Release|x64.Build.0 = Release|Any CPU
 		{07C84ED1-0F12-4B14-ADD1-BB575F6E1E8A}.Release|x86.ActiveCfg = Release|Any CPU
 		{07C84ED1-0F12-4B14-ADD1-BB575F6E1E8A}.Release|x86.Build.0 = Release|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Debug|x64.Build.0 = Debug|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Debug|x86.Build.0 = Debug|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Release|Any CPU.Build.0 = Release|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Release|x64.ActiveCfg = Release|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Release|x64.Build.0 = Release|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Release|x86.ActiveCfg = Release|Any CPU
+		{915AB7B7-3774-471B-8486-1D08E5223304}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -367,5 +381,6 @@ Global
 		{CEBCB7A9-B85F-4600-8FF3-4F98D3F43961} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{D2D0348B-6ECA-4CC8-88F9-77A15E896014} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{07C84ED1-0F12-4B14-ADD1-BB575F6E1E8A} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{915AB7B7-3774-471B-8486-1D08E5223304} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

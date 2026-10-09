@@ -9,6 +9,11 @@ public class LiveMeetingSinkAndReadinessTests
     private readonly InMemorySessionMeetingRepository _meetings = new();
     private readonly FakeClock _clock = new(LiveTestData.Now);
 
+    /// <summary>A sink with no signed-in user: the provider decision is not made here (the job makes it), so these tests keep exercising the staging
+    /// behaviour on its own. The decision itself is in <see cref="LiveMeetingSinkProviderDecisionTests"/>.</summary>
+    private LiveMeetingSink Sink() =>
+        new(_meetings, new InMemoryAccountRepository(), new FakeUserContext(userId: null), LiveTestData.OptionsOf());
+
     // ---- Sink -------------------------------------------------------------------------------------
 
     [Fact]
@@ -16,7 +21,7 @@ public class LiveMeetingSinkAndReadinessTests
     {
         var sessionId = Guid.NewGuid();
 
-        await new LiveMeetingSink(_meetings).OnSessionScheduledAsync(sessionId, CancellationToken.None);
+        await Sink().OnSessionScheduledAsync(sessionId, CancellationToken.None);
 
         var meeting = Assert.Single(_meetings.Meetings);
         Assert.Equal(sessionId, meeting.SESSION_ID);
@@ -28,7 +33,7 @@ public class LiveMeetingSinkAndReadinessTests
     public async Task Scheduled_Twice_DoesNotCreateADuplicateRow()
     {
         var sessionId = Guid.NewGuid();
-        var sink = new LiveMeetingSink(_meetings);
+        var sink = Sink();
 
         await sink.OnSessionScheduledAsync(sessionId, CancellationToken.None);
         await sink.OnSessionScheduledAsync(sessionId, CancellationToken.None);
@@ -45,7 +50,7 @@ public class LiveMeetingSinkAndReadinessTests
         meeting.RecordGoogleSynced(MeetingProvider.GoogleMeet, "evt", "enc", Guid.NewGuid(), _clock);
         _meetings.Meetings.Add(meeting);
 
-        await new LiveMeetingSink(_meetings).OnSessionChangedAsync(sessionId, CancellationToken.None);
+        await Sink().OnSessionChangedAsync(sessionId, CancellationToken.None);
 
         Assert.Equal(1, meeting.ICS_SEQUENCE);
         Assert.Equal(MeetingSyncStatus.Pending, meeting.SYNC_STATUS);
@@ -57,7 +62,7 @@ public class LiveMeetingSinkAndReadinessTests
     {
         var sessionId = Guid.NewGuid();
 
-        await new LiveMeetingSink(_meetings).OnSessionChangedAsync(sessionId, CancellationToken.None);
+        await Sink().OnSessionChangedAsync(sessionId, CancellationToken.None);
 
         Assert.Equal(sessionId, Assert.Single(_meetings.Meetings).SESSION_ID);
         Assert.Equal(0, _meetings.SaveCount);
@@ -71,7 +76,7 @@ public class LiveMeetingSinkAndReadinessTests
         meeting.SetManualLink("enc-url");
         _meetings.Meetings.Add(meeting);
 
-        await new LiveMeetingSink(_meetings).OnSessionChangedAsync(sessionId, CancellationToken.None);
+        await Sink().OnSessionChangedAsync(sessionId, CancellationToken.None);
 
         Assert.Equal(MeetingSyncStatus.Synced, meeting.SYNC_STATUS);
         Assert.True(meeting.IsUsable);
@@ -85,7 +90,7 @@ public class LiveMeetingSinkAndReadinessTests
         var meeting = SESSION_MEETING.Stage(sessionId);
         _meetings.Meetings.Add(meeting);
 
-        await new LiveMeetingSink(_meetings).OnSessionCancelledAsync(sessionId, CancellationToken.None);
+        await Sink().OnSessionCancelledAsync(sessionId, CancellationToken.None);
 
         Assert.Equal(MeetingSyncStatus.Deleted, meeting.SYNC_STATUS); // nothing on Google to remove
         Assert.Equal(1, meeting.ICS_SEQUENCE);
@@ -101,7 +106,7 @@ public class LiveMeetingSinkAndReadinessTests
         meeting.RecordGoogleSynced(MeetingProvider.GoogleMeet, "evt", "enc", Guid.NewGuid(), _clock);
         _meetings.Meetings.Add(meeting);
 
-        await new LiveMeetingSink(_meetings).OnSessionCancelledAsync(sessionId, CancellationToken.None);
+        await Sink().OnSessionCancelledAsync(sessionId, CancellationToken.None);
 
         Assert.Equal(MeetingSyncStatus.PendingDelete, meeting.SYNC_STATUS);
     }
@@ -109,7 +114,7 @@ public class LiveMeetingSinkAndReadinessTests
     [Fact]
     public async Task Cancelled_WithNoMeetingRow_DoesNothing()
     {
-        await new LiveMeetingSink(_meetings).OnSessionCancelledAsync(Guid.NewGuid(), CancellationToken.None);
+        await Sink().OnSessionCancelledAsync(Guid.NewGuid(), CancellationToken.None);
 
         Assert.Empty(_meetings.Meetings);
         Assert.Equal(0, _meetings.SaveCount);

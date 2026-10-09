@@ -22,4 +22,12 @@ public enum EmailOutboxStatus
     /// the full retry/backoff policy.
     /// </summary>
     Failed,
+
+    /// <summary>
+    /// Handed to the message broker and waiting for a consumer to deliver it. Only exists when
+    /// <c>Notification:Delivery:Transport</c> is <c>Kafka</c> — the database-polling sender never sets it.
+    /// A row stuck here longer than the configured stale window (the record was lost, or its consumer died before recording
+    /// an outcome) is published again: delivery is at-least-once and the consumer is idempotent. Not terminal.
+    /// </summary>
+    Queued,
 }

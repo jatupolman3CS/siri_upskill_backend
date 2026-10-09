@@ -29,6 +29,10 @@ public static class RateLimiterConfiguration
     /// <summary>Read-only signed-in Payout endpoints (currently <c>GET /api/payout/policy</c>): 60 per minute per user.</summary>
     public const string PayoutReadPolicyName = "payout-read";
 
+    /// <summary>Signed-in Payout endpoints that change money data (currently <c>PUT /api/payout/instructor/payout-account</c>): 10 per 10 minutes per user —
+    /// enough to fix a typo or two, far too few for anyone probing or repeatedly swapping the destination account.</summary>
+    public const string PayoutWritePolicyName = "payout-write";
+
     /// <summary>
     /// Registers every policy of the API and the shared 429 response (<see cref="WriteRejectedResponseAsync"/>) — the single place
     /// <c>Program</c> configures the rate limiter, so a test can build the exact production configuration.
@@ -86,6 +90,9 @@ public static class RateLimiterConfiguration
 
         // Payout reads: partitioned per user for the same reason as the Live ones — never the app-wide "default" window.
         options.AddPolicy<string>(PayoutReadPolicyName, CreatePayoutReadPartition);
+
+        // Payout writes: a separate, much smaller per-user budget — a bank-account change is rare and sensitive, and must never share the app-wide "default" window.
+        options.AddPolicy<string>(PayoutWritePolicyName, CreatePayoutWritePartition);
     }
 
     /// <summary>
@@ -158,6 +165,10 @@ public static class RateLimiterConfiguration
     /// <summary>Partitioned per authenticated user (60 requests per 60 seconds).</summary>
     public static RateLimitPartition<string> CreatePayoutReadPartition(HttpContext httpContext) =>
         CreateUserPartition(httpContext, "payout-read", permitLimit: 60, TimeSpan.FromSeconds(60));
+
+    /// <summary>Partitioned per authenticated user (10 requests per 10 minutes).</summary>
+    public static RateLimitPartition<string> CreatePayoutWritePartition(HttpContext httpContext) =>
+        CreateUserPartition(httpContext, "payout-write", permitLimit: 10, TimeSpan.FromMinutes(10));
 
     /// <summary>
     /// Partitioned per client address (60 requests per 60 seconds) — the OAuth callback is anonymous, so there is no user to key on.

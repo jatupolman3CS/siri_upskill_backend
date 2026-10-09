@@ -39,6 +39,7 @@ internal static class ModuleAssemblyCatalog
         assemblies["Siri.Integrations.Payment"] = typeof(Siri.Integrations.Payment.IPaymentVerifier).Assembly;
         assemblies["Siri.Integrations.Storage"] = typeof(Siri.Integrations.Storage.IFileStorage).Assembly;
         assemblies["Siri.Integrations.Email"] = typeof(Siri.Integrations.Email.IEmailSender).Assembly;
+        assemblies["Siri.Integrations.Messaging"] = typeof(Siri.Integrations.Messaging.IMessageProducer).Assembly;
         assemblies["Siri.Integrations.Google"] = typeof(Siri.Integrations.Google.IGoogleOAuthService).Assembly;
 
         return assemblies;

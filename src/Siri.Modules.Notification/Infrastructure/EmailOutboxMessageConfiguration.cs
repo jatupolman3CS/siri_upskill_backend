@@ -36,6 +36,11 @@ public sealed class EmailOutboxMessageConfiguration : IEntityTypeConfiguration<E
         builder.Property(m => m.NextRetryAtUtc).HasPrecision(3);
         builder.Property(m => m.SentAtUtc).HasPrecision(3);
 
+        // Set by the Kafka relay when it hands the row to the broker (EmailOutboxStatus.Queued); null under the
+        // database-polling transport. The relay's stale-queued branch (Status = Queued AND QueuedAtUtc <= cutoff) finds the
+        // few in-flight rows through the Status-leading index below.
+        builder.Property(m => m.QueuedAtUtc).HasPrecision(3);
+
         builder.Property(m => m.LastError).HasMaxLength(2000);
 
         // P11-04 (docs/contracts/P11-04-live-invites-ics-reminders.md §2.1): optional iCalendar part —

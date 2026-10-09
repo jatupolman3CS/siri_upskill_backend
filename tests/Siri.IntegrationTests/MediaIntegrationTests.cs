@@ -297,7 +297,15 @@ public sealed class MediaIntegrationTests : IAsyncLifetime
         Assert.NotNull(session);
         Assert.NotNull(session.ManifestUrl);
         Assert.NotNull(session.WatermarkPayload);
+
+        // SE-02 / Q8: the server-built payload identifies the viewer — display name + email + UTC timestamp, in that order,
+        // on a single line, and never falls back to the bare user-id form for a user that has both.
+        Assert.Contains(user.DisplayName, session.WatermarkPayload);
         Assert.Contains(user.Email, session.WatermarkPayload);
+        Assert.DoesNotContain(user.Id.ToString(), session.WatermarkPayload);
+        Assert.Matches(
+            $"^{System.Text.RegularExpressions.Regex.Escape(user.DisplayName)} · {System.Text.RegularExpressions.Regex.Escape(user.Email)} · \\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}} UTC$",
+            session.WatermarkPayload);
     }
 
     [Fact]

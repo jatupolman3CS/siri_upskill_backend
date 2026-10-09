@@ -19,6 +19,13 @@ public sealed class UserNotificationConfiguration : IEntityTypeConfiguration<USE
         builder.Property(n => n.LinkUrl).HasMaxLength(1000);
         builder.Property(n => n.ReadAtUtc).HasPrecision(3);
         builder.Property(n => n.CreatedAtUtc).HasPrecision(3).IsRequired();
+        builder.Property(n => n.PublishedAtUtc).HasPrecision(3);
+
+        // The Kafka relay's work list: rows whose creation event has not been published yet. Partial, so it holds only the
+        // unpublished tail (tiny while the relay is keeping up) instead of every notification ever created.
+        builder.HasIndex(n => n.Id)
+            .HasFilter("\"PUBLISHED_AT_UTC\" IS NULL")
+            .HasDatabaseName("IX_NOTIFICATIONS_UNPUBLISHED");
 
         builder.HasIndex(n => new { n.UserId, n.CreatedAtUtc }).HasDatabaseName("IX_NOTIFICATIONS_USER_ID_CREATED_AT_UTC");
         builder.HasIndex(n => new { n.UserId, n.ReadAtUtc }).HasDatabaseName("IX_NOTIFICATIONS_USER_ID_READ_AT_UTC");

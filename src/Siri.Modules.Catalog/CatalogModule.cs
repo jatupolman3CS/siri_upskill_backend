@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -6,6 +7,8 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using Siri.Modules.Catalog.Application;
 using Siri.Modules.Catalog.Features;
 using Siri.Modules.Catalog.Features.ApplyAsInstructor;
 using Siri.Modules.Catalog.Features.ApproveCourse;
@@ -53,6 +56,7 @@ using Siri.Modules.Catalog.Features.UpdateCourseSection;
 using Siri.Modules.Catalog.Features.UpdateLiveSession;
 using Siri.Modules.Catalog.Features.Wishlist;
 using Siri.Modules.Catalog.Infrastructure;
+using Siri.Modules.Catalog.Infrastructure.Search;
 using Siri.Modules.Catalog.Infrastructure.Seeding;
 using Siri.SharedKernel;
 
@@ -151,6 +155,38 @@ public static class CatalogModule
         services.AddScoped<ApproveCourseHandler>();
         services.AddScoped<RejectCourseHandler>();
         services.AddScoped<UnpublishCourseHandler>();
+
+        // Course + instructor-name text search on Meilisearch (Meilisearch__Url / __ApiKey / __DocumentsIndexUid). Optional by design: with no URL or no
+        // real key ICourseSearchIndex resolves to DisabledCourseSearchIndex and SearchCoursesHandler uses its PostgreSQL pg_trgm path, exactly as before.
+        // A malformed URL / index uid fails the boot (ValidateOnStart) so a typo cannot silently turn the feature off.
+        services.AddOptions<MeilisearchOptions>()
+            .Bind(configuration.GetSection(MeilisearchOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<MeilisearchOptions>, MeilisearchOptionsValidator>();
+        services.AddSingleton<MeilisearchAvailability>();
+        services.AddHttpClient<MeilisearchCourseSearchIndex>((serviceProvider, client) =>
+        {
+            var meilisearch = serviceProvider.GetRequiredService<IOptions<MeilisearchOptions>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(meilisearch.RequestTimeoutSeconds);
+
+            // Only an active configuration ever builds this client (see the ICourseSearchIndex factory below), but the guard keeps a misuse
+            // from throwing on a null address.
+            if (meilisearch.GetBaseAddress() is { } baseAddress && meilisearch.HasRealApiKey)
+            {
+                client.BaseAddress = baseAddress;
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", meilisearch.ApiKey.Trim());
+            }
+        });
+        services.AddScoped<ICourseSearchIndex>(serviceProvider =>
+            serviceProvider.GetRequiredService<IOptions<MeilisearchOptions>>().Value.IsActive
+                ? serviceProvider.GetRequiredService<MeilisearchCourseSearchIndex>()
+                : new DisabledCourseSearchIndex());
+        services.AddScoped<CourseSearchIndexer>();
+        services.AddScoped<CourseSearchReindexJob>();
+        // Creates the index/settings and fills an empty index once at host start (never blocks or fails the host; a no-op while Meilisearch is off).
+        // Registered here rather than in a host's Program.cs so the API and the Workers host behave the same without anyone having to remember it.
+        services.AddHostedService<CourseSearchIndexBootstrapper>();
 
         // P1-06: query params only, no bindable command.
         services.AddScoped<SearchCoursesHandler>();

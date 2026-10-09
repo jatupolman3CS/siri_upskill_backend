@@ -35,5 +35,7 @@ public sealed class InstructorPayoutAccountRepository(AppDbContext dbContext) : 
 
     public void Add(INSTRUCTOR_PAYOUT_ACCOUNT account) => dbContext.InstructorPayoutAccounts().Add(account);
 
+    public void Discard(INSTRUCTOR_PAYOUT_ACCOUNT account) => dbContext.Entry(account).State = EntityState.Detached;
+
     public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
 }

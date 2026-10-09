@@ -2,6 +2,8 @@ using FluentValidation;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Siri.Integrations.Email;
 using Siri.Modules.Notification.Contracts;
 using Siri.Modules.Notification.Features;
@@ -9,7 +11,9 @@ using Siri.Modules.Notification.Features.CreateAnnouncement;
 using Siri.Modules.Notification.Features.GetCourseAnnouncements;
 using Siri.Modules.Notification.Features.GetMyNotifications;
 using Siri.Modules.Notification.Features.MarkNotificationRead;
+using Siri.Modules.Notification.Application;
 using Siri.Modules.Notification.Infrastructure;
+using Siri.Modules.Notification.Infrastructure.Delivery;
 
 namespace Siri.Modules.Notification;
 
@@ -29,10 +33,26 @@ public static class NotificationModule
             .Bind(configuration.GetSection(ContactOptions.SectionName))
             .ValidateOnStart();
 
+        // How queued notifications are delivered (Database = the Hangfire sender polls; Kafka = relay → topic → consumers, which the
+        // worker host starts via AddNotificationDelivery). Bound in every host: the sender job reads Transport to know whether to stand down.
+        services.AddOptions<NotificationDeliveryOptions>()
+            .Bind(configuration.GetSection(NotificationDeliveryOptions.SectionName))
+            .ValidateOnStart();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<NotificationDeliveryOptions>, NotificationDeliveryOptionsValidator>());
+        services.AddScoped<IUnreadNotificationCounter, UnreadNotificationCounter>();
+
+        // The one delivery routine both transports run (see EmailDeliveryHandler.DeliverAsync): the Hangfire sender job and the Kafka
+        // consumer share the same Redis claim, so an email is never sent twice even if both are briefly active (rolling deploy, a host
+        // still on the other transport). Redis being down is tolerated — the claim fails open.
+        services.AddSingleton<IEmailDeliveryGuard, RedisEmailDeliveryGuard>();
+        services.AddSingleton<IEmailSendThrottle, RedisEmailSendThrottle>();
+        services.AddScoped<EmailDeliveryHandler>();
+
         services.AddScoped<EmailOutboxSenderJob>();
         services.AddScoped<AnnouncementDispatchJob>();
         services.AddScoped<IEmailOutbox, EmailOutbox>();
         services.AddScoped<IUserNotificationOutbox, UserNotificationOutbox>();
+        services.AddScoped<IEmailOutboxHealthReader, EmailOutboxHealthReader>();
 
         // Handlers
         services.AddScoped<CreateAnnouncementHandler>();

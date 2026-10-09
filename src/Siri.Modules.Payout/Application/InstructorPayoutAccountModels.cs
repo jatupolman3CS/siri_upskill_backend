@@ -3,7 +3,7 @@ using Siri.Modules.Payout.Domain;
 
 namespace Siri.Modules.Payout.Application;
 
-/// <summary>Request payload for POST /api/payout/instructor/payout-account.</summary>
+/// <summary>Request payload for POST and PUT /api/payout/instructor/payout-account (PUT is the idempotent "save my account": create or update).</summary>
 public sealed record CreateInstructorPayoutAccountCommand(
     string BankCode,
     string AccountNo,
@@ -21,7 +21,10 @@ public sealed record InstructorPayoutAccountResponse(
     TaxPayerType TaxPayerType,
     DateTime? VerifiedAtUtc);
 
-/// <summary>Format-only checks — no DB access.</summary>
+/// <summary>The saved account plus whether this PUT created it (<c>true</c> -> HTTP 201) or updated / re-confirmed an existing one (<c>false</c> -> HTTP 200).</summary>
+public sealed record UpsertInstructorPayoutAccountResult(InstructorPayoutAccountResponse Account, bool Created);
+
+/// <summary>Format-only checks — no DB access. Shared by POST and PUT (same body type).</summary>
 public sealed class CreateInstructorPayoutAccountValidator : AbstractValidator<CreateInstructorPayoutAccountCommand>
 {
     public const int MaxBankCodeLength = 20;

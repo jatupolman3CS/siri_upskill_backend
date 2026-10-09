@@ -43,14 +43,17 @@ public static class EmailServiceCollectionExtensions
                 .ValidateOnStart();
 
             services.AddSingleton<IEmailSender, SmtpEmailSender>();
+            services.AddSingleton(new EmailProviderInfo(EmailProviderInfo.Smtp));
         }
         else if (string.Equals(provider, LogProvider, StringComparison.OrdinalIgnoreCase))
         {
             services.AddSingleton<IEmailSender, LoggingEmailSender>();
+            services.AddSingleton(new EmailProviderInfo(EmailProviderInfo.Log));
         }
         else if (string.IsNullOrEmpty(provider))
         {
             services.AddSingleton<IEmailSender, UnconfiguredEmailSender>();
+            services.AddSingleton(new EmailProviderInfo(EmailProviderInfo.Unconfigured));
         }
         else
         {

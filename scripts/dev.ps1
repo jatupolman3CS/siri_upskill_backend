@@ -196,6 +196,9 @@ if ([string]$local['Payment__Stripe__SecretKey'] -like 'sk_live_*') { throw 'Use
 # Child hosts inherit these local settings above any stale user-secrets/process values.
 $local['ConnectionStrings__Default'] = $connection
 $local['Redis__ConnectionString'] = '127.0.0.1:6380,abortConnect=false'
+# Live:PublicBaseUrl (post-Google-connect redirect, join links in invite e-mails) defaults to Seo:PublicBaseUrl. It must be the web origin, never the
+# API's own port, or the browser lands on an API 404 after consenting to Google.
+$local['Seo__PublicBaseUrl'] = 'http://localhost:4202'
 $local['Email__Provider'] = 'Smtp'
 $local['Email__Smtp__Host'] = '127.0.0.1'
 $local['Email__Smtp__Port'] = '1025'
@@ -207,6 +210,11 @@ $local['Email__Smtp__UseStartTls'] = 'false'
 $local['Email__Smtp__AllowInsecure'] = 'true'
 $local['ASPNETCORE_ENVIRONMENT'] = 'Development'
 $local['DOTNET_ENVIRONMENT'] = 'Development'
+# This stack runs a dedicated Siri.Workers process (started below) as THE Hangfire server, like a split production deployment: one place that executes
+# jobs, one log (workers.log), and restarting the API never aborts a job that is mid-run. The API's own server (default ON in every other environment
+# so a single-container deployment is complete) is therefore switched off here. Running both would be harmless but only makes it unclear which
+# process ran what.
+$local['Hangfire__ServerInApi'] = 'false'
 $local['API_INTERNAL_URL'] = 'http://localhost:5190'
 $local['PGPASSWORD'] = $settings.AdminPassword
 $previousEnvironment = @{}

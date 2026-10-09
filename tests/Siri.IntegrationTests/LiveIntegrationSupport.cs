@@ -100,6 +100,38 @@ internal static class LiveIntegrationSupport
         return (course.Id, course.Slug);
     }
 
+    /// <summary>
+    /// Retires courses the way the platform does (soft delete): their sessions then drop out of every schedule read. The invite reconcile job handles at most
+    /// <c>SessionInviteService.MaxCoursesPerRun</c> courses per run and rotates which ones by the clock, so every test class that leaves live courses behind in the
+    /// shared database makes a later class's single reconcile call less likely to reach its own course. Classes that create courses clean up after themselves.
+    /// </summary>
+    public static async Task RetireCoursesAsync(WebApplicationFactory<Program> factory, IEnumerable<Guid> courseIds)
+    {
+        var ids = courseIds.Distinct().ToArray();
+        if (ids.Length == 0)
+        {
+            return;
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Courses().RemoveRange(await db.Courses().Where(c => ids.Contains(c.Id)).ToListAsync());
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Retires every non-on-demand course already in the database - for a test class whose subject is a job that sweeps ALL courses (the invite reconcile) and
+    /// therefore must not depend on how many live courses the classes that ran before it happened to leave behind (see <see cref="RetireCoursesAsync"/>).
+    /// Safe in this collection: classes run one after another and every test builds its own world.
+    /// </summary>
+    public static async Task RetireAllLiveCoursesAsync(WebApplicationFactory<Program> factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Courses().RemoveRange(await db.Courses().Where(c => c.DeliveryFormat != DeliveryFormat.OnDemand).ToListAsync());
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>Creates a live session through the real endpoint (so the meeting row is staged by the real sink in the same SaveChanges).</summary>
     public static async Task<Guid> CreateSessionAsync(HttpClient client, string token, Guid courseId, int daysAhead = 2, int hourOffset = 0)
     {

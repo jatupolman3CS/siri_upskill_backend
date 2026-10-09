@@ -8,9 +8,11 @@ using Siri.Modules.Catalog;
 using Siri.Modules.Commerce;
 using Siri.Modules.Learning;
 using Siri.Modules.Live;
+using Siri.Modules.Notification.Infrastructure.Delivery;
 using Siri.Modules.Payout;
 using Siri.Modules.Payout.Infrastructure;
 using Siri.SharedKernel.Configuration;
+using Siri.Workers;
 
 namespace Siri.Api.Configuration;
 
@@ -165,6 +167,13 @@ public static class ProductionConfigurationGuard
         // client would only fail at an instructor's first click, and the public origin goes into links people follow.
         // Shared with Siri.Workers (which runs the sync job) so the two hosts cannot drift apart.
         errors.AddRange(LiveProductionRequirements.GetProblems(configuration));
+
+        // 13. Notification pipeline on Kafka: only a host that runs the pipeline needs the broker settings, and the API runs it exactly
+        // when it hosts the Hangfire server itself (a dedicated Siri.Workers deployment checks its own copy of this rule).
+        if (HangfireHostingOptions.ResolveServerInApi(configuration, environment))
+        {
+            errors.AddRange(NotificationDeliveryProductionRequirements.GetProblems(configuration));
+        }
 
         if (errors.Count > 0)
         {

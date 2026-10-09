@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Siri.Modules.Notification.Application;
 using Siri.Modules.Notification.Features.CreateAnnouncement;
 using Siri.Modules.Notification.Features.GetCourseAnnouncements;
 using Siri.Modules.Notification.Features.GetInstructorAnnouncements;
 using Siri.Modules.Notification.Features.GetMyNotifications;
+using Siri.Modules.Notification.Features.GetUnreadCount;
 using Siri.Modules.Notification.Features.MarkNotificationRead;
 using Siri.SharedKernel;
 
@@ -80,6 +82,22 @@ public class NotificationsController : ControllerBase
 
         var notifications = await handler.HandleAsync(userId, cancellationToken).ConfigureAwait(false);
         return Results.Ok(notifications);
+    }
+
+    [HttpGet("unread-count")]
+    [EndpointName("GetUnreadNotificationCount")]
+    [EndpointSummary("จำนวนการแจ้งเตือนที่ยังไม่อ่านของตัวเอง (ใช้กับ badge กระดิ่ง)")]
+    [ProducesResponseType(typeof(UnreadNotificationCountResponse), StatusCodes.Status200OK)]
+    public async Task<IResult> GetUnreadCount(
+        [FromServices] IUnreadNotificationCounter unreadCounter,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        // The user comes from the token only — there is no way to ask about someone else's count.
+        if (userContext.UserId is not { } userId) return Results.Unauthorized();
+
+        var count = await unreadCounter.GetAsync(userId, cancellationToken).ConfigureAwait(false);
+        return Results.Ok(new UnreadNotificationCountResponse(count));
     }
 
     [HttpPost("{notificationId:guid}/read")]

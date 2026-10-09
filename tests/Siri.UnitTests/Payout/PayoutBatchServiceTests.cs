@@ -155,6 +155,8 @@ public sealed class PayoutBatchServiceTests
 
         public void Add(INSTRUCTOR_PAYOUT_ACCOUNT account) => Accounts[account.INSTRUCTOR_PAYOUT_ACCOUNT_ID] = account;
 
+        public void Discard(INSTRUCTOR_PAYOUT_ACCOUNT account) => Accounts.Remove(account.INSTRUCTOR_PAYOUT_ACCOUNT_ID);
+
         public Task SaveChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 

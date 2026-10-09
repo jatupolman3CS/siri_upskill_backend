@@ -4,6 +4,14 @@
     <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
     <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
     <ProjectReference Include="..\Siri.Integrations.Email\Siri.Integrations.Email.csproj" />
+    <!-- Notification pipeline on Kafka: IMessageProducer / consumer hosting / topic provisioning. The module depends on the
+         project's own abstractions, not on Confluent.Kafka types. -->
+    <ProjectReference Include="..\Siri.Integrations.Messaging\Siri.Integrations.Messaging.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Siri.UnitTests" />
+    <InternalsVisibleTo Include="Siri.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -23,6 +31,9 @@
          filter attribute directly. -->
     <PackageReference Include="Hangfire.Core" />
     <PackageReference Include="FluentValidation" />
+    <!-- Delivery guard / send throttle / unread-count cache use the app-wide IConnectionMultiplexer that
+         Siri.Persistence registers (AddSharedRedis); same package Catalog and Identity already reference. -->
+    <PackageReference Include="StackExchange.Redis" />
   </ItemGroup>
 
   <PropertyGroup>
