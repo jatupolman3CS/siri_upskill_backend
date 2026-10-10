@@ -92,7 +92,8 @@ public sealed class TeachingMaterialsIntegrationTests : IAsyncLifetime
             services.AddSingleton<IAttachmentVirusScanner, AcceptAllVirusScanner>();
         }));
 
-        _untouched = Root();
+        // Pinned to Required so this host keeps covering the "no scanning engine => refuse" path whatever the shipped appsettings say.
+        _untouched = Root(new Dictionary<string, string?> { ["Attachments:VirusScan:Mode"] = "Required" });
         _noBucket = Root().WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
             services.AddSingleton<IAttachmentVirusScanner, AcceptAllVirusScanner>()));
 

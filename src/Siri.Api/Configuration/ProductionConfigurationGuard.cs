@@ -151,17 +151,12 @@ public static class ProductionConfigurationGuard
                 "must be configured with the real public https:// origin in production.");
         }
 
-        // 11. Attachments: no virus-scanning engine is integrated, so 'Disabled' would serve unscanned
-        // instructor uploads to learners. Production must stay on the default 'Required' (uploads are refused
-        // with 503 until an engine is registered) — the operator cannot opt in to unscanned files here.
-        var virusScanMode = configuration[$"{AttachmentVirusScanOptions.SectionName}:Mode"]?.Trim();
-        if (string.Equals(virusScanMode, nameof(AttachmentVirusScanMode.Disabled), StringComparison.OrdinalIgnoreCase))
-        {
-            errors.Add(
-                $"{AttachmentVirusScanOptions.SectionName}:Mode must not be '{nameof(AttachmentVirusScanMode.Disabled)}' in production: " +
-                "no virus-scanning engine is integrated, so attachments would be served unscanned. Leave it at 'Required' " +
-                "(uploads are refused until a scanner is configured).");
-        }
+        // 11. Attachments: no virus-scanning engine is integrated (Q9). Until 2026-10-10 this rule refused to boot with
+        // Attachments:VirusScan:Mode=Disabled; the project owner then explicitly chose to skip the scan step for now
+        // (docs/DECISIONS.md Q9) so teaching documents can be uploaded in production. Disabled is therefore allowed — it
+        // stays an explicit, logged opt-in (every unscanned file logs a warning), and the other upload defences are unchanged:
+        // extension + MIME allow-list, magic bytes, executable-header rejection, owner/admin-only uploads, private R2 bucket,
+        // Content-Disposition: attachment, short-lived signed URLs. Once a real scanning engine is registered this mode no longer applies.
 
         // 12. Live (P11-03): the fake Google/Meet provider must never run in production, a half-configured Google
         // client would only fail at an instructor's first click, and the public origin goes into links people follow.

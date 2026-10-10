@@ -428,14 +428,15 @@ public sealed class ProductionConfigurationGuardTests
     [InlineData("Disabled")]
     [InlineData("disabled")]
     [InlineData(" Disabled ")]
-    public void ValidateProductionConfiguration_AttachmentVirusScanDisabled_Throws(string mode)
+    public void ValidateProductionConfiguration_AttachmentVirusScanDisabled_Passes(string mode)
     {
+        // Owner decision 2026-10-10 (docs/DECISIONS.md Q9): the scan step is skipped for now, so production may run
+        // with the explicit, logged opt-in. Before this date the guard refused to boot with it.
         var settings = ValidProductionSettings();
         settings[$"{AttachmentVirusScanOptions.SectionName}:Mode"] = mode;
+        var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
 
-        var ex = ValidateProductionThrows(settings);
-
-        Assert.Contains($"{AttachmentVirusScanOptions.SectionName}:Mode", ex.Message);
+        ProductionConfigurationGuard.ValidateProductionConfiguration(config, new FakeHostEnvironment("Production"));
     }
 
     [Theory]
