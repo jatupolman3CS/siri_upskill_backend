@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Application;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -7,7 +8,11 @@ using Siri.SharedKernel.Contracts;
 
 namespace Siri.Modules.Catalog.Features.AutosaveCourse;
 
-public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock, IMediaAssetContract mediaAssetContract)
+public sealed class AutosaveCourseHandler(
+    AppDbContext dbContext,
+    IClock clock,
+    IMediaAssetContract mediaAssetContract,
+    TeachingMaterialStorage materialStorage)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สนี้");
     private static readonly DomainError NotOwnerError = DomainError.Forbidden("คุณไม่มีสิทธิ์แก้ไขคอร์สนี้");
@@ -105,6 +110,10 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock, 
         foreach (var requirement in course.Requirements) dbContext.Entry(requirement).State = EntityState.Added;
         List<AutosaveSectionIds>? savedSections = command.Sections is null ? null : [];
 
+        // Episodes this save deletes. Their attachment rows are removed by FK cascade, but the files in R2 are not,
+        // so their storage keys are collected before the save and the objects deleted after it.
+        var removedEpisodeIds = new List<Guid>();
+
         if (command.Sections != null)
         {
             // 1. Remove deleted sections
@@ -119,6 +128,7 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock, 
 
             foreach (var sectionToRemove in sectionsToRemove)
             {
+                removedEpisodeIds.AddRange(sectionToRemove.Episodes.Select(e => e.Id));
                 course.RemoveSection(sectionToRemove.Id);
             }
 
@@ -152,6 +162,7 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock, 
 
                     foreach (var epToRemove in episodesToRemove)
                     {
+                        removedEpisodeIds.Add(epToRemove.Id);
                         course.RemoveEpisode(epToRemove.Id);
                     }
 
@@ -204,6 +215,15 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock, 
             course.ReorderSections(savedSections!.Select(section => section.Id).ToArray());
         }
 
+        var orphanedStorageKeys = removedEpisodeIds.Count == 0
+            ? []
+            : await dbContext.EpisodeAttachments()
+                .AsNoTracking()
+                .Where(a => removedEpisodeIds.Contains(a.EpisodeId))
+                .Select(a => a.StorageKey)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
         try
         {
             await CourseGraphPersistence.SaveAsync(dbContext, course.Id, cancellationToken).ConfigureAwait(false);
@@ -213,6 +233,8 @@ public sealed class AutosaveCourseHandler(AppDbContext dbContext, IClock clock, 
             return Result.Failure<AutosaveCourseResponse>(
                 DomainError.Conflict("ข้อมูลคอร์สนี้ถูกแก้ไขจากที่อื่นแล้ว กรุณารีเฟรชหน้าเว็บก่อนทำการบันทึกอีกครั้ง"));
         }
+
+        await materialStorage.DeleteQuietlyAsync(orphanedStorageKeys, cancellationToken).ConfigureAwait(false);
 
         return Result.Success(new AutosaveCourseResponse(course.Id, course.RowVersion, course.UpdatedAtUtc ?? clock.UtcNow, savedSections));
     }

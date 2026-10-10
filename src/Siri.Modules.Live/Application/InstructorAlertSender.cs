@@ -24,11 +24,17 @@ public sealed class InstructorAlertSender(
     public const string ReconnectTemplateKey = "live-google-reconnect";
     public const string NeedsLinkTemplateKey = "live-meeting-needs-link";
     public const string FailedTemplateKey = "live-meeting-failed";
+    public const string RecordingImportedTemplateKey = "live-recording-imported";
+    public const string RecordingImportFailedTemplateKey = "live-recording-import-failed";
+    public const string RecordingNeedsReconnectTemplateKey = "live-recording-needs-reconnect";
 
-    /// <summary>In-app notification types (P11-04 contract §3.2).</summary>
+    /// <summary>In-app notification types (P11-04 contract §3.2; the recording ones are P11-13).</summary>
     public const string ReconnectNotificationType = "live.google_reconnect";
     public const string NeedsLinkNotificationType = "live.meeting_needs_link";
     public const string FailedNotificationType = "live.meeting_failed";
+    public const string RecordingImportedNotificationType = "live.recording_imported";
+    public const string RecordingImportFailedNotificationType = "live.recording_import_failed";
+    public const string RecordingNeedsReconnectNotificationType = "live.recording_needs_reconnect";
 
     private const int SubjectTitleMaxLength = 80;
 
@@ -108,6 +114,87 @@ public sealed class InstructorAlertSender(
                 $"สร้างห้อง Google Meet ไม่สำเร็จ — {SubjectTitle(title)}",
                 $"{course} — ระบบสร้างห้องไม่สำเร็จ กรุณาลองใหม่หรือวางลิงก์ห้องประชุม",
                 LiveTemplateSettings.InstructorSessionPath(sessionId)),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task RecordingImportedAsync(
+        Guid instructorUserId, Guid sessionId, string sessionTitle, string courseTitle, CancellationToken cancellationToken)
+    {
+        var sessionLink = SessionLink(sessionId);
+        var title = Clean(sessionTitle);
+        var course = Clean(courseTitle);
+
+        var content = $"""
+            <p>ระบบนำเข้าบันทึกการสอนของคาบ <strong>{Encode(title)}</strong> จาก Google Meet มาเป็นบทเรียนในคอร์ส <strong>{Encode(course)}</strong> เรียบร้อยแล้ว</p>
+            <p>ผู้เรียนที่ลงทะเบียนในคอร์สนี้ดูบทเรียนนี้ได้ทันที กรุณาตรวจสอบว่าบันทึกไม่มีข้อมูลที่ไม่ต้องการเผยแพร่ หากต้องการเปลี่ยนวิดีโอ ให้แนบบันทึกใหม่แทนที่ในหน้าจัดการคาบสอน</p>
+            {Button(sessionLink, "ดูคาบสอนนี้")}
+            """;
+
+        await SendAsync(
+            instructorUserId,
+            $"เพิ่มบันทึกการสอนของคาบ {SubjectTitle(title)} แล้ว",
+            "เพิ่มบันทึกการสอนแล้ว",
+            content,
+            RecordingImportedTemplateKey,
+            new LiveInAppNotification(
+                RecordingImportedNotificationType,
+                $"เพิ่มบันทึกการสอนของคาบ {SubjectTitle(title)} แล้ว",
+                $"{course} — ระบบนำเข้าบันทึกจาก Google Meet เป็นบทเรียนแล้ว ผู้เรียนดูได้ทันที",
+                LiveTemplateSettings.InstructorSessionPath(sessionId)),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task RecordingImportFailedAsync(
+        Guid instructorUserId, Guid sessionId, string sessionTitle, string courseTitle, CancellationToken cancellationToken)
+    {
+        var sessionLink = SessionLink(sessionId);
+        var title = Clean(sessionTitle);
+        var course = Clean(courseTitle);
+
+        var content = $"""
+            <p>การนำเข้าบันทึกอัตโนมัติจาก Google Meet ไม่สำเร็จ — คาบ <strong>{Encode(title)}</strong> ของคอร์ส <strong>{Encode(course)}</strong></p>
+            <p>คุณอัปโหลดวิดีโอบันทึกการสอนด้วยตัวเองได้ที่หน้าจัดการคาบสอน หรือกดลองนำเข้าอีกครั้งในหน้าเดียวกัน</p>
+            {Button(sessionLink, "จัดการคาบสอน")}
+            """;
+
+        await SendAsync(
+            instructorUserId,
+            $"นำเข้าบันทึกของคาบ {SubjectTitle(title)} ไม่สำเร็จ",
+            "นำเข้าบันทึกไม่สำเร็จ",
+            content,
+            RecordingImportFailedTemplateKey,
+            new LiveInAppNotification(
+                RecordingImportFailedNotificationType,
+                $"นำเข้าบันทึกของคาบ {SubjectTitle(title)} ไม่สำเร็จ",
+                $"{course} — กรุณาอัปโหลดบันทึกการสอนด้วยตัวเอง หรือลองนำเข้าอีกครั้ง",
+                LiveTemplateSettings.InstructorSessionPath(sessionId)),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task RecordingNeedsReconnectAsync(
+        Guid instructorUserId, Guid sessionId, string sessionTitle, string courseTitle, CancellationToken cancellationToken)
+    {
+        var settingsLink = $"{options.Value.GetNormalizedPublicBaseUrl()}/instructor/live-settings";
+        var title = Clean(sessionTitle);
+        var course = Clean(courseTitle);
+
+        var content = $"""
+            <p>ระบบอ่านไฟล์บันทึกของคาบ <strong>{Encode(title)}</strong> ของคอร์ส <strong>{Encode(course)}</strong> จาก Google ไม่ได้ เพราะการเชื่อมต่อ Google ถูกยกเลิกหรือยังไม่ได้อนุญาตให้เข้าถึงบันทึก</p>
+            <p>กรุณาเชื่อมต่อ Google และเปิดการนำเข้าบันทึกอัตโนมัติอีกครั้ง หรืออัปโหลดวิดีโอบันทึกการสอนด้วยตัวเองที่หน้าจัดการคาบสอน</p>
+            {Button(settingsLink, "จัดการการเชื่อมต่อ Google")}
+            """;
+
+        await SendAsync(
+            instructorUserId,
+            $"เชื่อมต่อ Google ใหม่เพื่อนำเข้าบันทึกของคาบ {SubjectTitle(title)}",
+            "เชื่อมต่อ Google ใหม่เพื่อนำเข้าบันทึก",
+            content,
+            RecordingNeedsReconnectTemplateKey,
+            new LiveInAppNotification(
+                RecordingNeedsReconnectNotificationType,
+                $"เชื่อมต่อ Google ใหม่เพื่อนำเข้าบันทึกของคาบ {SubjectTitle(title)}",
+                $"{course} — ระบบอ่านบันทึกจาก Google ไม่ได้ กรุณาเชื่อมต่อใหม่ หรืออัปโหลดบันทึกด้วยตัวเอง",
+                "/instructor/live-settings"),
             cancellationToken).ConfigureAwait(false);
     }
 

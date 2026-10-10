@@ -27,6 +27,8 @@
     <ProjectReference Include="..\..\src\Siri.Integrations.Google\Siri.Integrations.Google.csproj" />
     <!-- P2-02: BunnyVideoProvider + VideoProviderOptions unit tests. -->
     <ProjectReference Include="..\..\src\Siri.Integrations.Video\Siri.Integrations.Video.csproj" />
+    <!-- P4-03c: R2FileStorage / R2StorageOptions / TeachingMaterialStorage unit tests (HttpMessageHandler stub, no bucket). -->
+    <ProjectReference Include="..\..\src\Siri.Integrations.Storage\Siri.Integrations.Storage.csproj" />
     <!-- P3-01: StripePaymentMethod + PaymentService unit tests. -->
     <ProjectReference Include="..\..\src\Siri.Integrations.Payment\Siri.Integrations.Payment.csproj" />
     <ProjectReference Include="..\..\src\Siri.Modules.Commerce\Siri.Modules.Commerce.csproj" />

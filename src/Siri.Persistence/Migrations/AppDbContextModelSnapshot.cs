@@ -991,6 +991,65 @@ namespace Siri.Persistence.Migrations
                     b.ToTable("LEARNING_PATH_ITEMS", "CATALOG");
                 });
 
+            modelBuilder.Entity("Siri.Modules.Catalog.Domain.LIVE_SESSION_ATTACHMENT", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ID");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("CONTENT_TYPE");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("CREATED_BY");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("FILE_NAME");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("SESSION_ID");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("SIZE_BYTES");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("STORAGE_KEY");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("UPDATED_AT_UTC");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UPDATED_BY");
+
+                    b.HasKey("Id")
+                        .HasName("PK_LIVE_SESSION_ATTACHMENTS");
+
+                    b.HasIndex("SessionId", "CreatedAtUtc")
+                        .HasDatabaseName("IX_LIVE_SESSION_ATTACHMENTS_SESSION_ID_CREATED_AT_UTC");
+
+                    b.ToTable("LIVE_SESSION_ATTACHMENTS", "CATALOG");
+                });
+
             modelBuilder.Entity("Siri.Modules.Catalog.Domain.WISHLIST_ITEM", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -1704,6 +1763,11 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("ORDER_ID");
 
+                    b.Property<decimal?>("ORIGINAL_AMOUNT")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("ORIGINAL_AMOUNT");
+
                     b.Property<string>("PROVIDER")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -1738,6 +1802,46 @@ namespace Siri.Persistence.Migrations
                         .HasDatabaseName("IX_PAYMENTS_PROVIDER_PAYMENT_INTENT_ID");
 
                     b.ToTable("PAYMENTS", "COMMERCE");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Commerce.Domain.PAYMENT_AMOUNT_OVERRIDE", b =>
+                {
+                    b.Property<Guid>("PAYMENT_AMOUNT_OVERRIDE_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("PAYMENT_AMOUNT_OVERRIDE_ID");
+
+                    b.Property<DateTime>("CHANGED_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("CHANGED_AT_UTC");
+
+                    b.Property<Guid>("CHANGED_BY_USER_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("CHANGED_BY_USER_ID");
+
+                    b.Property<bool>("IS_ENABLED")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IS_ENABLED");
+
+                    b.Property<decimal>("OVERRIDE_AMOUNT")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("OVERRIDE_AMOUNT");
+
+                    b.Property<string>("REASON")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("REASON");
+
+                    b.HasKey("PAYMENT_AMOUNT_OVERRIDE_ID")
+                        .HasName("PK_PAYMENT_AMOUNT_OVERRIDES");
+
+                    b.HasIndex("CHANGED_AT_UTC")
+                        .IsDescending()
+                        .HasDatabaseName("IX_PAYMENT_AMOUNT_OVERRIDES_CHANGED_AT_UTC");
+
+                    b.ToTable("PAYMENT_AMOUNT_OVERRIDES", "COMMERCE");
                 });
 
             modelBuilder.Entity("Siri.Modules.Commerce.Domain.PAYMENT_OPS_QUEUE", b =>
@@ -3268,6 +3372,11 @@ namespace Siri.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("INSTRUCTOR_GOOGLE_ACCOUNT_ID");
 
+                    b.Property<DateTime?>("ACCOUNT_KIND_CHECKED_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("ACCOUNT_KIND_CHECKED_AT_UTC");
+
                     b.Property<DateTime>("CONNECTED_AT_UTC")
                         .HasPrecision(3)
                         .HasColumnType("timestamp(3) with time zone")
@@ -3293,6 +3402,11 @@ namespace Siri.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("GOOGLE_SUBJECT");
+
+                    b.Property<string>("HOSTED_DOMAIN")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("HOSTED_DOMAIN");
 
                     b.Property<Guid>("INSTRUCTOR_USER_ID")
                         .HasColumnType("uuid")
@@ -3626,6 +3740,116 @@ namespace Siri.Persistence.Migrations
                         .HasFilter("\"SYNC_STATUS\" IN ('Pending','PendingDelete')");
 
                     b.ToTable("SESSION_MEETINGS", "LIVE");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Live.Domain.SESSION_RECORDING_IMPORT", b =>
+                {
+                    b.Property<Guid>("SESSION_RECORDING_IMPORT_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("SESSION_RECORDING_IMPORT_ID");
+
+                    b.Property<int>("ATTEMPTS")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ATTEMPTS");
+
+                    b.Property<DateTime?>("COMPLETED_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("COMPLETED_AT_UTC");
+
+                    b.Property<Guid>("COURSE_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("COURSE_ID");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("CREATED_AT_UTC");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("CREATED_BY");
+
+                    b.Property<Guid?>("EPISODE_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("EPISODE_ID");
+
+                    b.Property<string>("ERROR_CODE")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("ERROR_CODE");
+
+                    b.Property<string>("GOOGLE_FILE_ID")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("GOOGLE_FILE_ID");
+
+                    b.Property<string>("GOOGLE_RECORDING_NAME")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("GOOGLE_RECORDING_NAME");
+
+                    b.Property<Guid>("INSTRUCTOR_USER_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("INSTRUCTOR_USER_ID");
+
+                    b.Property<DateTime?>("LEASE_UNTIL_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("LEASE_UNTIL_UTC");
+
+                    b.Property<Guid?>("MEDIA_ASSET_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("MEDIA_ASSET_ID");
+
+                    b.Property<DateTime?>("NEXT_ATTEMPT_AT_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("NEXT_ATTEMPT_AT_UTC");
+
+                    b.Property<byte[]>("ROW_VERSION")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("ROW_VERSION");
+
+                    b.Property<DateTime>("SEARCH_UNTIL_UTC")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("SEARCH_UNTIL_UTC");
+
+                    b.Property<Guid>("SESSION_ID")
+                        .HasColumnType("uuid")
+                        .HasColumnName("SESSION_ID");
+
+                    b.Property<string>("STATUS")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("STATUS");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasPrecision(3)
+                        .HasColumnType("timestamp(3) with time zone")
+                        .HasColumnName("UPDATED_AT_UTC");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("UPDATED_BY");
+
+                    b.HasKey("SESSION_RECORDING_IMPORT_ID")
+                        .HasName("PK_SESSION_RECORDING_IMPORTS");
+
+                    b.HasIndex("SESSION_ID")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SESSION_RECORDING_IMPORTS_SESSION_ID");
+
+                    b.HasIndex("STATUS", "NEXT_ATTEMPT_AT_UTC")
+                        .HasDatabaseName("IX_SESSION_RECORDING_IMPORTS_DUE");
+
+                    b.ToTable("SESSION_RECORDING_IMPORTS", "LIVE");
                 });
 
             modelBuilder.Entity("Siri.Modules.Media.Domain.MEDIA_ASSET", b =>
@@ -4533,6 +4757,16 @@ namespace Siri.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("FK_LEARNING_PATH_ITEMS_LEARNING_PATHS_PATH_ID");
+                });
+
+            modelBuilder.Entity("Siri.Modules.Catalog.Domain.LIVE_SESSION_ATTACHMENT", b =>
+                {
+                    b.HasOne("Siri.Modules.Catalog.Domain.COURSE_LIVE_SESSION", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("FK_LIVE_SESSION_ATTACHMENTS_COURSE_LIVE_SESSIONS_SESSION_ID");
                 });
 
             modelBuilder.Entity("Siri.Modules.Cms.Domain.MENU_ITEM", b =>

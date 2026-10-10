@@ -431,6 +431,100 @@ public class StripeWebhookHandlerTests
         Assert.Null(split.PaymentFee);
     }
 
+    /// <summary>Owner decision 2026-10-10: while an admin amount override lowered the charge, revenue split runs on
+    /// the money actually collected — instructors must never be credited the list price Stripe never received.
+    /// Real Stripe fee is a single value for the charge, pro-rated by line share (unchanged ratio logic).</summary>
+    [Fact]
+    public async Task HandleAsync_PaymentSucceeded_PaidThroughAmountOverride_SplitsOnThePaidAmountNotListPrice()
+    {
+        _paymentMethod.ChargeFeeToReturn = 1.00m;
+        var handler = CreateHandler();
+        var buyerId = Guid.NewGuid();
+        var course1 = Guid.NewGuid();
+        var course2 = Guid.NewGuid();
+
+        _catalogPriceContract.Prices[course1] = new CoursePriceInfo(course1, "COURSE 1", 700m, Guid.NewGuid(), null);
+        _catalogPriceContract.Prices[course2] = new CoursePriceInfo(course2, "COURSE 2", 300m, Guid.NewGuid(), null);
+        _userContactReader.Emails[buyerId] = "buyer@example.test";
+
+        var order = ORDER.Create("ORD-OVR-SPLIT", buyerId, 1000m, 0m, 0m, 1000m);
+        var item1 = order.AddItem(course1, "COURSE 1", 700m, 700m);
+        var item2 = order.AddItem(course2, "COURSE 2", 300m, 300m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, "pi_ovr_split", 20m, _clock, originalAmount: 1000m);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var payload = BuildStripeEventJson("evt_ovr_split", "payment_intent.succeeded", "pi_ovr_split", 2000);
+        var result = await handler.HandleAsync(payload, GenerateStripeSignature(payload, WebhookSecret), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OrderStatus.Paid, order.STATUS);
+        var (_, items) = Assert.Single(_revenueSplitContract.Recorded);
+        var split1 = items.Single(i => i.OrderItemId == item1.ORDER_ITEM_ID);
+        var split2 = items.Single(i => i.OrderItemId == item2.ORDER_ITEM_ID);
+        Assert.Equal(14.00m, split1.GrossAmount);
+        Assert.Equal(6.00m, split2.GrossAmount);
+        Assert.Equal(20m, split1.GrossAmount + split2.GrossAmount);   // exactly what was collected
+        Assert.Equal(0.70m, split1.PaymentFee);                      // 1.00 fee × 700/1000
+        Assert.Equal(0.30m, split2.PaymentFee);
+
+        // Enrollment is granted exactly as for a normal purchase.
+        Assert.Equal(2, _learningAccessContract.Grants.Count);
+    }
+
+    [Fact]
+    public async Task HandleAsync_PaymentSucceeded_PaidThroughAmountOverride_ReceiptShowsPaidAmountNotListPrice()
+    {
+        var handler = CreateHandler();
+        var buyerId = Guid.NewGuid();
+        var course = Guid.NewGuid();
+        _catalogPriceContract.Prices[course] = new CoursePriceInfo(course, "COURSE", 1890m, Guid.NewGuid(), null);
+        _userContactReader.Emails[buyerId] = "buyer@example.test";
+
+        var order = ORDER.Create("ORD-OVR-MAIL", buyerId, 1890m, 0m, 0m, 1890m);
+        order.AddItem(course, "COURSE", 1890m, 1890m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, "pi_ovr_mail", 20m, _clock, originalAmount: 1890m);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var payload = BuildStripeEventJson("evt_ovr_mail", "payment_intent.succeeded", "pi_ovr_mail", 2000);
+        var result = await handler.HandleAsync(payload, GenerateStripeSignature(payload, WebhookSecret), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var mail = Assert.Single(_emailOutbox.Sent);
+        Assert.Contains("฿20.00", mail.BodyHtml);
+        Assert.DoesNotContain("1,890", mail.BodyHtml);
+    }
+
+    [Fact]
+    public async Task HandleAsync_PaymentSucceeded_NormalPayment_GrossIsStillTheFullLineTotal()
+    {
+        _paymentMethod.ChargeFeeToReturn = null;
+        var handler = CreateHandler();
+        var buyerId = Guid.NewGuid();
+        var course = Guid.NewGuid();
+        _catalogPriceContract.Prices[course] = new CoursePriceInfo(course, "COURSE", 1000m, Guid.NewGuid(), null);
+
+        var order = ORDER.Create("ORD-NORMAL-GROSS", buyerId, 1000m, 0m, 0m, 1000m);
+        order.AddItem(course, "COURSE", 1000m, 1000m);
+        order.MarkAwaitingPayment();
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, "pi_normal_gross", 1000m, _clock);
+        await _paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var payload = BuildStripeEventJson("evt_normal_gross", "payment_intent.succeeded", "pi_normal_gross", 100000);
+        var result = await handler.HandleAsync(payload, GenerateStripeSignature(payload, WebhookSecret), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var (_, items) = Assert.Single(_revenueSplitContract.Recorded);
+        Assert.Equal(1000m, Assert.Single(items).GrossAmount);
+    }
+
     [Fact]
     public async Task HandleAsync_PaymentSucceeded_ForExpiredOrder_FlagsToOpsQueue()
     {

@@ -1,6 +1,10 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Siri.SharedKernel;
@@ -28,6 +32,21 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
     /// <summary>Used when Google omits <c>expires_in</c> (it never has, but a missing member must not mean "never expires").</summary>
     private const int FallbackAccessTokenLifetimeSeconds = 3600;
 
+    /// <summary>Upper bound of remembered access tokens (see <see cref="RememberHostedDomain"/>); the table is cleared if it ever grows past it.</summary>
+    private const int MaxRememberedHostedDomains = 1000;
+
+    // A DNS name (lower-case letters, digits, dots, hyphens - punycode included). Anything else in an hd claim is not stored.
+    private static readonly Regex HostedDomainPattern =
+        new(@"^[a-z0-9]([a-z0-9.-]{0,253}[a-z0-9])?\z", RegexOptions.Compiled | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
+
+    /// <summary>
+    /// <c>hd</c> claims read from the <c>id_token</c> of the token responses this instance issued, keyed by a hash of the access token they
+    /// came with, until that token expires. Google documents <c>hd</c> in the ID token; the userinfo endpoint is expected to return it too but
+    /// that is not documented, so <see cref="GetUserInfoAsync"/> falls back to this when the userinfo body has no <c>hd</c>. Process-local and
+    /// best effort: a miss just means "personal" as before. Holds no token, only a hash and a domain name.
+    /// </summary>
+    private readonly ConcurrentDictionary<string, (string? HostedDomain, DateTime ExpiresAtUtc)> _hostedDomainByTokenHash = new(StringComparer.Ordinal);
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly GoogleOAuthOptions _options;
     private readonly IClock _clock;
@@ -47,7 +66,17 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
 
     public bool IsConfigured => _options.IsConfigured;
 
-    public string BuildAuthorizationUrl(string state, string codeChallenge)
+    public string BuildAuthorizationUrl(string state, string codeChallenge) =>
+        BuildUrl(state, codeChallenge, _options.GetEffectiveScopes(), includeGrantedScopes: false);
+
+    public string BuildRecordingAccessAuthorizationUrl(string state, string codeChallenge) =>
+        BuildUrl(
+            state,
+            codeChallenge,
+            _options.GetEffectiveScopes().Concat(GoogleScopes.RecordingScopes).Distinct(StringComparer.Ordinal).ToArray(),
+            includeGrantedScopes: true);
+
+    private string BuildUrl(string state, string codeChallenge, IReadOnlyList<string> scopes, bool includeGrantedScopes)
     {
         ArgumentException.ThrowIfNullOrEmpty(state);
         ArgumentException.ThrowIfNullOrEmpty(codeChallenge);
@@ -62,13 +91,13 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
             ("client_id", _options.ClientId),
             ("redirect_uri", _options.RedirectUri),
             ("response_type", "code"),
-            ("scope", string.Join(' ', _options.GetEffectiveScopes())),
+            ("scope", string.Join(' ', scopes)),
             ("state", state),
             ("code_challenge", codeChallenge),
             ("code_challenge_method", "S256"),
             ("access_type", "offline"),
             ("prompt", "consent"),
-            ("include_granted_scopes", "false"),
+            ("include_granted_scopes", includeGrantedScopes ? "true" : "false"),
         };
 
         var query = string.Join('&', parameters.Select(p => $"{p.Name}={Uri.EscapeDataString(p.Value)}"));
@@ -172,7 +201,8 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
                         GoogleErrors.BadRequest("Google userinfo did not include a subject and e-mail address."));
                 }
 
-                return Result.Success(new GoogleUserInfo(subject, email, ReadEmailVerified(json!["email_verified"])));
+                var hostedDomain = NormalizeHostedDomain(GoogleHttp.GetString(json!["hd"])) ?? LookupRememberedHostedDomain(accessToken);
+                return Result.Success(new GoogleUserInfo(subject, email, ReadEmailVerified(json["email_verified"]), hostedDomain));
             },
             ct).ConfigureAwait(false);
     }
@@ -246,13 +276,82 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
                 }
 
                 var lifetimeSeconds = body.ExpiresIn is > 0 ? body.ExpiresIn.Value : FallbackAccessTokenLifetimeSeconds;
+                var expiresAtUtc = _clock.UtcNow.AddSeconds(lifetimeSeconds);
+                RememberHostedDomain(body.AccessToken, body.IdToken, expiresAtUtc);
                 return Result.Success(new GoogleTokenSet(
                     body.AccessToken,
-                    _clock.UtcNow.AddSeconds(lifetimeSeconds),
+                    expiresAtUtc,
                     string.IsNullOrEmpty(body.RefreshToken) ? null : body.RefreshToken,
                     body.Scope ?? string.Empty));
             },
             ct);
+
+    /// <summary>Trims and lower-cases an <c>hd</c> value; <c>null</c> when empty or not a plausible domain name (never stored then).</summary>
+    internal static string? NormalizeHostedDomain(string? value)
+    {
+        var domain = value?.Trim().ToLowerInvariant();
+        return !string.IsNullOrEmpty(domain) && HostedDomainPattern.IsMatch(domain) ? domain : null;
+    }
+
+    /// <summary>Reads <c>hd</c> out of an ID token's payload. The token came straight from Google's token endpoint over TLS, which OpenID Connect
+    /// Core accepts in place of a signature check; it is used only to label the account (never for access control). Any malformed token gives <c>null</c>.</summary>
+    internal static string? ReadHostedDomainFromIdToken(string? idToken)
+    {
+        if (string.IsNullOrEmpty(idToken))
+        {
+            return null;
+        }
+
+        var parts = idToken.Split('.');
+        if (parts.Length != 3)
+        {
+            return null;
+        }
+
+        try
+        {
+            var payload = parts[1].Replace('-', '+').Replace('_', '/');
+            payload = payload.PadRight(payload.Length + ((4 - (payload.Length % 4)) % 4), '=');
+            var json = JsonNode.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(payload))) as JsonObject;
+            return NormalizeHostedDomain(GoogleHttp.GetString(json?["hd"]));
+        }
+        catch (Exception ex) when (ex is FormatException or System.Text.Json.JsonException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private void RememberHostedDomain(string accessToken, string? idToken, DateTime expiresAtUtc)
+    {
+        var hostedDomain = ReadHostedDomainFromIdToken(idToken);
+
+        // Drop what has expired, and everything if the table somehow grew without bound (a long-running worker minting tokens all day).
+        var now = _clock.UtcNow;
+        foreach (var entry in _hostedDomainByTokenHash)
+        {
+            if (entry.Value.ExpiresAtUtc <= now)
+            {
+                _hostedDomainByTokenHash.TryRemove(entry.Key, out _);
+            }
+        }
+
+        if (_hostedDomainByTokenHash.Count >= MaxRememberedHostedDomains)
+        {
+            _hostedDomainByTokenHash.Clear();
+        }
+
+        if (hostedDomain is not null)
+        {
+            _hostedDomainByTokenHash[HashToken(accessToken)] = (hostedDomain, expiresAtUtc);
+        }
+    }
+
+    private string? LookupRememberedHostedDomain(string accessToken) =>
+        _hostedDomainByTokenHash.TryGetValue(HashToken(accessToken), out var entry) && entry.ExpiresAtUtc > _clock.UtcNow
+            ? entry.HostedDomain
+            : null;
+
+    private static string HashToken(string token) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     /// <summary>Google sends a JSON boolean; tolerate the string form some OIDC providers use.</summary>
     private static bool ReadEmailVerified(JsonNode? node) =>

@@ -13,6 +13,15 @@ public interface IVideoProvider
 
     Task<Result<VideoUploadUrl>> GetUploadUrlAsync(string providerVideoId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Uploads the bytes of an already-created video straight from the server (P11-13: a recording the platform pulled from Google).
+    /// The body is streamed, never buffered, and is <b>not retried</b> here (a consumed stream cannot be replayed) — the caller retries the whole
+    /// transfer. The provider consumes <paramref name="content"/> and disposes it together with the request. Bunny:
+    /// <c>PUT /library/{libraryId}/videos/{videoId}</c> with the <c>AccessKey</c> header.
+    /// </summary>
+    Task<Result> UploadVideoAsync(string providerVideoId, Stream content, long? contentLength, CancellationToken cancellationToken) =>
+        throw new NotSupportedException();
+
     Task<Result<VideoStatus>> GetStatusAsync(string providerVideoId, CancellationToken cancellationToken);
 
     Task<Result> DeleteVideoAsync(string providerVideoId, CancellationToken cancellationToken);

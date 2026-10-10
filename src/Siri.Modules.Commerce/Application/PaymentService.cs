@@ -15,6 +15,7 @@ public sealed class PaymentService
 {
     private readonly IPaymentRepository _paymentRepository;
     private readonly IOrderRepository _orderRepository;
+    private readonly IPaymentAmountOverrideRepository _amountOverrideRepository;
     private readonly IPaymentMethod _paymentMethod;
     private readonly IClock _clock;
     private readonly IUserContactReader _userContactReader;
@@ -24,6 +25,7 @@ public sealed class PaymentService
     public PaymentService(
         IPaymentRepository paymentRepository,
         IOrderRepository orderRepository,
+        IPaymentAmountOverrideRepository amountOverrideRepository,
         IPaymentMethod paymentMethod,
         IClock clock,
         IUserContactReader userContactReader,
@@ -32,6 +34,7 @@ public sealed class PaymentService
     {
         _paymentRepository = paymentRepository;
         _orderRepository = orderRepository;
+        _amountOverrideRepository = amountOverrideRepository;
         _paymentMethod = paymentMethod;
         _clock = clock;
         _userContactReader = userContactReader;
@@ -86,6 +89,13 @@ public sealed class PaymentService
             return Result.Failure<PaymentResponse>(DomainError.Validation("A customer email is required to process payment."));
         }
 
+        // Admin amount override (PAYMENT_AMOUNT_OVERRIDE): the amount sent to Stripe may be LOWER than the
+        // order total, never higher. The order itself is untouched; the payment records both figures so
+        // revenue split, receipts and refunds can tell real money from list price.
+        var currentOverride = await _amountOverrideRepository.GetCurrentAsync(cancellationToken).ConfigureAwait(false);
+        var chargeAmount = PAYMENT_AMOUNT_OVERRIDE.Resolve(currentOverride, order.TOTAL_AMOUNT);
+        decimal? originalAmount = chargeAmount < order.TOTAL_AMOUNT ? order.TOTAL_AMOUNT : null;
+
         // Create and confirm the PromptPay intent so the response contains a scannable QR image;
         // for Card, this only creates the PaymentIntent (Confirm=false) — the client confirms via
         // Stripe.js Payment Element.
@@ -93,8 +103,11 @@ public sealed class PaymentService
             new CreatePaymentIntentRequest(
                 order.ORDER_ID,
                 order.ORDER_NO,
-                order.TOTAL_AMOUNT,
+                chargeAmount,
                 order.CURRENCY,
+                Description: originalAmount is null
+                    ? null
+                    : $"Order {order.ORDER_NO} (admin amount override; list price {originalAmount.Value:N2})",
                 CustomerEmail: customerEmail,
                 Method: command.Method switch
                 {
@@ -112,8 +125,9 @@ public sealed class PaymentService
             order.ORDER_ID,
             command.Method,
             intentResult.Value.PaymentIntentId,
-            order.TOTAL_AMOUNT,
-            _clock);
+            chargeAmount,
+            _clock,
+            originalAmount);
 
         if (order.STATUS == OrderStatus.Pending)
         {
@@ -131,7 +145,8 @@ public sealed class PaymentService
             payment.CREATED_AT_UTC,
             intentResult.Value.ClientSecret,
             intentResult.Value.QrCodeUrl,
-            intentResult.Value.QrCodeData);
+            intentResult.Value.QrCodeData,
+            payment.ORIGINAL_AMOUNT);
     }
 
     /// <summary>
@@ -149,7 +164,8 @@ public sealed class PaymentService
     }
 
     private static PaymentResponse ToResponse(PAYMENT payment) =>
-        new(payment.PAYMENT_ID, payment.ORDER_ID, payment.METHOD, payment.AMOUNT, payment.STATUS, payment.CREATED_AT_UTC);
+        new(payment.PAYMENT_ID, payment.ORDER_ID, payment.METHOD, payment.AMOUNT, payment.STATUS, payment.CREATED_AT_UTC,
+            OriginalAmount: payment.ORIGINAL_AMOUNT);
 }
 
 public sealed record PaymentConfigResponse(string PublishableKey, IReadOnlyList<PaymentMethod> EnabledMethods);
@@ -163,6 +179,7 @@ public sealed record PaymentResponse(
     DateTime CreatedAtUtc,
     string? ClientSecret = null,
     string? QrCodeUrl = null,
-    string? QrCodeData = null);
+    string? QrCodeData = null,
+    decimal? OriginalAmount = null);
 
 public sealed record CreatePaymentCommand(Guid OrderId, PaymentMethod Method);

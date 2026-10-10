@@ -90,6 +90,13 @@ public static class RecurringJobsRegistration
             job => job.RunAsync(CancellationToken.None),
             Cron.MinuteInterval(5));
 
+        // 11b. Imports a finished class's Google Meet recording as a lesson (P11-13): finds it in Google, copies it Drive -> Bunny, waits for the
+        // transcode and attaches it. A no-op until Live:Recording:AutoImport:Enabled; row leases make an overlapping run harmless.
+        recurringJobManager.AddOrUpdate<LiveRecordingImportJob>(
+            RecurringJobIds.LiveRecordingImport,
+            job => job.RunAsync(CancellationToken.None),
+            Cron.MinuteInterval(5));
+
         // 12. Recounts COURSES.ENROLLMENT_COUNT from the enrollments themselves and repairs any course that differs (paged, row-locked per
         // correction): fills in rows that predate the counter's writer and heals drift within the hour. Learning keeps the count current
         // between runs by calling Catalog's ICourseEnrollmentCountUpdater on every enrollment transition.

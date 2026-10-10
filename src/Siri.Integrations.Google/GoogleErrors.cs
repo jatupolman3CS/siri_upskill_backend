@@ -16,7 +16,12 @@ public static class GoogleErrors
     /// <summary>Token endpoint <c>invalid_grant</c>/<c>invalid_client</c>/<c>unauthorized_client</c>, or Calendar/userinfo 401, or a 403 that is a scope/permission problem. The refresh token (or access token) can no longer be used.</summary>
     public const string UnauthorizedCode = "google.unauthorized";
 
-    /// <summary>Calendar 404/410 (event gone).</summary>
+    /// <summary>Meet REST / Drive 403 that is a missing scope or no access to the resource (P11-13). Distinct from
+    /// <see cref="UnauthorizedCode"/> (the token itself is dead): the token works, but it was not granted the recording scopes, or the
+    /// account has no access to that conference/file. Reconnect with the recording consent (or upload by hand) is the remedy.</summary>
+    public const string ForbiddenCode = "google.forbidden";
+
+    /// <summary>Calendar 404/410 (event gone), or a Meet/Drive resource that does not exist (any more).</summary>
     public const string NotFoundCode = "google.not_found";
 
     /// <summary>429, or 403 with a rate/quota reason. Transient — retry later.</summary>
@@ -37,6 +42,9 @@ public static class GoogleErrors
 
     public static DomainError Unauthorized(string message, string? googleReason = null) =>
         WithReason(new DomainError(UnauthorizedCode, message), googleReason);
+
+    public static DomainError Forbidden(string message, string? googleReason = null) =>
+        WithReason(new DomainError(ForbiddenCode, message), googleReason);
 
     public static DomainError NotFound(string message, string? googleReason = null) =>
         WithReason(new DomainError(NotFoundCode, message), googleReason);

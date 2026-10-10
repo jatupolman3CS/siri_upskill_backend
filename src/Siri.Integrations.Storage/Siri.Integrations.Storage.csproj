@@ -4,6 +4,19 @@
     <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Siri.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- R2FileStorage: Cloudflare R2 speaks the S3 API. -->
+    <PackageReference Include="AWSSDK.S3" />
+    <!-- R2StorageOptions: Options pattern binding + ValidateOnStart (also brings DI abstractions). -->
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <!-- R2FileStorage: ILogger<T>; provider error text is logged, never returned. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>

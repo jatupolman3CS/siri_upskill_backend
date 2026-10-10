@@ -30,6 +30,8 @@ public static class AppDbContextCatalogExtensions
 
     public static DbSet<EPISODE_ATTACHMENT> EpisodeAttachments(this AppDbContext context) => context.Set<EPISODE_ATTACHMENT>();
 
+    public static DbSet<LIVE_SESSION_ATTACHMENT> LiveSessionAttachments(this AppDbContext context) => context.Set<LIVE_SESSION_ATTACHMENT>();
+
     public static DbSet<LEARNING_PATH> LearningPaths(this AppDbContext context) => context.Set<LEARNING_PATH>();
 
     public static DbSet<LEARNING_PATH_ITEM> LearningPathItems(this AppDbContext context) => context.Set<LEARNING_PATH_ITEM>();

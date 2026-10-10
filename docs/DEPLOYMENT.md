@@ -109,6 +109,25 @@ Subdomain: `siriupskill.com` (SSR) · `api.siriupskill.com` · `admin.siriupskil
 - Meilisearch ล่มไม่ทำให้เว็บล่ม — ค้นหาตกกลับไป PostgreSQL อัตโนมัติ (ดู `ARCHITECTURE.md` § 6)
 - ทดสอบ client กับ server จริงด้วยมือ (ไม่ต้อง boot API): ตั้ง env `SIRI_MEILISEARCH_LIVE_URL` + `SIRI_MEILISEARCH_LIVE_KEY` (+ `SIRI_MEILISEARCH_LIVE_INDEX` ถ้าไม่ใช่ `siriupskill_documents`) แล้ว `dotnet test tests/Siri.UnitTests --filter MeilisearchLiveSmokeTests --logger "console;verbosity=detailed"` — เขียน document ทดสอบด้วย id สุ่มลง index แล้วลบออกหมด ไม่แตะข้อมูลอื่น (ถ้าไม่ตั้ง env เทสต์ถูกข้ามเอง)
 
+## Cloudflare R2 (เอกสารประกอบการสอน — P4-03c · ไม่ตั้ง = อัปโหลด/ดาวน์โหลดไฟล์แนบตอบ 503)
+
+เก็บไฟล์แนบของ episode และของคาบสอนสด (สไลด์ ใบงาน ฯลฯ) ใน **R2 bucket แบบ private** — ไม่ใช่ AWS S3 (ใช้ API แบบ S3 ที่ R2 รองรับผ่านไลบรารี `AWSSDK.S3` เป็น HTTP client เท่านั้น) วิดีโอยังอยู่ที่ Bunny ตามเดิม ตั้งเป็น env ให้ **API** (Workers ไม่ใช้):
+
+| env | ความหมาย |
+|---|---|
+| `Storage__R2__AccountId` | Cloudflare account id (ใช้ประกอบ endpoint `https://{id}.r2.cloudflarestorage.com`) |
+| `Storage__R2__AccessKeyId` | **secret** — access key ของ R2 API token (สิทธิ์ *Object Read & Write* ผูกกับ bucket นี้ bucket เดียว) |
+| `Storage__R2__SecretAccessKey` | **secret** — secret ของ token เดียวกัน |
+| `Storage__R2__BucketName` | ชื่อ bucket (ต้อง **private**: ไม่เปิด public access, ไม่ผูก custom domain — presigned URL ใช้กับ custom domain ไม่ได้) |
+| `Storage__R2__Endpoint` | ไม่บังคับ — override endpoint (เช่น jurisdiction EU `https://{id}.eu.r2.cloudflarestorage.com`) |
+| `Catalog__Attachments__MaxFileSizeBytes` / `DownloadUrlTtlSeconds` / `MaxAttachmentsPerParent` | เพดานไฟล์ (default 50 MB, สูงสุด 100 MB) / อายุลิงก์ดาวน์โหลด (default 300 วิ) / จำนวนไฟล์ต่อ episode หรือ session (default 30) |
+
+- **reverse proxy ต้องยอม request body ใหญ่พอ** — อัปโหลดวิ่งผ่าน API (multipart) ไม่ได้ตรงไป R2: nginx ตั้ง `client_max_body_size 110m;` ที่ location `/api/` (default ของ nginx คือ **1 MB** → ผู้สอนจะเจอ 413) ; ถ้ามี Caddy อยู่หน้า ตรวจ `request_body { max_size 110MB }`
+- ไม่ต้องตั้ง CORS บน bucket (browser ไม่คุยกับ R2 ด้วย XHR — อัปโหลดผ่าน API, ดาวน์โหลดเป็นการ navigate ไป presigned URL ที่ตอบ `Content-Disposition: attachment`)
+- **ยังใช้งานจริงใน production ไม่ได้จนกว่าจะปิด Q9 (virus scan engine):** `Attachments__VirusScan__Mode=Required` (default) ตอบ 503 `attachment.virus_scanner_not_configured` ทุกครั้งที่อัปโหลด และ production ไม่ยอม boot ถ้าตั้ง `Disabled` (dev ตั้ง `Disabled` เพื่อลองได้) ดู `DECISIONS.md` Q9
+- ไม่ตั้ง R2 แล้ว host ยัง boot ปกติ (ตอบ 503 `storage.provider_not_configured` เฉพาะ endpoint ไฟล์แนบ) — ไม่อยู่ใน `ProductionConfigurationGuard` โดยตั้งใจ
+- orphan: ลบแถว/episode/section แล้วระบบลบ object ใน R2 ให้ (best-effort — พลาดแล้ว log warning ไว้) ถ้าอยาก sweep เพิ่มใช้ R2 lifecycle/สคริปต์เทียบ prefix `teaching-materials/` กับ `CATALOG.EPISODE_ATTACHMENTS`/`LIVE_SESSION_ATTACHMENTS`
+
 ## Kafka (pipeline อีเมล/แจ้งเตือน — D-23 · opt-in, ปิดอยู่เป็น default)
 
 ไม่เปิด = ไม่ต้องทำอะไร: `Notification__Delivery__Transport` default เป็น `Database` (Hangfire job `email-outbox-send` ส่งอีเมลเหมือนเดิมทุกอย่าง) · สถาปัตยกรรมเต็ม: `ARCHITECTURE.md` § 9
@@ -152,6 +171,8 @@ docker run -d --name siri_kafka --restart unless-stopped --network siri-net --me
 | `Kafka__SecurityProtocol` / `SaslMechanism` / `SaslUsername` / `SaslPassword` / `SslCaLocation` | สำหรับ broker ที่มี TLS/SASL — `SaslUsername`/`SaslPassword` เป็น **secret** (env/user-secrets เท่านั้น) |
 | `Notification__Delivery__MaxEmailsPerMinute` | งบส่งต่อนาทีร่วมทุก consumer (0 = ไม่จำกัด) — ตั้งให้ต่ำกว่าเพดานของ SMTP provider |
 | `Notification__Delivery__EmailConsumerInstances`, `__Partitions`, `__QueuedStaleAfterMinutes` (15, ขั้นต่ำ 10 — ตั้งให้เกินเวลาที่ burst ใหญ่สุดใช้ระบาย: ผู้รับ ÷ อัตราส่ง), `__RelayPollIntervalMs` (1000), `__RelayBatchSize` (100), `__UnreadCountCacheSeconds` (30) | ปรับจูน (default ใช้ได้เลย) |
+
+ค่าทั้งหมดข้างบนใส่ใน `.env` (Development/QA) หรือ `.env_prd` (Production) ได้เลย — `DotEnvLoader` อ่านเป็น config ชั้นถัดจาก `appsettings*.json` (ชนะ appsettings แต่แพ้ user-secrets และ env var จริง) ไม่ต้องมี key อื่นเพิ่ม · key ที่ **ไม่มีผล** (ไม่มีโค้ดอ่าน): `Kafka__ConsumerGroupId` (consumer group คำนวณจาก `Kafka__TopicPrefix`), `Redis__InstanceName` · อ่านค่า Redis จาก `Redis__ConnectionString` ตัวเดียว (`REDIS_PASSWORD` ใช้กับ container Redis ไม่ใช่แอป)
 
 **3) ลำดับเปิดใช้ (ปลอดภัยทุกขั้น ย้อนได้)**
 1. apply migration `AddNotificationKafkaDelivery` ด้วย migration bundle ก่อน — additive ล้วน (คอลัมน์ nullable 2 ตัว + partial index) แอปเวอร์ชันเก่าที่ยังรันอยู่ไม่กระทบ

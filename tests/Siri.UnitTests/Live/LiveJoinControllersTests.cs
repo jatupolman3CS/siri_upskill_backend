@@ -57,7 +57,7 @@ public class LiveJoinControllersTests
     // ---- Structure -------------------------------------------------------------------------------------------
 
     [Fact]
-    public void Routes_AreExactlyTheContractsSevenEndpoints()
+    public void Routes_AreExactlyTheContractsEndpoints_SevenFromP1105AndTheRecordingImportRetryFromP1113()
     {
         var actual = LiveActions.Select(a => $"{a.HttpMethod} {a.Route}").Order().ToArray();
 
@@ -70,6 +70,7 @@ public class LiveJoinControllersTests
             "GET api/live/instructor/sessions",
             "GET api/live/instructor/sessions/{sessionId:guid}",
             "GET api/live/instructor/sessions/{sessionId:guid}/roster",
+            "POST api/live/instructor/sessions/{sessionId:guid}/recording-import/retry",
         ];
 
         Assert.Equal(expected.Order().ToArray(), actual);
@@ -137,6 +138,26 @@ public class LiveJoinControllersTests
             .Select(a => a.Method.GetCustomAttribute<EndpointNameAttribute>()!.EndpointName)
             .ToArray();
         Assert.Equal(all.Length, all.Distinct().Count());
+    }
+
+    [Fact]
+    public void TheRecordingImportRetry_IsOwnerCheckedByTheService_RateLimitedLikeTheRoomEndpoints_AndDocumentsEveryStatus()
+    {
+        var method = typeof(LiveInstructorSessionsController).GetMethod(nameof(LiveInstructorSessionsController.RetryRecordingImport))!;
+
+        Assert.Equal(
+            RateLimiterConfiguration.LiveUserPolicyName,
+            typeof(LiveInstructorSessionsController).GetCustomAttribute<EnableRateLimitingAttribute>()!.PolicyName);
+        Assert.Null(method.GetCustomAttribute<AllowAnonymousAttribute>());
+
+        var statuses = method.GetCustomAttributes<ProducesResponseTypeAttribute>().Select(a => a.StatusCode).ToArray();
+        foreach (var status in new[] { 200, 401, 403, 404, 409, 429 })
+        {
+            Assert.Contains(status, statuses);
+        }
+
+        // Only the route's session id comes from the caller; the owner is always the authenticated user.
+        Assert.DoesNotContain(method.GetParameters(), p => p.Name!.Equals("userId", StringComparison.OrdinalIgnoreCase) || p.Name.Contains("instructorId", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

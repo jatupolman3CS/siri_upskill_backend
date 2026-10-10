@@ -1,7 +1,5 @@
-using Microsoft.Extensions.Options;
 using Siri.Modules.Catalog;
 using Siri.Modules.Catalog.Domain;
-using Siri.Modules.Catalog.Features.AddEpisodeAttachment;
 using Xunit;
 
 namespace Siri.UnitTests.Catalog;
@@ -15,66 +13,76 @@ public sealed class EpisodeAttachmentTests
         var attachment = EPISODE_ATTACHMENT.Create(
             episodeId,
             "slides.pdf",
-            "attachments/course-1/slides.pdf",
+            "teaching-materials/courses/c/episodes/e/a.pdf",
             "application/pdf",
             2048500);
 
         Assert.NotEqual(Guid.Empty, attachment.Id);
         Assert.Equal(episodeId, attachment.EpisodeId);
         Assert.Equal("slides.pdf", attachment.FileName);
-        Assert.Equal("attachments/course-1/slides.pdf", attachment.StorageKey);
+        Assert.Equal("teaching-materials/courses/c/episodes/e/a.pdf", attachment.StorageKey);
         Assert.Equal("application/pdf", attachment.ContentType);
         Assert.Equal(2048500, attachment.SizeBytes);
     }
 
     [Theory]
-    [InlineData("", "storage/key", "application/pdf", 100, false)]
-    [InlineData("file.pdf", "", "application/pdf", 100, false)]
-    [InlineData("file.pdf", "storage/key", "", 100, false)]
-    [InlineData("file.pdf", "storage/key", "application/pdf", 0, false)]
-    [InlineData("file.pdf", "storage/key", "application/pdf", -5, false)]
-    [InlineData("file.exe", "storage/key", "application/octet-stream", 1024, false)]
-    [InlineData("file.pdf", "storage/key", "image/png", 1024, false)]
-    [InlineData("file.pdf", "storage/key", "application/pdf", 1024, true)]
-    [InlineData("data.zip", "storage/key", "application/zip", 2048, true)]
-    [InlineData("notes.docx", "storage/key", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 4096, true)]
-    public void AddEpisodeAttachmentValidator_ValidatesInputs(
-        string fileName,
-        string storageKey,
-        string contentType,
-        long sizeBytes,
-        bool expectedValid)
+    [InlineData("", "k", "application/pdf", 100)]
+    [InlineData("file.pdf", "", "application/pdf", 100)]
+    [InlineData("file.pdf", "k", "", 100)]
+    public void EpisodeAttachment_Create_RejectsBlankTextFields(string fileName, string storageKey, string contentType, long size)
     {
-        var validator = new AddEpisodeAttachmentValidator();
-        var command = new AddEpisodeAttachmentCommand(fileName, storageKey, contentType, sizeBytes);
-        var result = validator.Validate(command);
+        Assert.ThrowsAny<ArgumentException>(() => EPISODE_ATTACHMENT.Create(Guid.NewGuid(), fileName, storageKey, contentType, size));
+    }
 
-        Assert.Equal(expectedValid, result.IsValid);
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public void EpisodeAttachment_Create_RejectsNonPositiveSize(long size)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => EPISODE_ATTACHMENT.Create(Guid.NewGuid(), "a.pdf", "k", "application/pdf", size));
     }
 
     [Fact]
-    public void AddEpisodeAttachmentValidator_WithForgedExecutableHeader_ReturnsInvalid()
+    public void LiveSessionAttachment_Create_SetsPropertiesCorrectly()
     {
-        var validator = new AddEpisodeAttachmentValidator();
-        byte[] exeHeader = [0x4D, 0x5A, 0x90, 0x00];
-        var command = new AddEpisodeAttachmentCommand("innocent.pdf", "storage/key", "application/pdf", 1024, exeHeader);
-        var result = validator.Validate(command);
+        var sessionId = Guid.NewGuid();
+        var attachment = LIVE_SESSION_ATTACHMENT.Create(
+            sessionId,
+            "  handout.pdf ",
+            "teaching-materials/courses/c/live-sessions/s/a.pdf",
+            "application/pdf",
+            1024);
 
-        Assert.False(result.IsValid);
+        Assert.NotEqual(Guid.Empty, attachment.Id);
+        Assert.Equal(sessionId, attachment.SessionId);
+        Assert.Equal("handout.pdf", attachment.FileName);
+        Assert.Equal("teaching-materials/courses/c/live-sessions/s/a.pdf", attachment.StorageKey);
+        Assert.Equal("application/pdf", attachment.ContentType);
+        Assert.Equal(1024, attachment.SizeBytes);
     }
 
     [Fact]
-    public void AddEpisodeAttachmentValidator_ExceedingCustomSizeLimit_ReturnsInvalid()
+    public void LiveSessionAttachment_Create_RejectsEmptySessionId()
     {
-        var options = Options.Create(new EpisodeAttachmentOptions
-        {
-            MaxFileSizeBytes = 1024 * 1024 // 1MB
-        });
+        Assert.Throws<ArgumentException>(() => LIVE_SESSION_ATTACHMENT.Create(Guid.Empty, "a.pdf", "k", "application/pdf", 1));
+    }
 
-        var validator = new AddEpisodeAttachmentValidator(options);
-        var command = new AddEpisodeAttachmentCommand("big_book.pdf", "storage/key", "application/pdf", 2 * 1024 * 1024);
-        var result = validator.Validate(command);
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void LiveSessionAttachment_Create_RejectsNonPositiveSize(long size)
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => LIVE_SESSION_ATTACHMENT.Create(Guid.NewGuid(), "a.pdf", "k", "application/pdf", size));
+    }
 
-        Assert.False(result.IsValid);
+    [Fact]
+    public void AttachmentOptions_Defaults_AreSafe()
+    {
+        var options = new EpisodeAttachmentOptions();
+
+        Assert.Equal(50L * 1024 * 1024, options.MaxFileSizeBytes);
+        Assert.True(options.MaxFileSizeBytes <= EpisodeAttachmentOptions.HardMaxFileSizeBytes);
+        Assert.InRange(options.DownloadUrlTtlSeconds, 60, 900);
+        Assert.True(EpisodeAttachmentOptions.MaxUploadRequestBodyBytes > EpisodeAttachmentOptions.HardMaxFileSizeBytes);
     }
 }

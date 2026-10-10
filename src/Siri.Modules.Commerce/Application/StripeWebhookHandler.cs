@@ -271,13 +271,34 @@ public sealed class StripeWebhookHandler
                 .Where(i => i.COURSE_ID.HasValue && coursePrices.ContainsKey(i.COURSE_ID.Value))
                 .ToList();
 
+            // The instructors' gross is what was really collected. Normally that is the line total; when an
+            // admin amount override lowered the charge (PAYMENT.ORIGINAL_AMOUNT set) each line is scaled down
+            // by paid/original so the split never credits instructors with money Stripe never received. The
+            // fee pro-rating below is ratio-based (line / order total) and therefore unaffected.
+            var grossByItem = qualifyingItems.ToDictionary(i => i.ORDER_ITEM_ID, i => i.LINE_TOTAL);
+            if (payment.ORIGINAL_AMOUNT is { } originalAmount && payment.AMOUNT < originalAmount)
+            {
+                var scaled = PaidAmountAllocator.ScaleToPaidAmount(
+                    qualifyingItems.Select(i => i.LINE_TOTAL).ToList(),
+                    originalAmount,
+                    payment.AMOUNT);
+                for (var i = 0; i < qualifyingItems.Count; i++)
+                {
+                    grossByItem[qualifyingItems[i].ORDER_ITEM_ID] = scaled[i];
+                }
+
+                _logger.LogWarning(
+                    "Order {OrderNo} was paid through an admin amount override ({Paid} of {Original} THB); revenue split uses the paid amount.",
+                    order.ORDER_NO, payment.AMOUNT, originalAmount);
+            }
+
             if (totalFee is null || order.TOTAL_AMOUNT <= 0m)
             {
                 // No real fee available (not yet settled by Stripe / API call failed) — let
                 // RevenueSplitContract fall back to EstimatedPaymentFeePercent itself (Q4).
                 foreach (var item in qualifyingItems)
                 {
-                    splitItems.Add(new OrderItemSplitInfo(item.ORDER_ITEM_ID, coursePrices[item.COURSE_ID!.Value].InstructorId, item.LINE_TOTAL));
+                    splitItems.Add(new OrderItemSplitInfo(item.ORDER_ITEM_ID, coursePrices[item.COURSE_ID!.Value].InstructorId, grossByItem[item.ORDER_ITEM_ID]));
                 }
             }
             else
@@ -305,7 +326,7 @@ public sealed class StripeWebhookHandler
                         itemFee = Math.Round(totalFee.Value * item.LINE_TOTAL / order.TOTAL_AMOUNT, 2, MidpointRounding.AwayFromZero);
                         allocatedSoFar += itemFee;
                     }
-                    splitItems.Add(new OrderItemSplitInfo(item.ORDER_ITEM_ID, instructorId, item.LINE_TOTAL, itemFee));
+                    splitItems.Add(new OrderItemSplitInfo(item.ORDER_ITEM_ID, instructorId, grossByItem[item.ORDER_ITEM_ID], itemFee));
                 }
             }
 
@@ -324,7 +345,7 @@ public sealed class StripeWebhookHandler
                 _emailOutbox.Enqueue(
                     toEmail: buyerEmail,
                     subject: $"ใบเสร็จรับเงินสำหรับคำสั่งซื้อ {order.ORDER_NO}",
-                    bodyHtml: $"<p>ขอบคุณที่สั่งซื้อคอร์สเรียนกับ SIRI UpSkill คำสั่งซื้อเลขที่ <strong>{order.ORDER_NO}</strong> ยอดชำระ ฿{order.TOTAL_AMOUNT:N2}</p>",
+                    bodyHtml: $"<p>ขอบคุณที่สั่งซื้อคอร์สเรียนกับ SIRI UpSkill คำสั่งซื้อเลขที่ <strong>{order.ORDER_NO}</strong> ยอดชำระ ฿{payment.AMOUNT:N2}</p>",
                     templateKey: "order-receipt");
             }
             else

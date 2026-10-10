@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Siri.Integrations.Google;
+using Siri.Integrations.Google.Logging;
 using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Live.Application;
 using Siri.Modules.Live.Contracts;
@@ -81,6 +82,18 @@ public static class LiveModule
         // ---- Operator diagnostics (admin status endpoint) -----------------------------------------------
         services.AddScoped<ILiveDiagnosticsReader, LiveDiagnosticsReader>();
 
+        // ---- Automatic recording import (P11-13) --------------------------------------------------------
+        // Off by default (Live:Recording:AutoImport:Enabled). The Google/Bunny/Media/Catalog sides arrive through their own seams
+        // (IGoogleMeetRecordingProvider, IMediaIngestContract, IMediaAssetContract, ILiveRecordingAttacher).
+        services.AddScoped<ISessionRecordingImportRepository, SessionRecordingImportRepository>();
+        services.AddScoped<RecordingImportService>();
+        services.AddScoped<IRecordingTransferScheduler, HangfireRecordingTransferScheduler>();
+        if (useLogging)
+        {
+            // The fake recording provider serves this file (development only; never registered in a real configuration).
+            services.AddSingleton<IMeetRecordingDevSampleSource, ConfigMeetRecordingDevSampleSource>();
+        }
+
         // ---- Cross-module implementations (Catalog declares the contracts; a plain AddScoped here wins over its
         // TryAdd* null defaults whatever the registration order is) -----------------------------------------
         services.AddScoped<ILiveMeetingSink, LiveMeetingSink>();
@@ -90,6 +103,8 @@ public static class LiveModule
         services.AddScoped<LiveMeetingSyncJob>();
         services.AddScoped<LiveInviteReconcileJob>();
         services.AddScoped<LiveSessionRemindersJob>();
+        services.AddScoped<LiveRecordingImportJob>();
+        services.AddScoped<LiveRecordingTransferJob>(); // not recurring: queued once per claimed import by the live-recording-import tick
 
         return services;
     }

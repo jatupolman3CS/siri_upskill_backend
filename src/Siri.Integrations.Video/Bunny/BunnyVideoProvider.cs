@@ -31,6 +31,13 @@ public sealed class BunnyVideoProvider : IVideoProvider
     /// <see cref="IHttpClientFactory"/>.</summary>
     public const string HttpClientName = "BunnyStream";
 
+    /// <summary>
+    /// Named <see cref="HttpClient"/> used only by <see cref="UploadVideoAsync"/>: same service, but <c>Timeout = InfiniteTimeSpan</c> (a
+    /// multi-GB upload legitimately runs for a long time; the caller's cancellation token is the bound) and no automatic redirect following (a
+    /// consumed request stream cannot be replayed). Registered next to <see cref="HttpClientName"/> by the Media module.
+    /// </summary>
+    public const string UploadHttpClientName = "BunnyStreamUpload";
+
     private const string BunnyApiBaseUrl = "https://video.bunnycdn.com";
     private const int MaxRetries = 3;
     private static readonly TimeSpan[] RetryDelays = [
@@ -86,6 +93,67 @@ public sealed class BunnyVideoProvider : IVideoProvider
 
         return Result.Success(new VideoAsset(bunnyVideo.Guid, bunnyVideo.Title));
     }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <c>PUT /library/{libraryId}/videos/{videoId}</c> with the raw bytes as the body (Bunny "Upload Video"). Never retried: the body is a
+    /// forward-only stream that a first attempt consumes, so a retry belongs to the caller, which restarts the whole transfer. Transport failures
+    /// (reset, DNS, a timeout that is not the caller's cancellation) come back as <c>video.provider_error</c>; the caller's own cancellation
+    /// propagates as <see cref="OperationCanceledException"/>. Without a <paramref name="contentLength"/> Bunny receives chunked data, which its
+    /// API may reject — pass the size whenever it is known.
+    /// </remarks>
+    public async Task<Result> UploadVideoAsync(string providerVideoId, Stream content, long? contentLength, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (ApiNotConfigured() is { } notConfigured)
+        {
+            return Result.Failure(notConfigured);
+        }
+
+        if (string.IsNullOrWhiteSpace(providerVideoId) || !IsSafePathSegment(providerVideoId))
+        {
+            return Result.Failure(DomainError.Validation("The provider video id is missing or malformed."));
+        }
+
+        var url = $"{BunnyApiBaseUrl}/library/{_options.LibraryId}/videos/{providerVideoId}";
+
+        using var client = _httpClientFactory.CreateClient(UploadHttpClientName);
+        using var request = new HttpRequestMessage(HttpMethod.Put, url);
+        request.Headers.TryAddWithoutValidation("AccessKey", _options.ApiKey);
+        request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+        // Disposing the request disposes this content and with it <paramref name="content"/> (documented on the interface: the transfer consumes the stream).
+        var body = new StreamContent(content);
+        body.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        if (contentLength is { } length)
+        {
+            body.Headers.ContentLength = length;
+        }
+
+        request.Content = body;
+
+        try
+        {
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                return Result.Failure(await MapErrorAsync("UploadVideo", response, cancellationToken).ConfigureAwait(false));
+            }
+
+            return Result.Success();
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ex is HttpRequestException or IOException or TaskCanceledException)
+        {
+            // The framework message of these exceptions never carries the AccessKey header or the body; only the type is logged anyway.
+            _logger.LogWarning("Bunny Stream upload failed in transit: {ExceptionType}.", ex.GetType().Name);
+            return Result.Failure(new DomainError("video.provider_error", "Bunny Stream upload failed (network)."));
+        }
+    }
+
+    /// <summary>Provider video ids are GUIDs; anything with a path/query character must never be put into a URL.</summary>
+    private static bool IsSafePathSegment(string value) =>
+        value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
 
     /// <inheritdoc/>
     public Task<Result<VideoUploadUrl>> GetUploadUrlAsync(string providerVideoId, CancellationToken cancellationToken)
@@ -339,8 +407,8 @@ public sealed class BunnyVideoProvider : IVideoProvider
 
     private static VideoProcessingStatus MapBunnyStatus(int bunnyStatus) => bunnyStatus switch
     {
-        BunnyVideoStatus.Created or BunnyVideoStatus.Uploading => VideoProcessingStatus.Uploading,
-        BunnyVideoStatus.Processing or BunnyVideoStatus.Transcoding => VideoProcessingStatus.Processing,
+        BunnyVideoStatus.Created => VideoProcessingStatus.Uploading,
+        BunnyVideoStatus.Uploaded or BunnyVideoStatus.Processing or BunnyVideoStatus.Transcoding => VideoProcessingStatus.Processing,
         BunnyVideoStatus.Finished => VideoProcessingStatus.Ready,
         BunnyVideoStatus.Error or BunnyVideoStatus.UploadFailed => VideoProcessingStatus.Failed,
         _ => VideoProcessingStatus.Processing, // Unknown status → treat as still processing.

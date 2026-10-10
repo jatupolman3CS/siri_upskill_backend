@@ -48,6 +48,12 @@ public class LiveModuleRegistrationTests
         services.TryAddScoped<IUserContactReader, StubContacts>();
         services.TryAddScoped<IUserNotificationOutbox, RecordingInApp>();
         services.TryAddScoped<Siri.Modules.Learning.Contracts.ILearningAccessContract, FakeLearning>();
+        // The seams of the P11-13 recording import (Catalog, Media and the video provider's ingest implement them in the real host).
+        services.TryAddScoped<ILiveRecordingAttacher, FakeRecordingAttacher>();
+        services.TryAddScoped<Siri.SharedKernel.Contracts.IMediaIngestContract, FakeMediaIngest>();
+        services.TryAddScoped<Siri.SharedKernel.Contracts.IMediaAssetContract, FakeMediaAssets>();
+        // Hangfire registers its client in every real host (AddHangfire); the transfer scheduler queues through it.
+        services.TryAddSingleton<Hangfire.IBackgroundJobClient, StubBackgroundJobClient>();
         // Catalog's null defaults, exactly as CatalogModule registers them — Live must win over them.
         services.TryAddSingleton<ILiveMeetingSink, Siri.Modules.Catalog.Infrastructure.NullLiveMeetingSink>();
         services.TryAddScoped<ILiveMeetingReadinessReader, Siri.Modules.Catalog.Infrastructure.NullLiveMeetingReadinessReader>();
@@ -78,6 +84,14 @@ public class LiveModuleRegistrationTests
         Assert.NotNull(services.GetRequiredService<IGoogleOAuthService>());
         Assert.NotNull(services.GetRequiredService<ICalendarProvider>());
         Assert.NotNull(services.GetRequiredService<ILiveDiagnosticsReader>());
+
+        // P11-13
+        Assert.NotNull(services.GetRequiredService<LiveRecordingImportJob>());
+        Assert.NotNull(services.GetRequiredService<LiveRecordingTransferJob>());
+        Assert.IsType<HangfireRecordingTransferScheduler>(services.GetRequiredService<IRecordingTransferScheduler>());
+        Assert.NotNull(services.GetRequiredService<RecordingImportService>());
+        Assert.NotNull(services.GetRequiredService<ISessionRecordingImportRepository>());
+        Assert.NotNull(services.GetRequiredService<Siri.Integrations.Google.IGoogleMeetRecordingProvider>());
     }
 
     [Fact]
@@ -118,6 +132,25 @@ public class LiveModuleRegistrationTests
         Assert.IsType<Siri.Integrations.Google.Logging.LoggingGoogleOAuthService>(provider.GetRequiredService<IGoogleOAuthService>());
         Assert.IsType<Siri.Integrations.Google.Logging.LoggingCalendarProvider>(provider.GetRequiredService<ICalendarProvider>());
         Assert.True(provider.GetRequiredService<IGoogleOAuthService>().IsConfigured);
+    }
+
+    [Fact]
+    public void RecordingProvider_IsTheRealOneByDefault_AndTheFakeServesTheConfiguredDevSampleOnlyInLoggingMode()
+    {
+        using var real = BuildProvider();
+        Assert.IsType<Siri.Integrations.Google.GoogleMeetRecordingProvider>(real.GetRequiredService<Siri.Integrations.Google.IGoogleMeetRecordingProvider>());
+        Assert.Null(real.GetService<Siri.Integrations.Google.Logging.IMeetRecordingDevSampleSource>());
+
+        using var fake = BuildProvider("Logging");
+        Assert.IsType<Siri.Integrations.Google.Logging.LoggingGoogleMeetRecordingProvider>(fake.GetRequiredService<Siri.Integrations.Google.IGoogleMeetRecordingProvider>());
+        Assert.IsType<ConfigMeetRecordingDevSampleSource>(fake.GetRequiredService<Siri.Integrations.Google.Logging.IMeetRecordingDevSampleSource>());
+    }
+
+    private sealed class StubBackgroundJobClient : Hangfire.IBackgroundJobClient
+    {
+        public string Create(Hangfire.Common.Job job, Hangfire.States.IState state) => throw new NotSupportedException();
+
+        public bool ChangeState(string jobId, Hangfire.States.IState state, string expectedState) => throw new NotSupportedException();
     }
 
     private sealed class StubSchedule : ILiveScheduleReader

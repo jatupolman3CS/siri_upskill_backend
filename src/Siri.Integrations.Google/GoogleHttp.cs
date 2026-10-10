@@ -191,6 +191,125 @@ internal static class GoogleHttp
         }
     }
 
+    /// <summary>
+    /// Maps a failed Meet REST / Drive response to a typed error (P11-13 contract section 4): 401 -> <c>google.unauthorized</c>;
+    /// 403 (missing scope / no access) -> <c>google.forbidden</c>; 404/410 -> <c>google.not_found</c>; 429, a rate/quota 403 and 5xx ->
+    /// <c>google.transient</c>; any other 4xx -> <c>google.bad_request</c>. Only the operation name, HTTP status and Google's sanitised
+    /// reason token are logged — never a meeting code, file id, token or Google's free-text message.
+    /// </summary>
+    public static async Task<DomainError> MapMeetDriveErrorAsync(
+        HttpResponseMessage response, ILogger logger, string operation, CancellationToken ct)
+    {
+        var info = await ReadErrorInfoAsync(response, ct).ConfigureAwait(false);
+        var status = (int)response.StatusCode;
+        logger.LogWarning("Google {Operation} failed: HTTP {StatusCode} reason {Reason}", operation, status, info.Reason ?? "-");
+
+        var reason = info.Reason;
+        var suffix = reason is null ? string.Empty : $" ({reason})";
+        var message = $"Google {operation} failed with HTTP {status}{suffix}.";
+
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.Unauthorized:
+                return GoogleErrors.Unauthorized(message, reason);
+
+            case HttpStatusCode.Forbidden:
+                if (reason is "rateLimitExceeded" or "userRateLimitExceeded" or "quotaExceeded" or "dailyLimitExceeded" or "RESOURCE_EXHAUSTED")
+                {
+                    return GoogleErrors.Transient(message, reason);
+                }
+
+                // The API is switched off in our own Cloud project: an operator problem that neither a retry nor the instructor can fix.
+                if (reason is "accessNotConfigured" or "SERVICE_DISABLED")
+                {
+                    return GoogleErrors.BadRequest(message, reason);
+                }
+
+                // Missing recording scope, or the account cannot see that conference / file: reconnect with the recording consent (or upload by hand).
+                return GoogleErrors.Forbidden(message, reason);
+
+            case HttpStatusCode.NotFound:
+            case HttpStatusCode.Gone:
+                return GoogleErrors.NotFound(message, reason);
+
+            case HttpStatusCode.TooManyRequests:
+            case HttpStatusCode.RequestTimeout:
+                return GoogleErrors.Transient(message, reason);
+
+            default:
+                return status >= 500
+                    ? GoogleErrors.Transient(message, reason)
+                    : GoogleErrors.BadRequest(message, reason);
+        }
+    }
+
+    /// <summary>
+    /// Like <see cref="SendAsync{T}"/> but the response is read with <see cref="HttpCompletionOption.ResponseHeadersRead"/> and, on success,
+    /// <b>ownership of the request/response/client moves to the caller</b> (via the <see cref="IDisposable"/> handed to
+    /// <paramref name="handleResponse"/>) so a large body can be streamed after this method returns. On a failed result or an exception
+    /// everything is disposed here. Same transport-failure mapping as <see cref="SendAsync{T}"/>; never retries.
+    /// </summary>
+    public static async Task<Result<T>> SendStreamingAsync<T>(
+        IHttpClientFactory httpClientFactory,
+        string clientName,
+        ILogger logger,
+        string operation,
+        Func<HttpRequestMessage> buildRequest,
+        Func<HttpResponseMessage, IDisposable, CancellationToken, Task<Result<T>>> handleResponse,
+        CancellationToken ct)
+    {
+        HttpClient? client = null;
+        HttpRequestMessage? request = null;
+        HttpResponseMessage? response = null;
+        var handedOver = false;
+        try
+        {
+            client = httpClientFactory.CreateClient(clientName);
+            request = buildRequest();
+            response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+
+            var owner = new DisposeAll(response, request, client);
+            var result = await handleResponse(response, owner, ct).ConfigureAwait(false);
+            handedOver = result.IsSuccess;
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning("Google {Operation} request failed: {ExceptionType}: {Message}", operation, ex.GetType().Name, ex.Message);
+            return Result.Failure<T>(GoogleErrors.Transient($"Google {operation} request failed (network)."));
+        }
+        catch (IOException ex)
+        {
+            logger.LogWarning("Google {Operation} request failed while reading the response: {ExceptionType}", operation, ex.GetType().Name);
+            return Result.Failure<T>(GoogleErrors.Transient($"Google {operation} request failed (network)."));
+        }
+        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        {
+            logger.LogWarning("Google {Operation} request timed out.", operation);
+            return Result.Failure<T>(GoogleErrors.Transient($"Google {operation} request timed out."));
+        }
+        finally
+        {
+            if (!handedOver)
+            {
+                response?.Dispose();
+                request?.Dispose();
+                client?.Dispose();
+            }
+        }
+    }
+
+    /// <summary>Disposes the pieces of one streamed download together (response first, so the connection is released before the client goes).</summary>
+    private sealed class DisposeAll(HttpResponseMessage response, HttpRequestMessage request, HttpClient client) : IDisposable
+    {
+        public void Dispose()
+        {
+            response.Dispose();
+            request.Dispose();
+            client.Dispose();
+        }
+    }
+
     /// <summary>Maps a failed token-endpoint response (<c>{"error":"invalid_grant"}</c> style) to a typed error.</summary>
     public static async Task<DomainError> MapTokenErrorAsync(
         HttpResponseMessage response, ILogger logger, string operation, CancellationToken ct)

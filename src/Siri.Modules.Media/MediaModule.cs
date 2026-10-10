@@ -44,6 +44,7 @@ public static class MediaModule
         services.AddScoped<MediaUploadSessionService>();
         services.AddScoped<PlaybackSessionService>();
         services.AddScoped<Siri.SharedKernel.Contracts.IMediaAssetContract, MediaAssetContractService>();
+        services.AddScoped<Siri.SharedKernel.Contracts.IMediaIngestContract, MediaIngestContractService>(); // P11-13
         services.AddScoped<BunnyWebhookHandler>();
         services.AddScoped<PlaybackAnomalyDetectionJob>();
         services.AddScoped<Infrastructure.Seeding.MediaSeeder>();
@@ -55,6 +56,16 @@ public static class MediaModule
             .ValidateOnStart();
 
         services.AddHttpClient(BunnyVideoProvider.HttpClientName);
+
+        // P11-13: server-side uploads (a Google Meet recording) run as long as the file takes, so this client has no timeout of its own - the caller's
+        // cancellation token bounds it - and it never follows a redirect (a consumed request stream cannot be replayed).
+        services.AddHttpClient(BunnyVideoProvider.UploadHttpClientName)
+            .ConfigureHttpClient(client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            });
         services.AddScoped<IVideoProvider, BunnyVideoProvider>();
 
         // FluentValidation validators, resolved by ValidationEndpointFilter<T> per endpoint.

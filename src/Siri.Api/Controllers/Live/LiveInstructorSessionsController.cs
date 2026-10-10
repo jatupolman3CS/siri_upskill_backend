@@ -109,6 +109,40 @@ public class LiveInstructorSessionsController : ControllerBase
             : result.Error.ToProblemHttpResult(HttpContext);
     }
 
+    /// <summary>
+    /// The instructor asks the platform to try the automatic recording import of one of their classes again (P11-13): a <c>Failed</c>/<c>NoRecording</c>/<c>NeedsReconnect</c>
+    /// import is reset to <c>Waiting</c>, and a class with no import whose instructor has automatic import turned on gets one. Owner only (ownership is checked by the service:
+    /// 404 unknown, 403 someone else's); 409 <c>live.recording_import_not_retryable</c> when nothing can be retried. Returns the new <c>recordingImport</c> state.
+    /// </summary>
+    [HttpPost("{sessionId:guid}/recording-import/retry")]
+    [EndpointName("LiveRetryRecordingImport")]
+    [EndpointSummary("ลองนำเข้าบันทึกการสอนจาก Google Meet ของคาบนี้ใหม่ (เฉพาะเจ้าของคาบ) — คืนสถานะการนำเข้า")]
+    [ProducesResponseType(typeof(RecordingImportInfo), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    public async Task<IResult> RetryRecordingImport(
+        [FromRoute] Guid sessionId,
+        [FromServices] RecordingImportService service,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        NoStore();
+
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await service.RetryAsync(userId, sessionId, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(HttpContext);
+    }
+
     private void NoStore()
     {
         Response.Headers.CacheControl = "no-store, no-cache";

@@ -53,22 +53,27 @@ public static class EpisodeAttachmentEndpoints
 
         group.MapPost("/", async (
             Guid episodeId,
-            AddEpisodeAttachmentCommand command,
+            IFormFile file,
             AddEpisodeAttachmentHandler handler,
             IUserContext userContext,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
             var isAdmin = httpContext.User.IsInRole(RoleNames.Admin) || httpContext.User.IsInRole(RoleNames.SuperAdmin);
+
+            await using var content = file.OpenReadStream();
+            var command = new AddEpisodeAttachmentCommand(file.FileName, file.ContentType, content);
             var result = await handler.HandleAsync(episodeId, command, userContext.UserId, isAdmin, cancellationToken).ConfigureAwait(false);
 
             return result.IsSuccess
                 ? Results.Created($"/api/catalog/episodes/{episodeId}/attachments/{result.Value.Id}", result.Value)
                 : result.Error.ToProblemHttpResult(httpContext);
         })
-        .AddEndpointFilter<ValidationEndpointFilter<AddEpisodeAttachmentCommand>>()
+        // Bearer-token API, not a cookie-authenticated form: antiforgery protects nothing here.
+        .DisableAntiforgery()
         .WithName("AddEpisodeAttachment")
-        .WithSummary("เพิ่มไฟล์แนบให้บทเรียน (ผู้สอนเจ้าของบทเรียน หรือแอดมิน)")
+        .WithSummary("อัปโหลดไฟล์แนบให้บทเรียนไปที่ R2 (ผู้สอนเจ้าของบทเรียน หรือแอดมิน)")
+        .Accepts<IFormFile>("multipart/form-data")
         .Produces<EpisodeAttachmentResponse>(StatusCodes.Status201Created)
         .ProducesValidationProblem()
         .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized)

@@ -45,6 +45,14 @@ public static class LiveProductionRequirements
             problems.Add($"{LiveOptions.SectionName}:PublicBaseUrl (or {LiveOptions.FallbackPublicBaseUrlKey}) must be the real public https:// origin in production.");
         }
 
+        // P11-13: the dev sample file is what the fake recording provider serves in place of a real Drive download.
+        var devSampleFilePath = configuration[$"{LiveOptions.SectionName}:Recording:AutoImport:{nameof(LiveRecordingAutoImportOptions.DevSampleFilePath)}"];
+        if (!string.IsNullOrWhiteSpace(devSampleFilePath))
+        {
+            problems.Add(
+                $"{LiveOptions.SectionName}:Recording:AutoImport:{nameof(LiveRecordingAutoImportOptions.DevSampleFilePath)} must be empty in production: it is a development-only stand-in for a recording file.");
+        }
+
         var clientId = configuration[$"{GoogleOAuthOptions.SectionName}:ClientId"];
         if (!string.IsNullOrWhiteSpace(clientId))
         {

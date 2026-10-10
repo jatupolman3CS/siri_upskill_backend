@@ -119,6 +119,22 @@ internal sealed class InMemoryAccountRepository : IInstructorGoogleAccountReposi
     public Task<INSTRUCTOR_GOOGLE_ACCOUNT?> GetByInstructorUserIdAsync(Guid instructorUserId, CancellationToken cancellationToken) =>
         Task.FromResult(Accounts.FirstOrDefault(a => a.INSTRUCTOR_USER_ID == instructorUserId));
 
+    /// <summary>Same rule as the real query: active, a stored Workspace domain, and (here exactly, there by substring) both recording scopes.</summary>
+    public Task<IReadOnlyList<Guid>> GetRecordingCandidateInstructorIdsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Guid>>(Accounts
+            .Where(a => a.IsActive && !string.IsNullOrEmpty(a.HOSTED_DOMAIN) && a.HasRecordingScopes)
+            .Select(a => a.INSTRUCTOR_USER_ID)
+            .ToList());
+
+    public int RecordValidationCalls { get; private set; }
+
+    public Task RecordValidationAsync(INSTRUCTOR_GOOGLE_ACCOUNT account, DateTime validatedAtUtc, CancellationToken cancellationToken)
+    {
+        RecordValidationCalls++;
+        account.MarkValidated(new FakeClock(validatedAtUtc));
+        return Task.CompletedTask;
+    }
+
     public void Add(INSTRUCTOR_GOOGLE_ACCOUNT account) => Accounts.Add(account);
 
     public Task SaveChangesAsync(CancellationToken cancellationToken)
@@ -183,10 +199,28 @@ internal sealed class FakeGoogleOAuth : IGoogleOAuthService
 
     public string? LastState { get; private set; }
 
+    /// <summary>Set to make <see cref="BuildRecordingAccessAuthorizationUrl"/> behave like an <see cref="IGoogleOAuthService"/> that predates P11-13.</summary>
+    public bool RecordingAccessSupported { get; set; } = true;
+
+    /// <summary>The state of the last <see cref="BuildRecordingAccessAuthorizationUrl"/> call (the calendar one sets <see cref="LastState"/>).</summary>
+    public string? LastRecordingAccessState { get; private set; }
+
     public string BuildAuthorizationUrl(string state, string codeChallenge)
     {
         LastState = state;
         return $"https://accounts.example.test/auth?state={Uri.EscapeDataString(state)}&code_challenge={Uri.EscapeDataString(codeChallenge)}";
+    }
+
+    public string BuildRecordingAccessAuthorizationUrl(string state, string codeChallenge)
+    {
+        if (!RecordingAccessSupported)
+        {
+            throw new NotSupportedException();
+        }
+
+        LastState = state;
+        LastRecordingAccessState = state;
+        return $"https://accounts.example.test/auth-recording?state={Uri.EscapeDataString(state)}&code_challenge={Uri.EscapeDataString(codeChallenge)}";
     }
 
     public Task<Result<GoogleTokenSet>> ExchangeCodeAsync(string code, string codeVerifier, CancellationToken ct)
@@ -201,7 +235,13 @@ internal sealed class FakeGoogleOAuth : IGoogleOAuthService
         return Task.FromResult(RefreshResult);
     }
 
-    public Task<Result<GoogleUserInfo>> GetUserInfoAsync(string accessToken, CancellationToken ct) => Task.FromResult(UserInfoResult);
+    public int UserInfoCalls { get; private set; }
+
+    public Task<Result<GoogleUserInfo>> GetUserInfoAsync(string accessToken, CancellationToken ct)
+    {
+        UserInfoCalls++;
+        return Task.FromResult(UserInfoResult);
+    }
 
     public Task<Result> RevokeAsync(string token, CancellationToken ct)
     {
@@ -300,6 +340,30 @@ internal sealed class RecordingAlertSender : IInstructorAlertSender
     public Task MeetingFailedAsync(Guid instructorUserId, Guid sessionId, string sessionTitle, string courseTitle, CancellationToken cancellationToken)
     {
         FailedAlerts.Add((instructorUserId, sessionId));
+        return Task.CompletedTask;
+    }
+
+    public List<(Guid InstructorUserId, Guid SessionId)> RecordingImportedAlerts { get; } = [];
+
+    public List<(Guid InstructorUserId, Guid SessionId)> RecordingImportFailedAlerts { get; } = [];
+
+    public List<(Guid InstructorUserId, Guid SessionId)> RecordingNeedsReconnectAlerts { get; } = [];
+
+    public Task RecordingImportedAsync(Guid instructorUserId, Guid sessionId, string sessionTitle, string courseTitle, CancellationToken cancellationToken)
+    {
+        RecordingImportedAlerts.Add((instructorUserId, sessionId));
+        return Task.CompletedTask;
+    }
+
+    public Task RecordingImportFailedAsync(Guid instructorUserId, Guid sessionId, string sessionTitle, string courseTitle, CancellationToken cancellationToken)
+    {
+        RecordingImportFailedAlerts.Add((instructorUserId, sessionId));
+        return Task.CompletedTask;
+    }
+
+    public Task RecordingNeedsReconnectAsync(Guid instructorUserId, Guid sessionId, string sessionTitle, string courseTitle, CancellationToken cancellationToken)
+    {
+        RecordingNeedsReconnectAlerts.Add((instructorUserId, sessionId));
         return Task.CompletedTask;
     }
 }

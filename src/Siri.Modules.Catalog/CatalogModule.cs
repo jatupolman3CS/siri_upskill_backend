@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Siri.Integrations.Storage;
 using Siri.Modules.Catalog.Application;
 using Siri.Modules.Catalog.Features;
 using Siri.Modules.Catalog.Features.ApplyAsInstructor;
@@ -228,7 +229,6 @@ public static class CatalogModule
         // Learning Paths & Attachments
         services.AddScoped<IValidator<Features.CreateLearningPath.CreateLearningPathCommand>, Features.CreateLearningPath.CreateLearningPathValidator>();
         services.AddScoped<IValidator<Features.UpdateLearningPath.UpdateLearningPathCommand>, Features.UpdateLearningPath.UpdateLearningPathValidator>();
-        services.AddScoped<IValidator<Features.AddEpisodeAttachment.AddEpisodeAttachmentCommand>, Features.AddEpisodeAttachment.AddEpisodeAttachmentValidator>();
 
         services.AddScoped<Features.CreateLearningPath.CreateLearningPathHandler>();
         services.AddScoped<Features.GetLearningPaths.GetLearningPathsHandler>();
@@ -240,6 +240,15 @@ public static class CatalogModule
         services.AddScoped<Features.GetEpisodeAttachments.GetEpisodeAttachmentsHandler>();
         services.AddScoped<Features.DownloadEpisodeAttachment.DownloadEpisodeAttachmentHandler>();
         services.AddScoped<Features.DeleteEpisodeAttachment.DeleteEpisodeAttachmentHandler>();
+
+        // P4-03c: teaching materials for live sessions + the shared upload pipeline. The bytes go to private
+        // Cloudflare R2 (Storage:R2:*; an unconfigured host answers 503 storage.provider_not_configured).
+        services.AddFileStorage(configuration);
+        services.AddScoped<TeachingMaterialStorage>();
+        services.AddScoped<Features.AddLiveSessionAttachment.AddLiveSessionAttachmentHandler>();
+        services.AddScoped<Features.GetLiveSessionAttachments.GetLiveSessionAttachmentsHandler>();
+        services.AddScoped<Features.DownloadLiveSessionAttachment.DownloadLiveSessionAttachmentHandler>();
+        services.AddScoped<Features.DeleteLiveSessionAttachment.DeleteLiveSessionAttachmentHandler>();
 
         // Wishlist
         services.AddScoped<Features.Wishlist.GetWishlistHandler>();
@@ -289,6 +298,8 @@ public static class CatalogModule
         // P11-06: attach a teaching recording to a finished live session (becomes an ordinary lesson = catch-up)
         services.AddScoped<IValidator<Features.AttachSessionRecording.AttachSessionRecordingCommand>, Features.AttachSessionRecording.AttachSessionRecordingCommandValidator>();
         services.AddScoped<Features.AttachSessionRecording.AttachSessionRecordingHandler>();
+        // P11-13: the automatic recording import's view of ended sessions + "attach this ready asset" (same handler, same rules).
+        services.AddScoped<Contracts.ILiveRecordingAttacher, Infrastructure.Contracts.LiveRecordingAttacher>();
 
         // Cross-module contracts
         services.AddScoped<Contracts.ICatalogPriceContract, Infrastructure.Contracts.CatalogPriceContract>();
@@ -297,6 +308,8 @@ public static class CatalogModule
         // P11-10: instructor dashboard stats + user -> instructor-profile id resolution (money tables key by profile id).
         services.AddScoped<Contracts.IInstructorCourseStatsReader, Infrastructure.Contracts.InstructorCourseStatsReader>();
         services.AddScoped<Contracts.IInstructorProfileReader, Infrastructure.Contracts.InstructorProfileReader>();
+        // Read by Siri.Api's InstructorOnly authorization handler: the Instructor role only counts once the application is approved.
+        services.AddScoped<Contracts.IInstructorApprovalReader, Infrastructure.Contracts.InstructorApprovalReader>();
 
         // Reviews (P1-08)
         services.AddScoped<CreateCourseReviewHandler>();

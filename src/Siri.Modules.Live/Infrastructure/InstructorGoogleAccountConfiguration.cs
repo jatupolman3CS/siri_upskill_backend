@@ -35,10 +35,16 @@ public sealed class InstructorGoogleAccountConfiguration : IEntityTypeConfigurat
         builder.Property(a => a.REVOKED_AT_UTC).HasPrecision(3);
         builder.Property(a => a.REVOKED_REASON).HasMaxLength(40);
 
+        // P11-13: the Workspace domain (userinfo "hd") and when it was last read. Both NULL on rows connected before the column existed.
+        builder.Property(a => a.HOSTED_DOMAIN).HasMaxLength(255);
+        builder.Property(a => a.ACCOUNT_KIND_CHECKED_AT_UTC).HasPrecision(3);
+
         builder.Property(a => a.ROW_VERSION).IsConcurrencyToken().HasColumnType("bytea").IsRequired();
 
         // Derived members — never columns.
         builder.Ignore(a => a.IsActive);
+        builder.Ignore(a => a.AccountKind);
+        builder.Ignore(a => a.HasRecordingScopes);
 
         // One Google account per instructor.
         builder.HasIndex(a => a.INSTRUCTOR_USER_ID).IsUnique().HasDatabaseName("IX_INSTR_GOOGLE_ACCT_USER_ID");

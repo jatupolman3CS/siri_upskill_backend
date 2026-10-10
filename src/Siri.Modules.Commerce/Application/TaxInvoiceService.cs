@@ -28,6 +28,7 @@ namespace Siri.Modules.Commerce.Application;
 public sealed class TaxInvoiceService(
     ITaxInvoiceRepository taxInvoiceRepository,
     IOrderRepository orderRepository,
+    IPaymentRepository paymentRepository,
     IUserContactReader userContactReader,
     IOptions<ReceiptSellerOptions> sellerOptions,
     IClock clock,
@@ -46,6 +47,11 @@ public sealed class TaxInvoiceService(
         if (order.STATUS != OrderStatus.Paid)
         {
             return Result.Failure<TaxInvoiceResponse>(DomainError.Conflict("สามารถออกใบกำกับภาษีได้เฉพาะคำสั่งซื้อที่ชำระเงินแล้วเท่านั้น"));
+        }
+
+        if (await IsPaidThroughAmountOverrideAsync(order.ORDER_ID, cancellationToken).ConfigureAwait(false))
+        {
+            return Result.Failure<TaxInvoiceResponse>(AmountOverrideDocumentConflict());
         }
 
         var invoiceNo = $"INV-{clock.UtcNow:yyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
@@ -182,6 +188,11 @@ public sealed class TaxInvoiceService(
             return Result.Failure<Infrastructure.ReceiptPdfData>(DomainError.Conflict("สามารถดาวน์โหลดใบเสร็จได้เฉพาะคำสั่งซื้อที่ชำระเงินแล้วเท่านั้น"));
         }
 
+        if (await IsPaidThroughAmountOverrideAsync(order.ORDER_ID, cancellationToken).ConfigureAwait(false))
+        {
+            return Result.Failure<Infrastructure.ReceiptPdfData>(AmountOverrideDocumentConflict());
+        }
+
         var seller = ResolveSeller();
         if (seller.IsFailure)
         {
@@ -227,6 +238,26 @@ public sealed class TaxInvoiceService(
             order.TOTAL_AMOUNT,
             seller.Value));
     }
+
+    /// <summary>True when the order's successful payment was lowered by an admin amount override
+    /// (<see cref="PAYMENT.ORIGINAL_AMOUNT"/> set). Receipts and tax invoices print order-level totals, which
+    /// would then overstate what the buyer really paid — so no such document is produced.</summary>
+    private async Task<bool> IsPaidThroughAmountOverrideAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var succeeded = await paymentRepository
+            .GetSucceededPaymentIdsByOrderIdsAsync([orderId], cancellationToken)
+            .ConfigureAwait(false);
+        if (!succeeded.TryGetValue(orderId, out var paymentId))
+        {
+            return false;
+        }
+
+        var payment = await paymentRepository.GetByIdAsync(paymentId, cancellationToken).ConfigureAwait(false);
+        return payment?.IsAmountOverridden == true;
+    }
+
+    private static DomainError AmountOverrideDocumentConflict() =>
+        DomainError.Conflict("ไม่สามารถออกใบเสร็จ/ใบกำกับภาษีให้คำสั่งซื้อที่ชำระด้วยยอดที่ผู้ดูแลระบบปรับ (override) ได้ เพราะยอดที่ตัดจริงไม่ตรงกับราคาในคำสั่งซื้อ");
 
     private static List<Infrastructure.ReceiptPdfItem> ToPdfItems(ORDER order) =>
         order.ORDER_ITEMS.Select(i => new Infrastructure.ReceiptPdfItem(

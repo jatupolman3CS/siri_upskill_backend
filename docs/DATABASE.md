@@ -63,6 +63,9 @@ CourseEpisodes(Id PK, CourseId FK, SectionId FK, Title, Description, SortOrder,
                MediaAssetId FK NULL, DurationSeconds, IsFreePreview bit, Status)
                UQ(SectionId, SortOrder)
 EpisodeAttachments(Id PK, EpisodeId FK, FileName, StorageKey, ContentType, SizeBytes)
+LiveSessionAttachments(Id PK, SessionId FK→CourseLiveSessions, FileName, StorageKey, ContentType, SizeBytes)
+               IX(SessionId, CreatedAtUtc)   -- P4-03c · StorageKey = key ใน Cloudflare R2 (private bucket), ไม่ส่งออก API
+                                              -- migration AddLiveSessionAttachments · ไม่ soft-delete (ไฟล์ล้วน)
 CourseOutcomes(Id, CourseId FK, Text, SortOrder)        -- "สิ่งที่จะได้เรียนรู้"
 CourseRequirements(Id, CourseId FK, Text, SortOrder)
 CourseTags(CourseId, TagId) / Tags(Id, Slug UQ, Name)
@@ -120,7 +123,11 @@ Payments(Id PK, OrderId FK, Method,               -- PromptPay | (อนาค�
          Provider,                                -- 'Stripe'
          ProviderPaymentIntentId UQ,              -- ← ผูก 1:1 กับ Stripe PaymentIntent
          Amount, Status,                          -- Pending|Processing|Succeeded|Failed|Expired|Refunded
+         OriginalAmount NULL,                     -- มีค่าเฉพาะตอน admin override ลดยอด (Amount < ยอดออเดอร์) — ดู PaymentAmountOverrides
          SucceededAtUtc, FailureReason, CreatedAtUtc)
+PaymentAmountOverrides(Id PK, IsEnabled, OverrideAmount, Reason, ChangedByUserId, ChangedAtUtc)
+                                                  -- append-only (ห้าม update/delete): แถวล่าสุด = ค่าที่ใช้อยู่ + เป็น audit trail ในตัว
+                                                  -- admin ตั้งยอดคงที่ที่จะส่งให้ Stripe แทนยอดออเดอร์ (ลดได้อย่างเดียว) — ดู PAYMENT.md
 StripeWebhookEvents(Id PK, StripeEventId UQ,      -- ← กัน replay/ยิงซ้ำ ต้องอยู่ที่ระดับ DB เท่านั้น
                     EventType, PayloadJson,       -- raw JSON ไว้ dispute/ตรวจย้อนหลัง
                     ReceivedAtUtc, ProcessedAtUtc, ProcessResult)
@@ -167,7 +174,7 @@ community.Reports(Id, DiscussionId, ReportedByUserId, Reason, Status, ResolvedAt
 notify.Announcements(Id, CourseId, InstructorId, Title, Body, SendEmail bit,
                      ScheduledAtUtc, SentAtUtc, RecipientCount)
 notify.Notifications(Id, UserId, Type, Title, Body, LinkUrl, ReadAtUtc, CreatedAtUtc,
-                     PublishedAtUtc timestamptz(3) NULL)             -- D-23 (migration AddNotificationKafkaDelivery, ยังไม่ apply): outbox ของ event "มีแจ้งเตือนใหม่" · NULL = relay ยังไม่ประกาศ (migration backfill แถวเดิมเป็น `PUBLISHED_AT_UTC = CREATED_AT_UTC`) ·
+                     PublishedAtUtc timestamptz(3) NULL)             -- D-23 (migration AddNotificationKafkaDelivery, apply แล้ว 2026-10-10 บน DB ที่ `.env` ชี้): outbox ของ event "มีแจ้งเตือนใหม่" · NULL = relay ยังไม่ประกาศ (migration backfill แถวเดิมเป็น `PUBLISHED_AT_UTC = CREATED_AT_UTC`) ·
                                                                      --   partial index IX_NOTIFICATIONS_UNPUBLISHED (ID) WHERE "PUBLISHED_AT_UTC" IS NULL
 notify.EmailOutbox(Id, ToEmail, Subject, BodyHtml, TemplateKey, Status,
                    Attempts, NextRetryAtUtc, SentAtUtc, LastError,
@@ -331,6 +338,25 @@ LIVE.SESSION_JOIN_LOGS(SESSION_JOIN_LOG_ID PK, SESSION_ID, COURSE_ID,   -- COURS
                       PK_SESSION_JOIN_LOGS · IX_SESSION_JOIN_LOGS_SESSION_USER (SESSION_ID, USER_ID) · IX_SESSION_JOIN_LOGS_USER_COURSE (USER_ID, COURSE_ID)
                       -- ต่างจาก sketch เดิม: IX(SESSION_ID, JOINED_AT_UTC)/IX(USER_ID, JOINED_AT_UTC) → ตาม contract P11-05 §2
                       -- retention ของ IP/UA (scrub หลัง 12 เดือน) เป็น follow-up · USER_ID/COURSE_ID/SESSION_ID ต้องเก็บไว้ตามกฎ refund Q13.4
+
+-- migration 6: AddLiveRecordingImport (P11-13, docs/contracts/P11-13-live-recording-auto-import.md §3) — additive ล้วน (1 ตาราง + 2 คอลัมน์ + 2 index) ยังไม่ apply ขึ้น DB จริง
+LIVE.INSTRUCTOR_GOOGLE_ACCOUNTS + HOSTED_DOMAIN varchar(255) NULL,           -- userinfo "hd" เก็บทุกครั้งที่ connect/reconnect · NULL + ACCOUNT_KIND_CHECKED_AT_UTC มีค่า = บัญชีส่วนตัว
+                               + ACCOUNT_KIND_CHECKED_AT_UTC timestamptz(3) NULL   -- ครั้งสุดท้ายที่อ่าน hd จาก Google · NULL ทั้งคู่ (แถวเก่า) = AccountKind "Unknown" จนกว่า TryResolveAccountKindAsync เติมให้
+                               -- AccountKind (Personal|Workspace|Unknown) และ HasRecordingScopes เป็น property คำนวณ ไม่ใช่คอลัมน์
+LIVE.SESSION_RECORDING_IMPORTS(SESSION_RECORDING_IMPORT_ID PK,
+                      SESSION_ID UQ, COURSE_ID, INSTRUCTOR_USER_ID,   -- ไม่มี FK เลย (ข้าม schema) · 1 คาบ = มากสุด 1 แถว · แถวถูกเขียนเมื่อมีงานต้องทำเท่านั้น
+                      STATUS varchar(24),                 -- Waiting|Transferring|Processing|Attached|NoRecording|Failed|NeedsReconnect|Skipped
+                      ATTEMPTS int NOT NULL DEFAULT 0,    -- ความล้มเหลวชั่วคราว "ติดกัน" (สำเร็จขั้นหนึ่ง/เจอผลค้นว่าง = นับใหม่) · retry = 0
+                      NEXT_ATTEMPT_AT_UTC NULL,           -- Waiting/Processing: เมื่อไหร่ job แตะได้ · Transferring/สถานะปลายทาง = NULL
+                      LEASE_UNTIL_UTC NULL,               -- Transferring: lease ของการคัดลอก · Processing: deadline ของ transcode (6 ชม.) · อื่น ๆ NULL
+                      GOOGLE_RECORDING_NAME(200) NULL, GOOGLE_FILE_ID(200) NULL,   -- id ภายใน ไม่ใช่ secret แต่ไม่ log/ไม่คืน API
+                      MEDIA_ASSET_ID uuid NULL, EPISODE_ID uuid NULL,
+                      ERROR_CODE(60) NULL,                -- รหัสเสถียรเท่านั้น (file_too_large, recording_scope_missing, ...) ห้ามเป็นข้อความ/URL/id
+                      SEARCH_UNTIL_UTC,                   -- จบคาบ + SearchWindowHours: หลังจากนี้หาไม่เจอ = NoRecording
+                      COMPLETED_AT_UTC NULL,              -- สถานะปลายทาง · retry เคลียร์
+                      ROW_VERSION, audit)                 -- ROW_VERSION = claim แถวของ job (Waiting→Transferring บันทึกด้วย version ที่อ่าน)
+                      PK_SESSION_RECORDING_IMPORTS · UQ IX_SESSION_RECORDING_IMPORTS_SESSION_ID (SESSION_ID) · IX_SESSION_RECORDING_IMPORTS_DUE (STATUS, NEXT_ATTEMPT_AT_UTC)
+                      -- ไม่มี FK/cascade/hard delete · ไม่มี "poll count" แยก: ระยะค้นซ้ำคำนวณจากเวลาที่ผ่านไปตั้งแต่ถึงรอบค้นแรก (RecordingImportBackoff.ForSearch)
 
 -- P11 Commerce: ไม่มีตารางใหม่ (PAYMENT.METHOD รองรับ Card แล้ว) · Config Payment:EnabledMethods
 

@@ -16,6 +16,7 @@
 ## 2) ลำดับ deploy (ทำตามนี้ทีละข้อ)
 
 1. **migration ก่อน image เสมอ** — `dotnet ef migrations list --project src/Siri.Persistence --startup-project src/Siri.Api` (หรือ bundle `scripts/migrate-bundle.sh`) · ตอนเขียนไฟล์นี้ working tree มี `20261008201343_AddNotificationKafkaDelivery` (เพิ่ม `NOTIFY.EMAIL_OUTBOX.QUEUED_AT_UTC`, `NOTIFY.NOTIFICATIONS.PUBLISHED_AT_UTC` + index) สร้าง **หลัง** การตรวจ "0 pending" ของ 2026-10-08 → น่าจะยัง pending · **ถ้า image ใหม่ขึ้นก่อน migration นี้ อีเมล/แจ้งเตือนจะ error 500 เพราะคอลัมน์ไม่มี** · ห้าม apply ด้วยมือบน DB จริงโดยไม่รู้ตัว — เป็นคำสั่งของเจ้าของระบบ
+   · **เพิ่ม (P11-13):** `AddLiveRecordingImport` (ตาราง `LIVE.SESSION_RECORDING_IMPORTS` + 2 คอลัมน์บน `LIVE.INSTRUCTOR_GOOGLE_ACCOUNTS`, additive ล้วน) ต้อง apply ก่อน image ใหม่เช่นกัน — รายละเอียดหัวข้อ 9
 2. ตั้ง env ของ **API pod** ตามหัวข้อ 3 (ไม่มีค่าไหนใน repo)
 3. build + push image `Dockerfile.api` (+ image frontend ของ repo `siri_upskill_ui`) แล้ว rollout
 4. รอ ~2 นาที → เปิด `/admin/live-status` (หัวข้อ 4) · หรือค้น log pod ด้วยคำว่า `Live system check` (log 1 บรรทัดที่ ~90 วินาทีหลัง start: `no warnings` หรือ Warning พร้อมรหัส)
@@ -59,7 +60,7 @@
 ## 4) เช็คครั้งแรกบนเบราว์เซอร์ (เจ้าของระบบ ~15 นาที)
 
 1. **สมัครบัญชีเจ้าของ** ด้วยอีเมลใน `Identity__Bootstrap__OwnerEmails__0` → กดลิงก์ยืนยันในอีเมล (ถ้าอีเมลไม่มา = SMTP/job server ยังไม่ทำงาน ดูหัวข้อ 6) → **รอ ≤ 1 นาที แล้ว logout/login ใหม่** → avatar menu ต้องมี "ผู้ดูแลระบบ" และ "สตูดิโอผู้สอน"
-2. **`/admin/live-status`** ต้องเห็น: Hangfire "ทำงานอยู่" ชื่อเซิร์ฟเวอร์ขึ้นต้น `api:` · งานประจำ 5 ตัว (`email-outbox-send`, `live-meeting-sync`, `live-invite-reconcile`, `live-session-reminders`, `course-enrollment-recount`) มี "รันล่าสุด" ใหม่ ๆ · อีเมล = SMTP · คำเตือนที่ยอมรับได้มีแค่ `google_not_configured` (จนกว่าจะตั้ง Google) — อย่างอื่นให้ดูตารางหัวข้อ 5
+2. **`/admin/live-status`** ต้องเห็น: Hangfire "ทำงานอยู่" ชื่อเซิร์ฟเวอร์ขึ้นต้น `api:` · งานประจำ 6 ตัว (`email-outbox-send`, `live-meeting-sync`, `live-invite-reconcile`, `live-session-reminders`, `live-recording-import`, `course-enrollment-recount`) มี "รันล่าสุด" ใหม่ ๆ · อีเมล = SMTP · คำเตือนที่ยอมรับได้มีแค่ `google_not_configured` (จนกว่าจะตั้ง Google) — อย่างอื่นให้ดูตารางหัวข้อ 5
 3. **`/admin/categories`** → สร้างหมวดหมู่หลัก (+ย่อย) อย่างน้อย 1 รายการ (ไม่มีหมวด = ผู้สอนสร้างคอร์สไม่ได้)
 4. ให้ผู้สอนสมัคร → `/become-instructor` → เจ้าของไป **`/admin/instructors`** กดอนุมัติ → ผู้สอน login ใหม่ (role มีผลตอน login) · บัญชีรับเงินไม่อยู่ในฟอร์มสมัครแล้ว: ผู้สอนที่อนุมัติแล้วเพิ่มได้ที่ `/instructor/earnings` (แก้ข้อมูลบัญชี = แอดมินต้องตรวจสอบใหม่ก่อนโอน)
 5. ผู้สอน: `/instructor/courses/new` → กรอกชื่อ/หมวด/ราคา → "บันทึกร่าง" → แท็บ **ตารางสอนสด** → รูปแบบ "สอนสด" → "เพิ่มคาบ" (≥1 คาบในอนาคต) → แต่ละคาบต้องขึ้น "รอลิงก์ห้อง" **ทันที** → กด "สร้างห้อง Google Meet" (เปิดแท็บ meet.google.com/new) → คัดลอกลิงก์มาวาง "บันทึกลิงก์" → ครบทุกคาบ → "เผยแพร่คอร์ส" (ถ้ามีคาบไหนไม่มีห้อง ระบบปฏิเสธและทำเครื่องหมายคาบนั้น)
@@ -118,3 +119,77 @@
 ## 8) ผลตรวจ gate นี้ (สรุป)
 
 รันบน local (PG18 + Garnet + Mailpit, DB ว่างใหม่, **API process เดียว `Hangfire__ServerInApi=true` ไม่มี Workers**): สมัคร/ยืนยันอีเมลผ่าน UI+Mailpit (14 วินาที) · owner bootstrap · หน้า admin ทั้งสาม · ผู้สอนสมัคร→อนุมัติ→สร้างคอร์ส Live 3 คาบ→วางลิงก์→ส่งตรวจ→อนุมัติ · หน้า public ไม่มีลิงก์ห้อง · enroll ผ่านโค้ด 100% · อีเมลเชิญ+ICS ภายใน ~1 นาที · reminder 24 ชม. · อีเมลเลื่อนเวลา/ยกเลิก (ICS CANCEL) · join gate (ใน/นอก window, ไม่ได้ลงทะเบียน = 404 เหมือน session ไม่มีจริง, anonymous 401) · dashboard ผู้สอนตัวเลขจริง · header/avatar หลัง hard reload · `/admin/live-status` ไม่มีคำเตือนนอกจากที่คาดไว้ · `Live__Provider=GoogleMeet` ไม่มี credential → ตัดสินห้องทันที · ตัวเลข test ละเอียดอยู่ที่ `docs/PROGRESS.md` บล็อก 2026-10-09 (integrator-qa final gate)
+
+## 9) นำเข้าบันทึก Google Meet อัตโนมัติ (P11-13) — ปิดอยู่เป็นค่าเริ่มต้น
+
+> สัญญา: `docs/contracts/P11-13-live-recording-auto-import.md` · เจ้าของระบบเปิดเองเมื่อมีบัญชี Google Workspace จริง · **ฝั่ง Bunny (อัปโหลด/transcode/ลบ) QA พิสูจน์บน dev แล้ว; ฝั่ง Google Meet/Drive/`hd`/Restricted scope ยังไม่เคยพิสูจน์จนกว่าจะมีบัญชี Workspace จริง** (ดู 9.6)
+
+**พฤติกรรม:** ระบบ *ตรวจเอง ไม่ถามผู้สอน* ว่าบัญชี Google ที่เชื่อมเป็นแบบไหน (ดูจาก `hd` ของ userinfo) —
+- **บัญชีส่วนตัว (Gmail ฯลฯ)** → ไม่มีอะไรอัตโนมัติ ผู้สอนอัปโหลดบันทึกเองเหมือนเดิม (คาบที่จบแล้วในหน้าจัดการคาบสอนมีปุ่มอัปโหลดอยู่แล้ว)
+- **Workspace แต่ยังไม่ยินยอมสิทธิ์บันทึก** → เหมือนบัญชีส่วนตัว + มีการ์ด "เปิดนำเข้าบันทึกอัตโนมัติ" ที่ `/instructor/live-settings` (Google consent รอบที่ 2 แบบไม่บังคับ)
+- **Workspace + ยินยอมแล้ว + เปิด flag** → หลังคาบจบ ~10 นาที job `live-recording-import` (ทุก 5 นาที) ค้นไฟล์บันทึกใน Google → คัดลอก Drive → Bunny Stream → รอ transcode → แนบเป็นบทเรียนของคอร์ส → อีเมล+แจ้งเตือนผู้สอน "เพิ่มบันทึกแล้ว"
+- **ปิด flag (`Enabled=false`)** → `recordingImport.mode` เป็น `Manual` ทุกคาบ แม้คาบนั้นเคยมีแถวนำเข้าเก่า (สถานะ/รหัสของแถวเก่ายังแสดงเป็นประวัติ แต่ "ลองใหม่" ใช้ไม่ได้) · การอ่านสถานะ Google ของผู้สอนไม่เรียก Google ออกไปหาชนิดบัญชี (ไม่ refresh token ไม่เรียก userinfo) — ชนิดบัญชีของแถวเก่าจึงค้างเป็น `Unknown` จนกว่าจะเปิด flag
+
+**โครงสร้างงาน (สำคัญตอนดู Hangfire):** มีสองส่วนที่ตั้งใจแยกกัน
+1. **tick** `live-recording-import` — recurring ทุก 5 นาที **สั้นและไม่เคยคัดลอกไฟล์**: ค้นหา session ใหม่ (ถาม Catalog เฉพาะคาบของผู้สอนที่เข้าข่ายอัตโนมัติ — บัญชี Workspace ที่ active + มี scope บันทึกครบ — ในหน้าต่าง 48 ชม. ทีละ 200 คาบ สูงสุด 10 หน้าต่อรอบ จึงไม่ถูกคาบของผู้สอนที่ใช้ทางอัปโหลดเองบดบัง), ค้นไฟล์ใน Google, ตรวจสถานะ transcode, ยึดคืนแถวที่ lease หมด · เมื่อเจอไฟล์ จะ *claim* แถว (`Transferring` + lease) แล้ว **queue background job** `LiveRecordingTransferJob.RunAsync(importId)` หนึ่งตัวต่อหนึ่ง claim · tick หยุดเริ่มแถวใหม่หลัง ~100 วินาที (ต่ำกว่า lock timeout 120 วินาที) ดังนั้น tick ที่ทับกันไม่ fail และ admin status ไม่ขึ้น `recurring_job_failing` เพราะไฟล์ใหญ่
+2. **transfer job** — fire-and-forget ต่อ 1 import ทำการคัดลอก Drive → Bunny จริง (นานได้เป็นชั่วโมง) · ไม่มี automatic retry (state machine ของแถวเป็นคนควบคุมการลอง) · มี storage lock **ต่อ import** (รอได้สูงสุด 15 นาที) เพื่อไม่ให้สอง job คัดลอกไฟล์เดียวกันพร้อมกัน · เห็นใน Hangfire dashboard ในคิว `default` · ทำงานบน server ไหนก็ได้ที่มี Hangfire (Workers แยก หรือ API เมื่อ `Hangfire__ServerInApi=true`)
+- ถ้า process ตายระหว่าง claim กับ queue (ช่วงมิลลิวินาที) หรือ job หาย: แถวค้าง `Transferring` จน lease หมด (`TransferLeaseMinutes`) แล้ว tick ยึดคืน (นับ 1 attempt) และ queue ใหม่ — เหมือนเดิมทุกประการ
+
+### 9.1 ลำดับ deploy
+
+1. **apply migration `20261009203126_AddLiveRecordingImport` ก่อน image ใหม่** (additive ล้วน: ตาราง `LIVE.SESSION_RECORDING_IMPORTS` + คอลัมน์ `HOSTED_DOMAIN`, `ACCOUNT_KIND_CHECKED_AT_UTC` บน `LIVE.INSTRUCTOR_GOOGLE_ACCOUNTS`; ไม่มี drop/rename) · migration นี้อยู่ **หลัง** `AddPaymentAmountOverride` ในลำดับ (คนละงาน แต่ใช้ bundle เดียวกัน) · ถ้า image ใหม่ขึ้นก่อน → หน้าสถานะ Google และรายการคาบสอนของผู้สอน error 500 เพราะคอลัมน์/ตารางไม่มี · ห้าม apply ด้วยมือบน DB จริงโดยไม่รู้ตัว — เป็นคำสั่งของเจ้าของระบบ (`scripts/migrate-bundle.sh`)
+2. rollout image ใหม่ โดย **ยังไม่ตั้ง flag** — ทุกอย่างทำงานเหมือนเดิม (ผู้สอนทุกคนเห็นแค่ทางอัปโหลดเอง)
+3. ทำ Google Cloud ตามข้างล่าง แล้วค่อยตั้ง `Live__Recording__AutoImport__Enabled=true` + rollout
+
+### 9.2 Config (section `Live:Recording:AutoImport`, ตั้งให้ **API และ Workers ทั้งคู่** ถ้ามี Workers)
+
+| env | default | ความหมาย |
+|---|---|---|
+| `Live__Recording__AutoImport__Enabled` | `false` | **ปุ่มหลัก** · ปิด = ไม่ค้นหา ไม่สร้างแถว ไม่มีปุ่มขอสิทธิ์ ทุกคนเห็นแค่ทางอัปโหลดเอง · ปิดเมื่อไรก็ได้ (แถวที่ค้างอยู่หยุดถูกประมวลผลเฉย ๆ) |
+| `__FirstSearchDelayMinutes` | 10 | ค้นครั้งแรกหลังเวลาจบคาบตามตาราง |
+| `__SearchWindowHours` | 12 (สูงสุด 72) | หาต่อนานเท่านี้หลังจบคาบ แล้วจบเป็น `NoRecording` (ให้ผู้สอนอัปโหลดเอง) |
+| `__MaxAttempts` | 6 | ความล้มเหลวชั่วคราวติดกัน (เครือข่าย/5xx/429) ก่อนเป็น `Failed` |
+| `__MaxFileSizeMegabytes` | 8192 | ไฟล์ใหญ่กว่านี้ถูกปฏิเสธ (`file_too_large`) |
+| `__TransferLeaseMinutes` | 180 | การคัดลอกที่ไม่จบภายในเวลานี้ถือว่าค้าง → job ยึดคืนและเริ่มใหม่ (นับเป็น 1 attempt) |
+| `__BatchSize` | 5 | จำนวนแถวต่อรอบ job |
+| `__DevSampleFilePath` | ว่าง | **dev เท่านั้น** (`Live__Provider=Logging`) · **production ต้องว่าง** — `ProductionConfigurationGuard` ไม่ยอมบูตถ้ามีค่า |
+
+ทุกค่าบวก (`SearchWindowHours` ≤ 72) — ผิดจะบูตไม่ขึ้น (`ValidateOnStart`) · ใช้ Bunny ที่ตั้งไว้แล้ว (`VideoProvider__*` หัวข้อ 3) ไม่มี key ใหม่
+
+### 9.3 Google Cloud (เพิ่มจากหัวข้อ 3)
+
+1. Enable **"Google Meet REST API"** และ **"Google Drive API"** ใน project เดียวกับ Calendar
+2. OAuth consent screen เพิ่ม scope สองตัว: `https://www.googleapis.com/auth/meetings.space.readonly` (**Sensitive**) และ `https://www.googleapis.com/auth/drive.meet.readonly` (**Restricted**)
+3. ⚠️ **Restricted scope ต้องผ่านการตรวจสอบของ Google** (แอปที่เก็บ/ส่งต่อข้อมูลจาก Drive ไปเซิร์ฟเวอร์ของเราต้องทำ security assessment ก่อนรองรับผู้ใช้เกิน 100 คน — ตรวจเงื่อนไข/ค่าใช้จ่าย/ขั้นตอนล่าสุดใน console เสมอ ก่อนวางแผนเปิดให้ผู้สอนทุกคน) · ระหว่างยังไม่ตรวจสอบ: ผู้สอนที่กดยินยอมเห็นหน้า "แอปนี้ยังไม่ได้รับการยืนยัน" และจำกัด **≤ 100 บัญชี** (นับตลอดอายุแอป) · ถ้า consent screen ยังเป็นสถานะ Testing ต้องเพิ่มอีเมลผู้สอนใน Test users · refresh token ของแอปสถานะ Testing หมดอายุเร็ว (ดูหัวข้อ 3)
+4. **Redirect URI เดิมใช้ต่อได้** (callback ตัวเดียวกัน `…/api/live/instructor/google/callback` จบทั้งสอง consent)
+5. ฝั่ง Workspace: ต้องเป็นแพ็กเกจที่ **เปิดการบันทึก Meet ได้** และผู้จัด (ผู้สอน) ต้อง **กดบันทึกจริง** — `hd` บอกแค่ "เป็น Workspace" ไม่ได้บอกว่าอัดได้ · ถ้าไม่มีไฟล์ในช่วงค้นหา → สถานะ `NoRecording` (แถวคาบสอนบอกผู้สอนให้อัปโหลดเอง/ลองใหม่ — ไม่ส่งอีเมล เพราะคาบที่ไม่ได้กดบันทึกไม่ใช่ข้อผิดพลาด)
+
+### 9.4 อ่านสถานะ / แก้ปัญหา
+
+ผู้สอนเห็นสถานะของแต่ละคาบ (`recordingImport` ในหน้ารายการคาบ) — เป็น **รหัสเท่านั้น** ไม่มี id/URL ของ Google หรือ Bunny · tick `live-recording-import` อยู่ใน `/admin/live-status` แล้ว (ล้มเหลว/เลยเวลา = ขึ้น `recurring_job_failing`/`recurring_job_overdue` เหมือนงานอื่น; ตอนปิด flag มันแค่ no-op และขึ้น "รันล่าสุด" ปกติ) · ส่วน transfer job ดูใน Hangfire dashboard · log ค้นด้วยคำว่า `Live recording import`
+
+| สถานะ (`ERROR_CODE`) | ความหมาย / ทำอะไร |
+|---|---|
+| `Waiting` | ยังหาไฟล์ไม่เจอ ค้นซ้ำห่าง 10→20→40 นาที แล้วทุกชั่วโมงจนครบ `SearchWindowHours` |
+| `Transferring` / `Processing` | กำลังคัดลอก / รอ Bunny transcode (ไม่เกิน 6 ชม. → `transcode_timeout`) |
+| `Attached` | เสร็จ — บทเรียนอยู่ในคอร์ส ผู้เรียนที่ลงทะเบียนดูได้ทันที |
+| `NoRecording` (`no_recording_found`, `drive_file_not_found`) | ไม่พบไฟล์ → ผู้สอนอัปโหลดเอง หรือกด "ลองใหม่" ภายใน 30 วัน |
+| `NeedsReconnect` (`recording_scope_missing`, `invalid_grant`, `google_account_unavailable`) | Google อ่านบันทึกไม่ได้ → ผู้สอนเชื่อม Google ใหม่/กดยินยอมสิทธิ์บันทึกอีกครั้ง แล้วกด "ลองใหม่" |
+| `Failed` (`file_too_large`, `transcode_failed`, `transcode_timeout`, `ingest_failed`, `transfer_timeout`, `google_*`, `attach_failed`) | เลิกลอง → อีเมลบอกผู้สอน (อัปโหลดเอง หรือ "ลองใหม่") · `google_client_misconfigured` = ปัญหา OAuth client/คีย์เข้ารหัสฝั่งเรา ดู log |
+| `Skipped` | ไม่มีอะไรต้องนำเข้า: คาบถูกยกเลิก / มีบันทึกอยู่แล้ว (ผู้สอนอัปโหลดเอง) / บัญชีไม่ใช่ Workspace / ห้องไม่ใช่ห้อง Google ที่ระบบสร้าง |
+
+- แถวนับจาก `LIVE.SESSION_RECORDING_IMPORTS` (1 แถวต่อ 1 คาบ) · แถวไม่เคยถูกลบ · retry คือเปลี่ยน `Failed`/`NoRecording`/`NeedsReconnect` กลับเป็น `Waiting`
+- ถ้า pod restart/deploy **กลางการคัดลอก** แถวจะค้าง `Transferring` จน lease หมด (`TransferLeaseMinutes`, default 180 นาที) แล้ว tick ยึดคืนและ queue การคัดลอกใหม่ทั้งไฟล์ (นับเป็น 1 attempt) — ลดค่านี้ได้เพื่อให้กู้เร็วขึ้น แต่ต้องมากกว่าเวลาคัดลอกจริงของไฟล์ที่ใหญ่ที่สุดที่คาดไว้ · ตอนนี้ API pod เป็นคนรัน job (Hangfire server ใน API) การคัดลอกจึงกินแบนด์วิดท์ขาออก/ขาเข้าของ pod นั้น (สตรีม ไม่กินหน่วยความจำ)
+- ⚠️ **ข้อจำกัดที่รู้แล้ว (F3): ถ้ากระบวนการล้ม/restart กลางการคัดลอก จะเหลือ asset สถานะ `Uploading` (และวิดีโอที่อัปโหลดมาครึ่งเดียวที่ Bunny) ค้างอยู่ในคลังสื่อของผู้สอน** — แถวนำเข้าไม่รู้ id ของ asset นี้ (ระบบคืน id ให้แถวหลังคัดลอกสำเร็จเท่านั้น และไม่มี contract สำหรับลบ asset) การคัดลอกรอบใหม่สร้าง asset ใหม่ ไม่ใช้ตัวครึ่งทางซ้ำ · **ผู้สอนลบ asset ที่ค้างได้เองจากคลังสื่อ** (การลบผ่านคลังสื่อลบวิดีโอที่ Bunny ด้วย) · ไม่กระทบคอร์สหรือบทเรียนของผู้เรียน (asset นี้ยังไม่ได้แนบกับบทเรียนใด)
+
+### 9.5 ความเป็นส่วนตัว / ความเสี่ยงที่ต้องรู้
+
+- บันทึกมีใบหน้า/เสียงผู้เรียน และกลายเป็นบทเรียนที่ **ผู้เรียนที่ลงทะเบียนทุกคนดูได้ทันที** — ระบบอีเมลบอกผู้สอนทุกครั้งที่เพิ่ม · คอร์สที่ขายแล้วลบบทเรียนไม่ได้ (domain กันไว้) ผู้สอนแทนที่ได้ด้วยการแนบบันทึกอื่นแทน
+- ไม่มี token / รหัสห้อง Meet / id ไฟล์ Drive / id ของ Bunny / URL ใน log หรือ response ใด ๆ · ไฟล์ถูกสตรีมจาก Drive ไป Bunny ไม่เก็บทั้งไฟล์ในหน่วยความจำหรือดิสก์ของเรา
+- การยินยอมรอบที่ 2 ไม่เพิกถอน token เดิมของ Google (เป็น grant เดียวกัน) — ถ้าผู้สอนติ๊กไม่ครบสองสิทธิ์ การเชื่อมปฏิทินเดิมยังใช้ได้และได้เหตุผล `recording_scope_missing`
+
+### 9.6 ยังไม่ผ่านการพิสูจน์ (ตรงไปตรงมา)
+
+- **พิสูจน์แล้ว (QA, dev):** Bunny — อัปโหลด, transcode, ลบ — และ integration ของฟีเจอร์นี้กับ PostgreSQL/Redis จริงผ่าน `Live:Provider=Logging` (ไฟล์ตัวอย่างสังเคราะห์)
+- **ยังไม่เคยพิสูจน์:** พฤติกรรมของ **Google Meet REST / Drive / `hd` / Restricted scope** กับบัญชี Google Workspace จริง (ยังไม่มีบัญชี Workspace) — การหาไฟล์บันทึก, รูปแบบ response จริง, หน้า consent และขั้นตอนตรวจสอบแอปของ Google · และการคัดลอกไฟล์ขนาดหลาย GB จริงจนจบ
+- **ทดสอบกับบัญชี Workspace จริงอย่างน้อย 1 คาบก่อนบอกผู้สอนว่าใช้ได้**

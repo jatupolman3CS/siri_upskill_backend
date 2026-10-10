@@ -1,6 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Siri.IntegrationTests.Fixtures;
+using Siri.IntegrationTests.TestData;
+using Siri.Modules.Catalog;
+using Siri.Modules.Catalog.Application;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Features.AttachEpisodeMedia;
 using Siri.Modules.Catalog.Features.AutosaveCourse;
@@ -208,7 +213,16 @@ public sealed class MediaDraftIntegrationTests(PostgresFixture fixture) : IClass
         Assert.Equal(95, (await db.CourseEpisodes().SingleAsync(item => item.Id == episode.Id)).DurationSeconds);
     }
 
-    private AutosaveCourseHandler Handler(AppDbContext db) => new(db, _clock, new MediaAssetContractService(db));
+    private AutosaveCourseHandler Handler(AppDbContext db) => new(
+        db,
+        _clock,
+        new MediaAssetContractService(db),
+        new TeachingMaterialStorage(
+            new InMemoryFileStorage(),
+            new AcceptAllVirusScanner(),
+            Options.Create(new EpisodeAttachmentOptions()),
+            _clock,
+            NullLogger<TeachingMaterialStorage>.Instance));
 
     private static AutosaveCourseCommand Command(Seed seed) => new(
         "Upload draft", null, null, seed.CategoryId, CourseLevel.Beginner, CourseLanguage.Thai,

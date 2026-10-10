@@ -86,6 +86,19 @@ Requirement **LX-06** (Must-Have) ระบุว่าต้องรองร�
 - ใช้ SDK ทางการ **Stripe.net** — auth ผ่าน `StripeClient` ด้วย secret key (ห้าม hardcode, ห้าม log)
 - เตรียม `IPaymentMethod` ตั้งแต่ต้น เพื่อเสียบ gateway อื่น (ผ่อนชำระ) ในอนาคต
 
+## Admin amount override — ปรับยอดที่ส่งให้ Stripe (เพิ่ม 2026-10-10)
+
+ใช้ทดสอบ flow เงินจริงบน production ด้วยยอดน้อย ๆ (เช่น ฿20) โดยไม่ต้องแก้ราคาคอร์ส · หน้าจอ `/admin/payment-settings` → `PUT /api/commerce/admin/payment-amount-override` (AdminOnly)
+
+- **ยอดคงที่ทั้งระบบ**: เปิด/ปิด + ยอด THB เดียว — ขณะเปิด ทุก PaymentIntent ที่ **สร้างใหม่** (PromptPay และบัตร) จะถูกตัดที่ `min(ยอด override, ยอดออเดอร์)` · **ลดได้อย่างเดียว ไม่มีทางเก็บเกินราคาจริง** · ออเดอร์ฟรีไม่เกี่ยว · PaymentIntent ที่สร้างไปก่อนเปิด override ไม่เปลี่ยนยอด
+- **ตั้งค่า = audit**: ตาราง `PaymentAmountOverrides` append-only (ทุกการเปลี่ยนคือแถวใหม่ ไม่มี update/delete) แถวล่าสุดคือค่าที่ใช้อยู่ · เก็บ admin ที่เปลี่ยน (จาก token ไม่ใช่ request body), เวลา, เหตุผล (บังคับ 3–500 ตัวอักษร) · ทุกการเปลี่ยนเขียน log ระดับ Warning ด้วย
+- **`Payments.Amount` = เงินที่ตัดจริง**; `Payments.OriginalAmount` = ยอดออเดอร์เดิม (มีค่าเฉพาะ payment ที่ถูก override) · ออเดอร์ (`Orders.TotalAmount`) ไม่ถูกแก้
+- **Revenue split ตามยอดที่ตัดจริง** (ตัดสินใจโดยเจ้าของโปรเจ็ค 2026-10-10): `StripeWebhookHandler` ย่อ gross ของแต่ละ item ด้วย `Amount / OriginalAmount` ผ่าน `PaidAmountAllocator` (เศษสตางค์ลง item สุดท้าย ผลรวมเท่ายอดที่ตัดจริงเป๊ะ) ค่าธรรมเนียม Stripe จริงยังถัวตามสัดส่วน item เหมือนเดิม
+- **Refund** อิง `Payments.Amount` อยู่แล้ว → คืนได้ไม่เกินเงินที่ตัดจริง · อีเมลใบเสร็จแสดงยอดที่ตัดจริง
+- **ไม่ออกใบเสร็จ PDF / ใบกำกับภาษี** ให้ออเดอร์ที่จ่ายผ่าน override (ตอบ 409) — เอกสารพิมพ์ยอดระดับออเดอร์ ซึ่งจะสูงกว่าที่จ่ายจริง
+- Stripe บังคับยอดขั้นต่ำของตัวเอง — ถ้า override ต่ำกว่า จะได้ `payment.provider_error` ตอนสร้างการชำระเงินครั้งถัดไป (ไม่มีการเช็คขั้นต่ำฝั่งเราเพราะไม่ยืนยันตัวเลขจาก docs)
+- ⚠️ **อย่าลืมปิดหลังทดสอบ** — ขณะเปิด ลูกค้าจริงทุกคนจะถูกตัดตามยอดนี้ (หน้า admin แสดงแบนเนอร์เตือน)
+
 ## ตารางที่เพิ่ม/เปลี่ยนจาก `DATABASE.md`
 
 ```
@@ -93,7 +106,11 @@ commerce.Payments(Id PK, OrderId FK, Method,          -- PromptPay | (อนา�
                   Provider,                            -- 'Stripe'
                   ProviderPaymentIntentId,             -- UQ ← ผูก 1:1 กับ Stripe PaymentIntent
                   Amount, Status,                      -- Pending|Processing|Succeeded|Failed|Expired|Refunded
+                  OriginalAmount NULL,                 -- เฉพาะ payment ที่ admin override ลดยอด
                   SucceededAtUtc, FailureReason, CreatedAtUtc)
+
+commerce.PaymentAmountOverrides(Id PK, IsEnabled, OverrideAmount, Reason,   -- append-only; แถวล่าสุด = ค่าที่ใช้
+                  ChangedByUserId, ChangedAtUtc)
 
 commerce.StripeWebhookEvents(Id PK,
                   StripeEventId,                       -- UQ ← กัน replay/ยิงซ้ำ (สำคัญที่สุด)

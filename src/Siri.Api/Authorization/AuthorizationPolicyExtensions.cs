@@ -30,13 +30,17 @@ public static class AuthorizationPolicyExtensions
     /// superadmin must never be locked out of an admin-only area; if it only checked "Admin", a
     /// SuperAdmin-only account (no separate "Admin" role also assigned) would fail every admin
     /// screen, which defeats the point of having a SuperAdmin tier at all.</item>
-    /// <item><b>InstructorOnly</b> — Instructor OR Admin OR SuperAdmin (a deliberate design choice,
-    /// not left implicit, per the task instruction that called this out explicitly). Admins
-    /// occasionally need to act on instructor-only resources for support/moderation — e.g. fixing a
-    /// course on an instructor's behalf, investigating a dispute — without the platform needing a
-    /// second "impersonate instructor" mechanism just for that. This is one-directional: an Instructor
-    /// role alone does <em>not</em> satisfy <see cref="AuthorizationPolicyNames.AdminOnly"/> — admin access is never implied by
-    /// being an instructor, only the reverse.</item>
+    /// <item><b>InstructorOnly</b> — an <em>approved</em> Instructor, OR Admin OR SuperAdmin (a
+    /// deliberate design choice, not left implicit, per the task instruction that called this out
+    /// explicitly). Admins occasionally need to act on instructor-only resources for
+    /// support/moderation — e.g. fixing a course on an instructor's behalf, investigating a
+    /// dispute — without the platform needing a second "impersonate instructor" mechanism just for
+    /// that. This is one-directional: an Instructor role alone does <em>not</em> satisfy
+    /// <see cref="AuthorizationPolicyNames.AdminOnly"/> — admin access is never implied by being an
+    /// instructor, only the reverse. The Instructor role is also not enough on its own for this
+    /// policy: <see cref="ApprovedInstructorAuthorizationHandler"/> additionally requires an admin-approved
+    /// application, so a user who merely holds the role (assigned by hand, invited, seeded) without an
+    /// approval reaches none of the studio API.</item>
     /// </list>
     /// <para>
     /// <b>Not defined here — <c>CourseOwner</c>/<c>EnrolledInCourse</c>:</b> both need real entities
@@ -56,6 +60,11 @@ public static class AuthorizationPolicyExtensions
     /// </summary>
     public static IServiceCollection AddSiriAuthorizationPolicies(this IServiceCollection services)
     {
+        // Scoped, not singleton: the handler reads the application status through a scoped DbContext-backed contract.
+        // `AddAuthorization` plus `AddScoped<IAuthorizationHandler, ...>` is the supported way to add handlers (they are
+        // resolved as `IEnumerable<IAuthorizationHandler>` per request).
+        services.AddScoped<IAuthorizationHandler, ApprovedInstructorAuthorizationHandler>();
+
         return services.AddAuthorization(options =>
         {
             options.AddPolicy(
@@ -64,7 +73,7 @@ public static class AuthorizationPolicyExtensions
 
             options.AddPolicy(
                 AuthorizationPolicyNames.InstructorOnly,
-                policy => policy.RequireRole(ROLE.InstructorName, ROLE.AdminName, ROLE.SuperAdminName));
+                policy => policy.RequireAuthenticatedUser().AddRequirements(new ApprovedInstructorRequirement()));
         });
     }
 }

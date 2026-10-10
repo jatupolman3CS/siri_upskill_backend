@@ -28,6 +28,8 @@ public sealed class PAYMENTConfiguration : IEntityTypeConfiguration<PAYMENT>
         builder.HasIndex(p => p.PROVIDER_PAYMENT_INTENT_ID).IsUnique();
 
         builder.Property(p => p.AMOUNT).HasPrecision(18, 2).IsRequired();
+        // Set only when an admin amount override lowered AMOUNT below the order total (null otherwise).
+        builder.Property(p => p.ORIGINAL_AMOUNT).HasPrecision(18, 2);
         builder.Property(p => p.STATUS).HasConversion<string>().HasMaxLength(32).IsRequired();
         builder.Property(p => p.SUCCEEDED_AT_UTC).HasPrecision(3);
         builder.Property(p => p.FAILURE_REASON).HasMaxLength(500);

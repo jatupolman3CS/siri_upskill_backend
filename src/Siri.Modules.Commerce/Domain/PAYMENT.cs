@@ -46,22 +46,45 @@ public sealed class PAYMENT
     /// plays for inbound webhook delivery.</summary>
     public string PROVIDER_PAYMENT_INTENT_ID { get; private set; } = string.Empty;
 
+    /// <summary>The amount actually sent to Stripe (and so the real money collected) — equals the order total
+    /// unless an admin amount override was active when this attempt was created
+    /// (<see cref="PAYMENT_AMOUNT_OVERRIDE"/>), in which case <see cref="ORIGINAL_AMOUNT"/> is set.</summary>
     public decimal AMOUNT { get; private set; }
+
+    /// <summary>The order total this attempt WOULD have charged, set only when an admin amount override
+    /// lowered <see cref="AMOUNT"/> below it; <c>null</c> for every normal payment (and for rows created
+    /// before the override feature existed). Downstream money logic keys off this: revenue split pro-rates
+    /// the instructors' gross to <see cref="AMOUNT"/>, and receipts/tax invoices (which print order-level
+    /// totals) refuse to be issued for such a payment.</summary>
+    public decimal? ORIGINAL_AMOUNT { get; private set; }
+
+    public bool IsAmountOverridden => ORIGINAL_AMOUNT.HasValue;
+
     public PaymentStatus STATUS { get; private set; }
     public DateTime? SUCCEEDED_AT_UTC { get; private set; }
     public string? FAILURE_REASON { get; private set; }
     public DateTime CREATED_AT_UTC { get; private set; }
 
-    public static PAYMENT Create(Guid orderId, PaymentMethod method, string providerPaymentIntentId, decimal amount, IClock clock)
+    public static PAYMENT Create(
+        Guid orderId,
+        PaymentMethod method,
+        string providerPaymentIntentId,
+        decimal amount,
+        IClock clock,
+        decimal? originalAmount = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerPaymentIntentId);
         ArgumentNullException.ThrowIfNull(clock);
         if (amount <= 0) throw new ArgumentOutOfRangeException(nameof(amount), amount, "amount must be positive.");
+        if (originalAmount is { } original && original <= amount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(originalAmount), original, "originalAmount must be greater than amount when provided (an override only lowers the charge).");
+        }
 
         return new PAYMENT
         {
             PAYMENT_ID = UuidV7.NewId(), ORDER_ID = orderId, METHOD = method, PROVIDER = "Stripe",
-            PROVIDER_PAYMENT_INTENT_ID = providerPaymentIntentId, AMOUNT = amount,
+            PROVIDER_PAYMENT_INTENT_ID = providerPaymentIntentId, AMOUNT = amount, ORIGINAL_AMOUNT = originalAmount,
             STATUS = PaymentStatus.Pending, CREATED_AT_UTC = clock.UtcNow,
         };
     }

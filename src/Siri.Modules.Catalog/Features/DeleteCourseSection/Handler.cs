@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Application;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -6,7 +7,7 @@ using Siri.SharedKernel;
 
 namespace Siri.Modules.Catalog.Features.DeleteCourseSection;
 
-public sealed class DeleteCourseSectionHandler(AppDbContext dbContext)
+public sealed class DeleteCourseSectionHandler(AppDbContext dbContext, TeachingMaterialStorage materialStorage)
 {
     private static readonly DomainError NotFoundError = DomainError.NotFound("ไม่พบคอร์สหรือส่วน/บทหลักนี้");
     private static readonly DomainError NotOwnerError = DomainError.Forbidden("คุณไม่มีสิทธิ์แก้ไขคอร์สนี้");
@@ -45,8 +46,19 @@ public sealed class DeleteCourseSectionHandler(AppDbContext dbContext)
             return Result.Failure(NotFoundError);
         }
 
+        // The attachment rows go with the section's episodes (FK cascade); their R2 objects don't, so note the keys first.
+        var episodeIds = section.Episodes.Select(e => e.Id).ToList();
+        var storageKeys = await dbContext.EpisodeAttachments()
+            .AsNoTracking()
+            .Where(a => episodeIds.Contains(a.EpisodeId))
+            .Select(a => a.StorageKey)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         course.RemoveSection(sectionId);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        await materialStorage.DeleteQuietlyAsync(storageKeys, cancellationToken).ConfigureAwait(false);
 
         return Result.Success();
     }

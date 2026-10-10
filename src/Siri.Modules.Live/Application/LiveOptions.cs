@@ -60,6 +60,9 @@ public sealed class LiveOptions
     /// <summary>ICS <c>ORGANIZER</c> address. Defaults to <c>no-reply@{host of PublicBaseUrl}</c>. Used by P11-04.</summary>
     public string OrganizerEmail { get; set; } = string.Empty;
 
+    /// <summary>Recording settings (<c>Live:Recording</c>) — currently only the automatic Google Meet import (<c>Live:Recording:AutoImport</c>, P11-13).</summary>
+    public LiveRecordingOptions Recording { get; set; } = new();
+
     /// <summary>Configured allowed hosts (trimmed, lower-cased, distinct) or the defaults when none are configured.</summary>
     public IReadOnlyList<string> GetEffectiveAllowedMeetingHosts()
     {
@@ -106,6 +109,50 @@ public sealed class LiveOptions
     }
 }
 
+/// <summary><c>Live:Recording</c> — groups the recording-related settings so the section path (<c>Live:Recording:AutoImport</c>) matches P11-13 contract section 2.</summary>
+public sealed class LiveRecordingOptions
+{
+    public LiveRecordingAutoImportOptions AutoImport { get; set; } = new();
+}
+
+/// <summary>
+/// <c>Live:Recording:AutoImport</c> — the automatic import of a Google Meet recording into the platform as a lesson (P11-13 contract section 2).
+/// The whole feature is behind <see cref="Enabled"/> (default <c>false</c>): the Google app is unverified for the Restricted
+/// <c>drive.meet.readonly</c> scope, so the owner switches it on when a Google Workspace account exists. With it off no discovery runs, no
+/// import row is written, no consent button is offered and every instructor sees only the manual upload path.
+/// </summary>
+public sealed class LiveRecordingAutoImportOptions
+{
+    public const int MaxSearchWindowHours = 72;
+
+    /// <summary>Master switch. Off: no discovery, no import rows, no consent button, capability is always <c>Manual</c>.</summary>
+    public bool Enabled { get; set; }
+
+    /// <summary>The first search for the recording happens this long after the scheduled end of the class.</summary>
+    public int FirstSearchDelayMinutes { get; set; } = 10;
+
+    /// <summary>Keep looking this long after the scheduled end; after that the import ends as <c>NoRecording</c> (the instructor uploads by hand).</summary>
+    public int SearchWindowHours { get; set; } = 12;
+
+    /// <summary>Consecutive transient failures (network, 5xx, 429) tolerated before the import is <c>Failed</c>.</summary>
+    public int MaxAttempts { get; set; } = 6;
+
+    /// <summary>Larger recordings are refused (<c>file_too_large</c>).</summary>
+    public int MaxFileSizeMegabytes { get; set; } = 8192;
+
+    /// <summary>A <c>Transferring</c> import not finished by then is reclaimed and restarted.</summary>
+    public int TransferLeaseMinutes { get; set; } = 180;
+
+    /// <summary>Imports processed per job run.</summary>
+    public int BatchSize { get; set; } = 5;
+
+    /// <summary><b>Development only</b> (<c>Live:Provider=Logging</c>): the file the fake recording provider serves. Must be empty in Production.</summary>
+    public string DevSampleFilePath { get; set; } = string.Empty;
+
+    /// <summary><see cref="MaxFileSizeMegabytes"/> in bytes.</summary>
+    public long MaxFileSizeBytes => MaxFileSizeMegabytes * 1024L * 1024L;
+}
+
 /// <summary>Cross-field validation for <see cref="LiveOptions"/> that data annotations cannot express.</summary>
 public sealed class LiveOptionsValidator : IValidateOptions<LiveOptions>
 {
@@ -133,6 +180,33 @@ public sealed class LiveOptionsValidator : IValidateOptions<LiveOptions>
             failures.Add($"{LiveOptions.SectionName}:{nameof(LiveOptions.OrganizerEmail)} is not a valid e-mail address.");
         }
 
+        ValidateAutoImport(options.Recording.AutoImport, failures);
+
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
+    }
+
+    private static void ValidateAutoImport(LiveRecordingAutoImportOptions autoImport, List<string> failures)
+    {
+        const string prefix = $"{LiveOptions.SectionName}:Recording:AutoImport";
+
+        void Positive(string name, int value)
+        {
+            if (value <= 0)
+            {
+                failures.Add($"{prefix}:{name} must be greater than zero.");
+            }
+        }
+
+        Positive(nameof(LiveRecordingAutoImportOptions.FirstSearchDelayMinutes), autoImport.FirstSearchDelayMinutes);
+        Positive(nameof(LiveRecordingAutoImportOptions.SearchWindowHours), autoImport.SearchWindowHours);
+        Positive(nameof(LiveRecordingAutoImportOptions.MaxAttempts), autoImport.MaxAttempts);
+        Positive(nameof(LiveRecordingAutoImportOptions.MaxFileSizeMegabytes), autoImport.MaxFileSizeMegabytes);
+        Positive(nameof(LiveRecordingAutoImportOptions.TransferLeaseMinutes), autoImport.TransferLeaseMinutes);
+        Positive(nameof(LiveRecordingAutoImportOptions.BatchSize), autoImport.BatchSize);
+
+        if (autoImport.SearchWindowHours > LiveRecordingAutoImportOptions.MaxSearchWindowHours)
+        {
+            failures.Add($"{prefix}:{nameof(LiveRecordingAutoImportOptions.SearchWindowHours)} must be at most {LiveRecordingAutoImportOptions.MaxSearchWindowHours} hours.");
+        }
     }
 }

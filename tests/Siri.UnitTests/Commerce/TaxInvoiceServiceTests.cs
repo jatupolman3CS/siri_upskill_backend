@@ -101,6 +101,64 @@ public sealed class TaxInvoiceServiceTests
         Assert.Single(invoiceRepo.Invoices);
     }
 
+    private static async Task<(TaxInvoiceService Service, ORDER Order, Guid UserId, FakeTaxInvoiceRepository Invoices)> PaidOrderWithPaymentAsync(
+        decimal? originalAmount)
+    {
+        var invoiceRepo = new FakeTaxInvoiceRepository();
+        var orderRepo = new FakeOrderRepository();
+        var paymentRepo = new TaxInvoiceServiceFactory.InMemoryPaymentRepository();
+        var clock = new FakeClock(new DateTime(2026, 10, 10, 8, 0, 0, DateTimeKind.Utc));
+
+        var userId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-OVR-DOC", userId, 1890m, 0m, 0m, 1890m);
+        order.MarkAwaitingPayment();
+        order.MarkPaid(clock);
+        await orderRepo.AddAsync(order, CancellationToken.None);
+
+        var payment = originalAmount is null
+            ? PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, "pi_doc", 1890m, clock)
+            : PAYMENT.Create(order.ORDER_ID, PaymentMethod.PromptPay, "pi_doc", 20m, clock, originalAmount);
+        payment.MarkSucceeded(clock);
+        await paymentRepo.AddAsync(payment, CancellationToken.None);
+
+        var service = TaxInvoiceServiceFactory.Create(invoiceRepo, orderRepo, clock, paymentRepository: paymentRepo);
+        return (service, order, userId, invoiceRepo);
+    }
+
+    [Fact]
+    public async Task IssueAsync_OrderPaidThroughAmountOverride_RefusesBecauseDocumentWouldOverstatePaidAmount()
+    {
+        var (service, order, userId, invoices) = await PaidOrderWithPaymentAsync(originalAmount: 1890m);
+
+        var result = await service.IssueAsync(userId, new IssueTaxInvoiceCommand(order.ORDER_ID, "0105558123456", "บริษัท ตัวอย่าง จำกัด"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("conflict", result.Error.Code);
+        Assert.Empty(invoices.Invoices);
+    }
+
+    [Fact]
+    public async Task IssueAsync_OrderPaidNormally_StillIssuesWhenAPaymentExists()
+    {
+        var (service, order, userId, invoices) = await PaidOrderWithPaymentAsync(originalAmount: null);
+
+        var result = await service.IssueAsync(userId, new IssueTaxInvoiceCommand(order.ORDER_ID, "0105558123456", "บริษัท ตัวอย่าง จำกัด"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(invoices.Invoices);
+    }
+
+    [Fact]
+    public async Task GetOrderReceiptPdfAsync_OrderPaidThroughAmountOverride_RefusesWithConflict()
+    {
+        var (service, order, userId, _) = await PaidOrderWithPaymentAsync(originalAmount: 1890m);
+
+        var result = await service.GetOrderReceiptPdfAsync(userId, order.ORDER_ID, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("conflict", result.Error.Code);
+    }
+
     [Fact]
     public async Task IssueAsync_WhenOrderIsNotPaid_ReturnsConflict()
     {

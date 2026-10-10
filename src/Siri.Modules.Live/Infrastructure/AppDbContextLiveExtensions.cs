@@ -26,4 +26,7 @@ public static class AppDbContextLiveExtensions
 
     public static DbSet<SESSION_JOIN_LOG> SessionJoinLogs(this AppDbContext context) =>
         context.Set<SESSION_JOIN_LOG>();
+
+    public static DbSet<SESSION_RECORDING_IMPORT> SessionRecordingImports(this AppDbContext context) =>
+        context.Set<SESSION_RECORDING_IMPORT>();
 }

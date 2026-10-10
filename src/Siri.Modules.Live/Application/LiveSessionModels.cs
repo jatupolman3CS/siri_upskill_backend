@@ -99,7 +99,8 @@ public sealed record InstructorSessionListItem(
     int JoinedLearners,
     InstructorMeetingSummary Meeting,
     Guid? RecordingEpisodeId,
-    string? CancelReason);
+    string? CancelReason,
+    RecordingImportInfo RecordingImport);
 
 /// <summary>The owning instructor's view of one session. <b>One of the only two responses that carry the room URL</b> (<see cref="MeetUrl"/>); sent with
 /// <c>Cache-Control: no-store</c>.</summary>
@@ -107,6 +108,7 @@ public sealed record InstructorSessionListItem(
 /// <param name="EnrolledCount">Learners who currently hold an active enrollment of the course.</param>
 /// <param name="ExpectedLearners">Learners whose invitation is <c>Invited</c>.</param>
 /// <param name="JoinedLearners">Distinct learners who were handed the room link.</param>
+/// <param name="RecordingImport">How this session's recording gets onto the platform (P11-13): never a Drive id, asset id, URL or message.</param>
 public sealed record InstructorSessionDetailResponse(
     Guid SessionId,
     Guid CourseId,
@@ -125,7 +127,8 @@ public sealed record InstructorSessionDetailResponse(
     int EnrolledCount,
     int ExpectedLearners,
     int JoinedLearners,
-    DateTime ServerTimeUtc);
+    DateTime ServerTimeUtc,
+    RecordingImportInfo RecordingImport);
 
 /// <summary>One learner on a session roster. Least privilege: only a masked e-mail (<c>a***@g***.com</c>) is ever returned, never the full address.</summary>
 public sealed record RosterItem(

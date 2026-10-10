@@ -81,6 +81,43 @@ public class LiveGoogleController : ControllerBase
     }
 
     /// <summary>
+    /// The second, optional consent (P11-13): the recording scopes for the automatic recording import, on top of the calendar ones. Same shape and the same
+    /// rate limit as <see cref="Connect"/>; the same callback finishes it. <b>409 <c>live.recording_not_available</c></b> when the feature is switched off
+    /// (<c>Live:Recording:AutoImport:Enabled</c>) or the connected account is not a Google Workspace account.
+    /// </summary>
+    [HttpPost("recording-access/connect")]
+    [Authorize(Policy = AuthorizationPolicyNames.InstructorOnly)]
+    [EnableRateLimiting(RateLimiterConfiguration.LiveUserPolicyName)]
+    [EndpointName("LiveConnectGoogleRecordingAccess")]
+    [EndpointSummary("เริ่มขออนุญาตเข้าถึงบันทึก Google Meet (Workspace เท่านั้น) — คืน URL ของหน้ายินยอม Google")]
+    [ProducesResponseType(typeof(GoogleConnectResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IResult> ConnectRecordingAccess(
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] GoogleConnectCommand? command,
+        [FromServices] InstructorGoogleAccountService service,
+        [FromServices] IUserContext userContext,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+
+        if (userContext.UserId is not { } userId)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await service.BeginRecordingAccessConnectAsync(userId, command?.ReturnPath, cancellationToken).ConfigureAwait(false);
+
+        return result.IsSuccess
+            ? Results.Ok(result.Value)
+            : result.Error.ToProblemHttpResult(HttpContext);
+    }
+
+    /// <summary>
     /// Where Google sends the browser back. <b>Anonymous by necessity</b> (it is a navigation without the SPA's bearer token); trust comes from the
     /// single-use <c>state</c> created by <see cref="Connect"/>. It <b>always answers 302</b> — success and every failure alike — to the frontend
     /// with <c>?google=connected</c> or <c>?google=error&amp;reason=...</c>, and never puts the code, a token or an e-mail address in the URL.

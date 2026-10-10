@@ -18,4 +18,5 @@ internal sealed record GoogleTokenResponse(
     [property: JsonPropertyName("expires_in")] long? ExpiresIn,
     [property: JsonPropertyName("refresh_token")] string? RefreshToken,
     [property: JsonPropertyName("scope")] string? Scope,
-    [property: JsonPropertyName("token_type")] string? TokenType);
+    [property: JsonPropertyName("token_type")] string? TokenType,
+    [property: JsonPropertyName("id_token")] string? IdToken = null);

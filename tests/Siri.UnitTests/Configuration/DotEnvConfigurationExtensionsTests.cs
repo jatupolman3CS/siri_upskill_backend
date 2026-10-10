@@ -1,6 +1,9 @@
+using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using Siri.Integrations.Messaging;
+using Siri.Modules.Notification.Infrastructure.Delivery;
 using Siri.SharedKernel.Configuration;
 
 namespace Siri.UnitTests.Configuration;
@@ -165,6 +168,38 @@ public sealed class DotEnvConfigurationExtensionsTests : IDisposable
         Assert.Equal("value#literal", configuration["Settings:Hash"]);
         Assert.Equal("${NO_INTERPOLATION}", configuration["Settings:Literal"]);
         Assert.Equal(string.Empty, configuration["Settings:Empty"]);
+    }
+
+    [Theory]
+    [InlineData(".env", "Development")]
+    [InlineData(".env_prd", "Production")]
+    public void KafkaAndDeliveryKeys_FromDotEnvFile_BindToTheirOptions(string fileName, string environmentName)
+    {
+        File.WriteAllText(Path.Combine(_directory, fileName), """
+            Notification__Delivery__Transport=Kafka
+            Kafka__BootstrapServers=broker-1:9092,broker-2:9092
+            Kafka__TopicPrefix=siriupskill-test
+            Kafka__ReplicationFactor=3
+            Kafka__SecurityProtocol=SaslSsl
+            Kafka__SaslMechanism=ScramSha512
+            Kafka__SaslUsername=app
+            Kafka__SaslPassword=CHANGE_ME_test
+            """);
+
+        var configuration = Load(environmentName);
+        var kafka = configuration.GetSection(KafkaOptions.SectionName).Get<KafkaOptions>();
+        var delivery = configuration.GetSection(NotificationDeliveryOptions.SectionName).Get<NotificationDeliveryOptions>();
+
+        Assert.NotNull(kafka);
+        Assert.Equal("broker-1:9092,broker-2:9092", kafka.BootstrapServers);
+        Assert.Equal("siriupskill-test", kafka.TopicPrefix);
+        Assert.Equal(3, kafka.ReplicationFactor);
+        Assert.Equal(SecurityProtocol.SaslSsl, kafka.SecurityProtocol);
+        Assert.Equal(SaslMechanism.ScramSha512, kafka.SaslMechanism);
+        Assert.Equal("app", kafka.SaslUsername);
+        Assert.Equal("CHANGE_ME_test", kafka.SaslPassword);
+        Assert.NotNull(delivery);
+        Assert.Equal(NotificationTransport.Kafka, delivery.Transport);
     }
 
     [Fact]

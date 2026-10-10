@@ -205,6 +205,13 @@ public static class AttachmentFileValidator
         return Result.Success();
     }
 
+    /// <summary>
+    /// The MIME type the server stores and serves for a validated file, derived from its extension — never the
+    /// client-declared one (which was only checked for consistency). <c>null</c> for an extension that is not allowed.
+    /// </summary>
+    public static string? GetCanonicalContentType(string extension) =>
+        !string.IsNullOrEmpty(extension) && AllowedExtensionsToMimeMap.TryGetValue(extension, out var mimes) ? mimes[0] : null;
+
     public static bool IsAllowedExtension(string fileName)
     {
         var ext = GetFileExtension(fileName);

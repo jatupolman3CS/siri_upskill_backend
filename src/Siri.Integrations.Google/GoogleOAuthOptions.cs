@@ -52,6 +52,13 @@ public sealed class GoogleOAuthOptions
 
     public int HttpTimeoutSeconds { get; set; } = DefaultHttpTimeoutSeconds;
 
+    /// <summary>
+    /// <b>Development only</b> (read exclusively by the fake <c>LoggingGoogleOAuthService</c> that <c>Live:Provider=Logging</c> selects; the real service
+    /// ignores it). The e-mail address the fake Google account reports. Empty = <c>dev-instructor@example.test</c> (a "personal" account). Set it to an
+    /// address ending in <c>@workspace.example.test</c> to rehearse a Google Workspace account without a Workspace subscription.
+    /// </summary>
+    public string DevAccountEmail { get; set; } = string.Empty;
+
     /// <summary>True when the connect-Google feature is switched on (a client id is configured).</summary>
     public bool IsConfigured => !string.IsNullOrWhiteSpace(ClientId);
 
@@ -114,6 +121,12 @@ public sealed class GoogleOAuthOptionsValidator : IValidateOptions<GoogleOAuthOp
         if (!GoogleOAuthOptions.IsSafeInstructorPath(options.PostConnectRedirectPath))
         {
             failures.Add($"{GoogleOAuthOptions.SectionName}:{nameof(GoogleOAuthOptions.PostConnectRedirectPath)} must be an in-app path starting with '/instructor/'.");
+        }
+
+        if (!string.IsNullOrEmpty(options.DevAccountEmail)
+            && (options.DevAccountEmail.Length > 254 || options.DevAccountEmail.Count(c => c == '@') != 1 || options.DevAccountEmail.Any(char.IsWhiteSpace)))
+        {
+            failures.Add($"{GoogleOAuthOptions.SectionName}:{nameof(GoogleOAuthOptions.DevAccountEmail)} must be a single e-mail address (or empty).");
         }
 
         if (options.IsConfigured)

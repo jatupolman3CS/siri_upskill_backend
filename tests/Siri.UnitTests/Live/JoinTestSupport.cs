@@ -253,8 +253,15 @@ internal sealed class JoinHarness
     public LiveLearnerQueries LearnerQueries() => new(
         Schedule, Learning, CourseSummaries, Meetings, Invites, Attendance, JoinService(), Clock, Options);
 
+    public InMemoryRecordingImportRepository RecordingImports { get; } = new();
+
+    public InMemoryAccountRepository Accounts { get; } = new();
+
+    public RecordingImportService RecordingImportService() => new(
+        RecordingImports, Accounts, Meetings, Schedule, Clock, Options, new ListLogger<RecordingImportService>());
+
     public LiveInstructorQueries InstructorQueries() => new(
-        Schedule, Learning, Meetings, MeetingService(), JoinLogs, Invites, Attendance, Contacts, Clock, Options);
+        Schedule, Learning, Meetings, MeetingService(), JoinLogs, Invites, Attendance, Contacts, Clock, Options, RecordingImportService());
 
     /// <summary>Adds a session to the schedule (defaults: starts in one day, lasts two hours, scheduled).</summary>
     public LiveSessionContext AddSession(

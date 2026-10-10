@@ -6,6 +6,7 @@
   <ItemGroup>
     <!-- Versions below were all resolved via `dotnet add package` (latest stable compatible with
          net10.0 at the time), not guessed. -->
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.104.2" />
     <PackageVersion Include="Confluent.Kafka" Version="2.16.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
     <PackageVersion Include="DotNetEnv" Version="3.1.1" />

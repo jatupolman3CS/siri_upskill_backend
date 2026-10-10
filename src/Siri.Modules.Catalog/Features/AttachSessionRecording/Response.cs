@@ -28,13 +28,14 @@ public static class LiveRecordingDefaults
 /// <summary>Stable <c>reason</c> sub-codes (appendix §0) the front end maps to i18n messages.</summary>
 public static class LiveRecordingReasons
 {
-    public const string SessionNotStarted = "live.session_not_started";
+    // One source of truth: the values live in Contracts so other modules (the Live import job) can branch on them.
+    public const string SessionNotStarted = Contracts.LiveRecordingAttachReasons.SessionNotStarted;
 
-    public const string AssetNotReady = "live.recording_asset_not_ready";
+    public const string AssetNotReady = Contracts.LiveRecordingAttachReasons.AssetNotReady;
 
-    public const string AssetInUse = "live.recording_asset_in_use";
+    public const string AssetInUse = Contracts.LiveRecordingAttachReasons.AssetInUse;
 
-    public const string EpisodeHasNoMedia = "live.recording_episode_has_no_media";
+    public const string EpisodeHasNoMedia = Contracts.LiveRecordingAttachReasons.EpisodeHasNoMedia;
 
-    public const string EpisodeInUse = "live.recording_episode_in_use";
+    public const string EpisodeInUse = Contracts.LiveRecordingAttachReasons.EpisodeInUse;
 }

@@ -103,6 +103,9 @@ public sealed class EpisodeAttachmentAccessTests : IAsyncLifetime
         builder.Services.AddSharedRedis(builder.Configuration);
         builder.Services.AddIdentityModule(builder.Configuration);
         builder.Services.AddNotificationModule(builder.Configuration);
+        // The download endpoint mints a signed R2 link: swap the real adapter (needs a bucket) for an in-memory double
+        // BEFORE AddCatalogModule, whose AddFileStorage only registers the real one when none is present.
+        builder.Services.AddSingleton<Siri.Integrations.Storage.IFileStorage>(new Siri.IntegrationTests.TestData.InMemoryFileStorage());
         builder.Services.AddCatalogModule(builder.Configuration);
         builder.Services.AddLearningModule();
 
@@ -337,6 +340,7 @@ public sealed class EpisodeAttachmentAccessTests : IAsyncLifetime
         var rawJson = await response.Content.ReadAsStringAsync();
         Assert.Contains("secret-handout.pdf", rawJson);
         Assert.DoesNotContain("storageKey", rawJson, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("attachments/secrets", rawJson, StringComparison.OrdinalIgnoreCase);
+        // The signed link necessarily contains the (server-generated) object key; what must never appear is the key as a field of its own.
+        Assert.StartsWith("https://r2.example.test/", System.Text.Json.JsonDocument.Parse(rawJson).RootElement.GetProperty("downloadUrl").GetString());
     }
 }

@@ -264,6 +264,28 @@ public class BunnyVideoProviderTests
         Assert.Equal(VideoProcessingStatus.Processing, result.Value.Status);
     }
 
+    // Bunny VideoModelStatus: 0 Created, 1 Uploaded, 2 Processing, 3 Transcoding, 4 Finished, 5 Error,
+    // 6 UploadFailed, 7 JitSegmenting, 8 JitPlaylistsCreated. Only Created means "bytes not received yet";
+    // Uploaded means the TUS transfer is done and the video is queued for encoding.
+    [Theory]
+    [InlineData(0, VideoProcessingStatus.Uploading)]
+    [InlineData(1, VideoProcessingStatus.Processing)]
+    [InlineData(2, VideoProcessingStatus.Processing)]
+    [InlineData(3, VideoProcessingStatus.Processing)]
+    [InlineData(4, VideoProcessingStatus.Ready)]
+    [InlineData(5, VideoProcessingStatus.Failed)]
+    [InlineData(6, VideoProcessingStatus.Failed)]
+    public async Task GetStatusAsync_BunnyStatusCode_MapsToProviderNeutralStatus(int bunnyStatus, VideoProcessingStatus expected)
+    {
+        var responseJson = JsonSerializer.Serialize(new { guid = "vid-1", status = bunnyStatus, length = 0.0 });
+        var provider = CreateProvider(handler: new FakeHandler(HttpStatusCode.OK, responseJson));
+
+        var result = await provider.GetStatusAsync("vid-1", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(expected, result.Value.Status);
+    }
+
     [Fact]
     public async Task GetStatusAsync_NotFound_ReturnsFailure()
     {

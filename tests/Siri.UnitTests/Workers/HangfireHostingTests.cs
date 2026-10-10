@@ -328,7 +328,7 @@ public class HangfireHostingTests
     {
         var (registered, _) = RegisterAll();
 
-        foreach (var id in new[] { RecurringJobIds.LiveMeetingSync, RecurringJobIds.LiveInviteReconcile, RecurringJobIds.LiveSessionReminders, RecurringJobIds.EmailOutboxSend })
+        foreach (var id in new[] { RecurringJobIds.LiveMeetingSync, RecurringJobIds.LiveInviteReconcile, RecurringJobIds.LiveSessionReminders, RecurringJobIds.LiveRecordingImport, RecurringJobIds.EmailOutboxSend })
         {
             var job = registered.Single(c => c.Id == id).Job;
             Assert.NotNull(job.Method.GetCustomAttribute<DisableConcurrentExecutionAttribute>());
@@ -336,6 +336,30 @@ public class HangfireHostingTests
     }
 
     [Fact]
+    public void TheRecordingImportJob_IsScheduledEveryFiveMinutes_ForTheLiveRecordingImportClass()
+    {
+        var (registered, _) = RegisterAll();
+
+        var call = registered.Single(c => c.Id == RecurringJobIds.LiveRecordingImport);
+
+        Assert.Equal("live-recording-import", call.Id);
+        Assert.Equal("*/5 * * * *", call.Cron);
+        Assert.Equal(typeof(Siri.Modules.Live.Infrastructure.LiveRecordingImportJob), call.Job.Type);
+        Assert.Equal(nameof(Siri.Modules.Live.Infrastructure.LiveRecordingImportJob.RunAsync), call.Job.Method.Name);
+    }
+
+    [Fact]
     public void TheDiagnosticIds_AreASubsetOfTheRegisteredJobs() =>
         Assert.All(RecurringJobIds.LiveDiagnostics, id => Assert.Contains(id, RecurringJobIds.All));
+
+    [Fact]
+    public void TheRecordingImportTick_IsWatchedByTheAdminLiveStatus_AndEveryLiveJobIsWatchedOnce()
+    {
+        // N2: a tick that silently stopped would otherwise only show as "recordings never arrive".
+        Assert.Contains(RecurringJobIds.LiveRecordingImport, RecurringJobIds.LiveDiagnostics);
+        Assert.Equal(RecurringJobIds.LiveDiagnostics.Count, RecurringJobIds.LiveDiagnostics.Distinct().Count());
+
+        var (registered, _) = RegisterAll();
+        Assert.All(RecurringJobIds.LiveDiagnostics, id => Assert.Single(registered, c => c.Id == id));
+    }
 }

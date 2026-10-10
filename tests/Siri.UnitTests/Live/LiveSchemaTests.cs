@@ -55,6 +55,7 @@ public class LiveSchemaTests
     [InlineData(typeof(SESSION_MEETING), "SESSION_MEETINGS")]
     [InlineData(typeof(SESSION_INVITE), "SESSION_INVITES")]
     [InlineData(typeof(SESSION_JOIN_LOG), "SESSION_JOIN_LOGS")]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "SESSION_RECORDING_IMPORTS")]
     public void LiveEntities_LiveInTheLiveSchemaUnderTheContractedTableName(Type clrType, string table)
     {
         var entity = Model.FindEntityType(clrType)!;
@@ -118,6 +119,29 @@ public class LiveSchemaTests
     [InlineData(typeof(SESSION_INVITE), "ROW_VERSION", false)]
     [InlineData(typeof(SESSION_INVITE), "CREATED_AT_UTC", false)]
     // SESSION_JOIN_LOGS (P11-05 §2)
+    [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "HOSTED_DOMAIN", true)]
+    [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "ACCOUNT_KIND_CHECKED_AT_UTC", true)]
+    // SESSION_RECORDING_IMPORTS (P11-13 §3)
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "SESSION_RECORDING_IMPORT_ID", false)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "SESSION_ID", false)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "COURSE_ID", false)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "INSTRUCTOR_USER_ID", false)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "STATUS", false)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "ATTEMPTS", false)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "NEXT_ATTEMPT_AT_UTC", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "LEASE_UNTIL_UTC", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "GOOGLE_RECORDING_NAME", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "GOOGLE_FILE_ID", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "MEDIA_ASSET_ID", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "EPISODE_ID", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "ERROR_CODE", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "SEARCH_UNTIL_UTC", false)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "COMPLETED_AT_UTC", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "ROW_VERSION", false)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "CREATED_AT_UTC", false)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "CREATED_BY", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "UPDATED_AT_UTC", true)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "UPDATED_BY", true)]
     [InlineData(typeof(SESSION_JOIN_LOG), "SESSION_JOIN_LOG_ID", false)]
     [InlineData(typeof(SESSION_JOIN_LOG), "SESSION_ID", false)]
     [InlineData(typeof(SESSION_JOIN_LOG), "COURSE_ID", false)]
@@ -135,10 +159,11 @@ public class LiveSchemaTests
     }
 
     [Theory]
-    [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), 15)] // 11 business columns + 4 audit columns
+    [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), 17)] // 11 business columns + HOSTED_DOMAIN + ACCOUNT_KIND_CHECKED_AT_UTC (P11-13) + 4 audit columns
     [InlineData(typeof(SESSION_MEETING), 21)] // 17 business columns (P11-04 added READINESS_ALERT_SENT_AT_UTC + ATTENDEE_SYNC_ALERT_SENT_AT_UTC) + 4 audit columns
     [InlineData(typeof(SESSION_INVITE), 17)] // 13 business columns + 4 audit columns
     [InlineData(typeof(SESSION_JOIN_LOG), 9)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), 20)] // 16 business columns (P11-13) + 4 audit columns
     public void Entities_HaveNoColumnsBeyondTheContract(Type clrType, int expectedColumnCount)
     {
         var entity = Model.FindEntityType(clrType)!;
@@ -154,6 +179,11 @@ public class LiveSchemaTests
     [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "GOOGLE_EMAIL", null, 320)]
     [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "SCOPES", null, 500)]
     [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "REVOKED_REASON", null, 40)]
+    [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "HOSTED_DOMAIN", null, 255)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "STATUS", null, 24)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "GOOGLE_RECORDING_NAME", null, 200)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "GOOGLE_FILE_ID", null, 200)]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "ERROR_CODE", null, 60)]
     [InlineData(typeof(SESSION_MEETING), "MEET_URL_ENCRYPTED", "text", null)]
     [InlineData(typeof(SESSION_MEETING), "PROVIDER", null, 20)]
     [InlineData(typeof(SESSION_MEETING), "SYNC_STATUS", null, 20)]
@@ -181,6 +211,11 @@ public class LiveSchemaTests
     [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "CONNECTED_AT_UTC")]
     [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "LAST_VALIDATED_AT_UTC")]
     [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "REVOKED_AT_UTC")]
+    [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT), "ACCOUNT_KIND_CHECKED_AT_UTC")]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "NEXT_ATTEMPT_AT_UTC")]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "LEASE_UNTIL_UTC")]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "SEARCH_UNTIL_UTC")]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "COMPLETED_AT_UTC")]
     [InlineData(typeof(SESSION_MEETING), "NEXT_RETRY_AT_UTC")]
     [InlineData(typeof(SESSION_MEETING), "LAST_SYNC_AT_UTC")]
     [InlineData(typeof(SESSION_MEETING), "MEETING_ALERT_SENT_AT_UTC")]
@@ -203,6 +238,7 @@ public class LiveSchemaTests
     [InlineData(typeof(SESSION_INVITE), "ROLE")]
     [InlineData(typeof(SESSION_INVITE), "STATUS")]
     [InlineData(typeof(SESSION_JOIN_LOG), "ROLE")]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT), "STATUS")]
     public void Enums_AreStoredAsStrings(Type clrType, string column)
     {
         var property = Column(Model.FindEntityType(clrType)!, column);
@@ -214,6 +250,7 @@ public class LiveSchemaTests
     [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT))]
     [InlineData(typeof(SESSION_MEETING))]
     [InlineData(typeof(SESSION_INVITE))]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT))]
     public void MutableLiveEntities_HaveAByteaConcurrencyToken(Type clrType)
     {
         var token = Column(Model.FindEntityType(clrType)!, "ROW_VERSION");
@@ -238,6 +275,7 @@ public class LiveSchemaTests
     [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT))]
     [InlineData(typeof(SESSION_MEETING))]
     [InlineData(typeof(SESSION_INVITE))]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT))]
     public void AuditableLiveEntities_KeepPascalCaseAuditPropertiesWithUppercaseColumns(Type clrType)
     {
         var entity = Model.FindEntityType(clrType)!;
@@ -324,6 +362,41 @@ public class LiveSchemaTests
         Assert.Equal(2, entity.GetIndexes().Count());
     }
 
+    [Fact]
+    public void SessionRecordingImports_HaveTheContractedIndexes()
+    {
+        var entity = Entity<SESSION_RECORDING_IMPORT>();
+
+        var bySession = Index(entity, "IX_SESSION_RECORDING_IMPORTS_SESSION_ID");
+        Assert.True(bySession.IsUnique);
+        Assert.Equal(new[] { "SESSION_ID" }, bySession.Properties.Select(p => p.GetColumnName()));
+
+        var due = Index(entity, "IX_SESSION_RECORDING_IMPORTS_DUE");
+        Assert.False(due.IsUnique);
+        Assert.Equal(new[] { "STATUS", "NEXT_ATTEMPT_AT_UTC" }, due.Properties.Select(p => p.GetColumnName()));
+
+        Assert.Equal(2, entity.GetIndexes().Count());
+    }
+
+    [Fact]
+    public void SessionRecordingImports_AttemptsDefaultToZero_AndDerivedMembersAreNotColumns()
+    {
+        var entity = Entity<SESSION_RECORDING_IMPORT>();
+
+        Assert.Equal(0, Column(entity, "ATTEMPTS").GetDefaultValue());
+        Assert.Null(entity.FindProperty(nameof(SESSION_RECORDING_IMPORT.IsTerminal)));
+        Assert.Null(entity.FindProperty(nameof(SESSION_RECORDING_IMPORT.CanRetry)));
+    }
+
+    [Fact]
+    public void InstructorGoogleAccounts_DerivedKindMembersAreNotColumns()
+    {
+        var entity = Entity<INSTRUCTOR_GOOGLE_ACCOUNT>();
+
+        Assert.Null(entity.FindProperty(nameof(INSTRUCTOR_GOOGLE_ACCOUNT.AccountKind)));
+        Assert.Null(entity.FindProperty(nameof(INSTRUCTOR_GOOGLE_ACCOUNT.HasRecordingScopes)));
+    }
+
     // ---- Foreign keys --------------------------------------------------------------------------
 
     [Fact]
@@ -342,6 +415,7 @@ public class LiveSchemaTests
     [InlineData(typeof(INSTRUCTOR_GOOGLE_ACCOUNT))]
     [InlineData(typeof(SESSION_INVITE))]
     [InlineData(typeof(SESSION_JOIN_LOG))]
+    [InlineData(typeof(SESSION_RECORDING_IMPORT))]
     public void OtherLiveEntities_HaveNoForeignKeys(Type clrType)
     {
         // Every id points into another module's schema (or is the principal) — no cross-schema FKs, and

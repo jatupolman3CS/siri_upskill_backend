@@ -35,6 +35,9 @@ public sealed record GoogleConnectCommand(string? ReturnPath);
 
 public sealed record GoogleConnectResponse(string AuthorizationUrl);
 
+/// <param name="AccountKind"><c>null</c> when not connected; otherwise <c>Personal</c>/<c>Workspace</c>/<c>Unknown</c> (P11-13).</param>
+/// <param name="HostedDomain">The Workspace domain, when the account is a Workspace one.</param>
+/// <param name="Recording">What the platform can do about recordings for this instructor.</param>
 public sealed record GoogleConnectionStatusResponse(
     bool Configured,
     bool Connected,
@@ -43,7 +46,10 @@ public sealed record GoogleConnectionStatusResponse(
     DateTime? ConnectedAtUtc,
     DateTime? LastValidatedAtUtc,
     string? RevokedReason,
-    int AffectedSessionCount);
+    int AffectedSessionCount,
+    GoogleAccountKind? AccountKind,
+    string? HostedDomain,
+    RecordingCapabilityInfo Recording);
 
 /// <summary>Where the browser is sent after the OAuth callback. <see cref="ErrorReason"/> is <c>null</c> on success.</summary>
 public sealed record GoogleConnectOutcome(string RedirectUrl, string? ErrorReason);
@@ -56,6 +62,9 @@ public static class GoogleConnectErrorReasons
     public const string ScopeMissing = "scope_missing";
     public const string NoRefreshToken = "no_refresh_token";
     public const string ExchangeFailed = "exchange_failed";
+
+    /// <summary>The recording-access consent (P11-13) finished without both recording scopes (the instructor unticked one); nothing was stored.</summary>
+    public const string RecordingScopeMissing = "recording_scope_missing";
 }
 
 /// <summary>Short codes stored in <c>SESSION_MEETINGS.ERROR</c> / exposed as <c>errorCode</c>. Never contain a token, URL or e-mail.</summary>

@@ -27,6 +27,8 @@ public static class AppDbContextCommerceExtensions
 
     public static DbSet<PAYMENT> Payments(this AppDbContext context) => context.Set<PAYMENT>();
 
+    public static DbSet<PAYMENT_AMOUNT_OVERRIDE> PaymentAmountOverrides(this AppDbContext context) => context.Set<PAYMENT_AMOUNT_OVERRIDE>();
+
     public static DbSet<STRIPE_WEBHOOK_EVENT> StripeWebhookEvents(this AppDbContext context) => context.Set<STRIPE_WEBHOOK_EVENT>();
 
     /// <summary>Table/class name is <c>PAYMENT_OPS_QUEUE</c> (no trailing "S") — see that entity's own

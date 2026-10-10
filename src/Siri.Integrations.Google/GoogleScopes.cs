@@ -15,6 +15,23 @@ public static class GoogleScopes
 
     public const string Calendar = "https://www.googleapis.com/auth/calendar";
 
+    /// <summary>Read metadata (conference records, recordings) of Meet spaces the user can access. <b>Sensitive</b> scope (P11-13).</summary>
+    public const string MeetSpaceReadonly = "https://www.googleapis.com/auth/meetings.space.readonly";
+
+    /// <summary>Read and download the Drive files Google Meet created (recordings). <b>Restricted</b> scope (P11-13): an app that
+    /// stores or transmits data obtained with it needs Google's security assessment before it can serve more than 100 users.</summary>
+    public const string DriveMeetReadonly = "https://www.googleapis.com/auth/drive.meet.readonly";
+
+    /// <summary>The two scopes the automatic recording import asks for, on top of the calendar scope, in a separate consent step.</summary>
+    public static readonly IReadOnlyList<string> RecordingScopes = [MeetSpaceReadonly, DriveMeetReadonly];
+
+    /// <summary>True when the space-delimited <paramref name="scopes"/> contain <b>both</b> recording scopes (exact token match).</summary>
+    public static bool HasRecordingScopes(string? scopes)
+    {
+        var granted = Split(scopes);
+        return RecordingScopes.All(required => granted.Contains(required, StringComparer.Ordinal));
+    }
+
     /// <summary>Default <c>Integrations:Google:Scopes</c> when none is configured.</summary>
     public static readonly IReadOnlyList<string> DefaultScopes = [OpenId, Email, CalendarEventsOwned];
 

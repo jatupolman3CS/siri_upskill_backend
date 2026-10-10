@@ -8,13 +8,19 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Siri.Api.Authorization;
 using Siri.IntegrationTests.Fixtures;
+using Siri.Modules.Catalog.Contracts;
+using Siri.Modules.Catalog.Domain;
+using Siri.Modules.Catalog.Infrastructure;
+using Siri.Modules.Catalog.Infrastructure.Contracts;
 using Siri.Modules.Identity;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Notification;
+using Siri.Persistence;
 using Siri.Persistence.DependencyInjection;
 using Siri.SharedKernel;
 
@@ -120,8 +126,17 @@ public sealed class AuthorizationPolicyHttpTests : IAsyncLifetime
         builder.Services.AddSharedRedis(builder.Configuration);
         builder.Services.AddIdentityModule(builder.Configuration);
         builder.Services.AddNotificationModule(builder.Configuration);
+        // InstructorOnly asks Catalog "is this instructor approved?" — register just that one real contract (the real
+        // implementation against the real database), not the whole Catalog module this host has no other use for.
+        builder.Services.AddScoped<IInstructorApprovalReader, InstructorApprovalReader>();
 
         _app = builder.Build();
+
+        // The InstructorOnly cases below read real INSTRUCTOR_PROFILES rows.
+        await using (var scope = _app.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+        }
 
         _app.UseAuthentication();
         _app.UseAuthorization();
@@ -142,12 +157,14 @@ public sealed class AuthorizationPolicyHttpTests : IAsyncLifetime
         await _app.DisposeAsync();
     }
 
-    private static string BuildJwt(params string[] roles)
+    private static string BuildJwt(params string[] roles) => BuildJwt(Guid.NewGuid(), roles);
+
+    private static string BuildJwt(Guid userId, params string[] roles)
     {
         var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString()),
-            new(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
         };
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
@@ -161,6 +178,37 @@ public sealed class AuthorizationPolicyHttpTests : IAsyncLifetime
 
     private void AuthenticateAs(params string[] roles) =>
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", BuildJwt(roles));
+
+    /// <summary>
+    /// Signs in as a user whose token carries the Instructor role and whose application is in the given state
+    /// (<c>null</c> = never applied — e.g. the role was assigned by hand or the user was invited).
+    /// </summary>
+    private async Task AuthenticateAsInstructorAsync(InstructorApplicationStatus? applicationStatus)
+    {
+        var userId = Guid.NewGuid();
+
+        if (applicationStatus is { } status)
+        {
+            await using var scope = _app.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var profile = INSTRUCTOR_PROFILE.Apply(userId, "Policy Test Instructor", "Headline", "Bio");
+            switch (status)
+            {
+                case InstructorApplicationStatus.Approved:
+                    profile.Approve(scope.ServiceProvider.GetRequiredService<IClock>());
+                    break;
+                case InstructorApplicationStatus.Rejected:
+                    profile.Reject();
+                    break;
+            }
+
+            db.InstructorProfiles().Add(profile);
+            await db.SaveChangesAsync();
+        }
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", BuildJwt(userId, ROLE.InstructorName));
+    }
 
     // ---- Group-level default-deny retrofit: the four genuinely public Identity endpoints ----------
 
@@ -247,15 +295,55 @@ public sealed class AuthorizationPolicyHttpTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(ROLE.InstructorName)]
     [InlineData(ROLE.AdminName)]
     [InlineData(ROLE.SuperAdminName)]
-    public async Task InstructorOnlyEndpoint_TokenWithInstructorOrAdminOrSuperAdminRole_Returns200(string role)
+    public async Task InstructorOnlyEndpoint_TokenWithAdminOrSuperAdminRole_Returns200(string role)
     {
         AuthenticateAs(role);
 
         using var response = await _client.GetAsync("/__test/instructor-only");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InstructorOnlyEndpoint_InstructorWithApprovedApplication_Returns200()
+    {
+        await AuthenticateAsInstructorAsync(InstructorApplicationStatus.Approved);
+
+        using var response = await _client.GetAsync("/__test/instructor-only");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InstructorOnlyEndpoint_InstructorRoleWithNoApplicationAtAll_Returns403()
+    {
+        // The role assigned by hand / by invite / by seed, with nothing an admin ever approved.
+        await AuthenticateAsInstructorAsync(applicationStatus: null);
+
+        using var response = await _client.GetAsync("/__test/instructor-only");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InstructorOnlyEndpoint_InstructorRoleWithPendingApplication_Returns403()
+    {
+        await AuthenticateAsInstructorAsync(InstructorApplicationStatus.Pending);
+
+        using var response = await _client.GetAsync("/__test/instructor-only");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InstructorOnlyEndpoint_InstructorRoleWithRejectedApplication_Returns403()
+    {
+        await AuthenticateAsInstructorAsync(InstructorApplicationStatus.Rejected);
+
+        using var response = await _client.GetAsync("/__test/instructor-only");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }

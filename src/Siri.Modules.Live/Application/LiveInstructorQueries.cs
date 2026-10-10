@@ -31,7 +31,8 @@ public sealed class LiveInstructorQueries(
     ILiveAttendanceReader attendance,
     IUserContactReader contacts,
     IClock clock,
-    IOptions<LiveOptions> options)
+    IOptions<LiveOptions> options,
+    RecordingImportService recordingImports)
 {
     public const int DefaultSessionPageSize = 20;
 
@@ -104,6 +105,7 @@ public sealed class LiveInstructorQueries(
         var sessionIds = pageItems.Select(c => c.SessionId).ToArray();
         var rooms = (await meetings.GetBySessionIdsAsync(sessionIds, cancellationToken).ConfigureAwait(false)).ToDictionary(m => m.SESSION_ID);
         var stats = await attendance.GetSessionStatsAsync(sessionIds, cancellationToken).ConfigureAwait(false);
+        var recordingInfos = await recordingImports.GetInfosAsync(userId, pageItems, rooms, cancellationToken).ConfigureAwait(false);
 
         var items = pageItems.Select(c =>
         {
@@ -121,7 +123,8 @@ public sealed class LiveInstructorQueries(
                 sessionStats?.JoinedLearners ?? 0,
                 MeetingSummaryOf(c.SessionId, rooms),
                 c.RecordingEpisodeId,
-                c.CancelReason);
+                c.CancelReason,
+                recordingInfos[c.SessionId]);
         }).ToList();
 
         return PagedResult<InstructorSessionListItem>.Create(items, totalCount, effectivePage, effectivePageSize);
@@ -142,6 +145,7 @@ public sealed class LiveInstructorQueries(
         var meeting = (await meetings.GetBySessionIdsAsync([sessionId], cancellationToken).ConfigureAwait(false)).FirstOrDefault();
         var stats = (await attendance.GetSessionStatsAsync([sessionId], cancellationToken).ConfigureAwait(false)).GetValueOrDefault(sessionId);
         var enrolled = await learning.GetActiveEnrolledUserIdsAsync(context.CourseId, cancellationToken).ConfigureAwait(false);
+        var recordingImport = await recordingImports.GetInfoAsync(userId, context, meeting, cancellationToken).ConfigureAwait(false);
 
         // A room that was deleted (cancelled session) has nothing worth showing even if its old ciphertext is still stored.
         var meetUrl = meeting is { IsUsable: true } ? meetingService.RevealUrl(meeting) : null;
@@ -165,7 +169,8 @@ public sealed class LiveInstructorQueries(
             enrolled.Count(id => id != context.InstructorUserId),
             stats?.ExpectedLearners ?? 0,
             stats?.JoinedLearners ?? 0,
-            now);
+            now,
+            recordingImport);
     }
 
     /// <summary>

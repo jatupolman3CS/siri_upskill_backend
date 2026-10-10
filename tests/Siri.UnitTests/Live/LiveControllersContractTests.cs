@@ -49,7 +49,7 @@ public class LiveControllersContractTests
     }
 
     [Fact]
-    public void Routes_AreExactlyTheContractsSevenEndpoints()
+    public void Routes_AreExactlyTheContractsEndpoints_SevenFromP1103AndTheRecordingAccessConnectFromP1113()
     {
         var actual = Actions().Select(a => $"{a.HttpMethod} {a.Route}").Order().ToArray();
 
@@ -60,6 +60,7 @@ public class LiveControllersContractTests
             "GET api/live/instructor/google/callback",
             "GET api/live/instructor/google/status",
             "POST api/live/instructor/google/connect",
+            "POST api/live/instructor/google/recording-access/connect",
             "POST api/live/instructor/sessions/{sessionId:guid}/meeting/resync",
             "PUT api/live/instructor/sessions/{sessionId:guid}/meeting-link",
         ];
@@ -125,6 +126,24 @@ public class LiveControllersContractTests
 
         var names = Actions().Select(a => a.Method.GetCustomAttribute<EndpointNameAttribute>()!.EndpointName).ToArray();
         Assert.Equal(names.Length, names.Distinct().Count());
+    }
+
+    [Fact]
+    public void TheRecordingAccessConnect_IsInstructorOnly_SharesTheCalendarConnectsRateLimit_AndDocumentsEveryStatus()
+    {
+        var method = typeof(LiveGoogleController).GetMethod(nameof(LiveGoogleController.ConnectRecordingAccess))!;
+        var connect = typeof(LiveGoogleController).GetMethod(nameof(LiveGoogleController.Connect))!;
+
+        Assert.Equal(AuthorizationPolicyNames.InstructorOnly, method.GetCustomAttribute<AuthorizeAttribute>()!.Policy);
+        Assert.Equal(
+            connect.GetCustomAttribute<EnableRateLimitingAttribute>()!.PolicyName,
+            method.GetCustomAttribute<EnableRateLimitingAttribute>()!.PolicyName);
+
+        var statuses = method.GetCustomAttributes<ProducesResponseTypeAttribute>().Select(a => a.StatusCode).ToArray();
+        foreach (var status in new[] { 200, 400, 401, 403, 409, 429, 503 })
+        {
+            Assert.Contains(status, statuses);
+        }
     }
 
     [Fact]

@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Siri.Modules.Catalog;
 using Siri.Modules.Catalog.Features.AddEpisodeAttachment;
 using Siri.Modules.Catalog.Features.DeleteEpisodeAttachment;
 using Siri.Modules.Catalog.Features.DownloadEpisodeAttachment;
@@ -50,23 +52,37 @@ public class EpisodeAttachmentsController : ControllerBase
         return result.IsSuccess ? Results.Ok(result.Value) : result.Error.ToProblemHttpResult(HttpContext);
     }
 
+    /// <summary>
+    /// Uploads one teaching-material file (multipart/form-data, part name <c>file</c>) to private Cloudflare R2.
+    /// The server validates (extension, MIME, size, magic bytes), scans and stores it under a key it chooses —
+    /// the client never sends a storage key or header bytes.
+    /// </summary>
     [HttpPost("episodes/{episodeId:guid}/attachments")]
     [Authorize]
+    [EnableRateLimiting("default")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(EpisodeAttachmentOptions.MaxUploadRequestBodyBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = EpisodeAttachmentOptions.MaxUploadRequestBodyBytes)]
     [EndpointName("AddEpisodeAttachment")]
-    [EndpointSummary("เพิ่มไฟล์แนบให้บทเรียน (ผู้สอนเจ้าของบทเรียน หรือแอดมิน)")]
+    [EndpointSummary("อัปโหลดไฟล์แนบ (เอกสารประกอบการสอน) ให้บทเรียนไปที่ R2 (ผู้สอนเจ้าของบทเรียน หรือแอดมิน)")]
     [ProducesResponseType(typeof(EpisodeAttachmentResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IResult> AddEpisodeAttachment(
         [FromRoute] Guid episodeId,
-        [FromBody] AddEpisodeAttachmentCommand command,
+        IFormFile file,
         [FromServices] AddEpisodeAttachmentHandler handler,
         [FromServices] IUserContext userContext,
         CancellationToken cancellationToken)
     {
         var isAdmin = HttpContext.User.IsInRole(RoleNames.Admin) || HttpContext.User.IsInRole(RoleNames.SuperAdmin);
+
+        await using var content = file.OpenReadStream();
+        var command = new AddEpisodeAttachmentCommand(file.FileName, file.ContentType, content);
         var result = await handler.HandleAsync(episodeId, command, userContext.UserId, isAdmin, cancellationToken).ConfigureAwait(false);
 
         return result.IsSuccess
@@ -76,6 +92,7 @@ public class EpisodeAttachmentsController : ControllerBase
 
     [HttpDelete("episodes/{episodeId:guid}/attachments/{attachmentId:guid}")]
     [Authorize]
+    [EnableRateLimiting("default")]
     [EndpointName("DeleteEpisodeAttachment")]
     [EndpointSummary("ลบไฟล์แนบของบทเรียน")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

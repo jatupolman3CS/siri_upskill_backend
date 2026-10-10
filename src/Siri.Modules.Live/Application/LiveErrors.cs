@@ -11,6 +11,12 @@ public static class LiveReasons
     public const string SessionEnded = "live.session_ended";
     public const string WindowNotOpen = "live.window_not_open";
     public const string MeetingNotReady = "live.meeting_not_ready";
+
+    /// <summary>P11-13: the automatic recording import is switched off, or the instructor's Google account is not a Workspace account.</summary>
+    public const string RecordingNotAvailable = "live.recording_not_available";
+
+    /// <summary>P11-13: the import cannot be retried now (not in a retryable state, outside the 30-day window, or the session already has a recording).</summary>
+    public const string RecordingImportNotRetryable = "live.recording_import_not_retryable";
 }
 
 /// <summary>
@@ -30,6 +36,14 @@ public static class LiveErrors
         DomainError.Unavailable("ห้องเรียนยังไม่พร้อม กรุณาลองใหม่อีกครั้งในอีกสักครู่").WithReason(LiveReasons.MeetingNotReady);
 
     public static DomainError SessionCancelled() => CancelledError;
+
+    /// <summary>409 <c>live.recording_not_available</c> (P11-13).</summary>
+    public static readonly DomainError RecordingNotAvailable =
+        DomainError.Conflict("การนำเข้าบันทึกอัตโนมัติยังไม่เปิดให้ใช้กับบัญชี Google นี้").WithReason(LiveReasons.RecordingNotAvailable);
+
+    /// <summary>409 <c>live.recording_import_not_retryable</c> (P11-13).</summary>
+    public static readonly DomainError RecordingImportNotRetryable =
+        DomainError.Conflict("ยังลองนำเข้าบันทึกของคาบนี้ใหม่ไม่ได้").WithReason(LiveReasons.RecordingImportNotRetryable);
 
     /// <summary>The session is over. For the join gate the extensions point the learner to the recording (<c>recordingEpisodeId</c>, only when one is attached) and the
     /// course (<c>courseSlug</c>); both are facts the caller is already entitled to.</summary>

@@ -100,6 +100,28 @@ public class LiveStatusWarningsTests
     }
 
     [Fact]
+    public void TheRecordingImportTick_IsAmongTheMonitoredJobs() =>
+        Assert.Contains(RecurringJobIds.LiveRecordingImport, RecurringJobIds.LiveDiagnostics);
+
+    [Fact]
+    public void AMissingRecordingImportTick_IsReported_ByTheSameRuleAsTheOtherLiveJobs()
+    {
+        var withoutIt = AllJobs().Where(job => job.Id != RecurringJobIds.LiveRecordingImport).ToArray();
+
+        Assert.Equal([LiveStatusWarnings.RecurringJobsMissing], LiveStatusWarnings.Evaluate(Healthy(f => f with { RecurringJobs = withoutIt })));
+    }
+
+    [Fact]
+    public void AFailingOrOverdueRecordingImportTick_IsReported()
+    {
+        var failing = Healthy(f => f with { RecurringJobs = AllJobsWith(Job(RecurringJobIds.LiveRecordingImport, lastState: "Failed")) });
+        var overdue = Healthy(f => f with { RecurringJobs = AllJobsWith(Job(RecurringJobIds.LiveRecordingImport, next: Now.AddMinutes(-6))) });
+
+        Assert.Equal([LiveStatusWarnings.RecurringJobFailing], LiveStatusWarnings.Evaluate(failing));
+        Assert.Equal([LiveStatusWarnings.RecurringJobOverdue], LiveStatusWarnings.Evaluate(overdue));
+    }
+
+    [Fact]
     public void AFailedLastRun_IsReported()
     {
         var warnings = LiveStatusWarnings.Evaluate(Healthy(f => f with { RecurringJobs = AllJobsWith(Job(RecurringJobIds.EmailOutboxSend, lastState: "Failed")) }));
@@ -279,7 +301,7 @@ public class LiveAdminStatusServiceTests
                 .ToArray());
 
     [Fact]
-    public async Task Healthy_ReportsTheServers_TheFiveJobs_AndNoWarnings()
+    public async Task Healthy_ReportsTheServers_TheSixJobs_AndNoWarnings()
     {
         _jobs.Status = HealthyJobs();
 
@@ -290,6 +312,7 @@ public class LiveAdminStatusServiceTests
         Assert.Equal(1, status.JobServer.ServerCount);
         Assert.Equal("api:pod-1:123:abcd", Assert.Single(status.JobServer.Servers).Name);
         Assert.Equal(RecurringJobIds.LiveDiagnostics.Order().ToArray(), status.RecurringJobs.Select(j => j.Id).Order().ToArray());
+        Assert.Contains(RecurringJobIds.LiveRecordingImport, status.RecurringJobs.Select(j => j.Id)); // N2: the P11-13 import tick is part of what the page watches
         Assert.Equal(RecurringJobIds.LiveDiagnostics, _jobs.AskedFor); // only the Live-related + outbox + recount ids are asked for
         Assert.Empty(status.Warnings);
         Assert.Equal("Smtp", status.Email.Provider);

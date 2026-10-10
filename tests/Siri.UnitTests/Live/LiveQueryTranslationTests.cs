@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Siri.Modules.Catalog.Infrastructure;
+using Siri.Modules.Live.Domain;
 using Siri.Modules.Live.Infrastructure;
 using Siri.Persistence;
 
@@ -113,6 +114,70 @@ public class LiveQueryTranslationTests
     [Fact]
     public Task InstructorGoogleAccounts_GetByInstructorUserId_Translates() =>
         AssertTranslatesAsync(c => new InstructorGoogleAccountRepository(c).GetByInstructorUserIdAsync(SomeId, CancellationToken.None));
+
+    // ---- SessionRecordingImportRepository (P11-13) -------------------------------------------------------
+
+    [Fact]
+    public Task RecordingImports_GetBySessionId_Translates() =>
+        AssertTranslatesAsync(c => new SessionRecordingImportRepository(c).GetBySessionIdAsync(SomeId, CancellationToken.None));
+
+    [Fact]
+    public Task RecordingImports_GetById_Translates() =>
+        AssertTranslatesAsync(c => new SessionRecordingImportRepository(c).GetByIdAsync(SomeId, CancellationToken.None));
+
+    [Fact]
+    public Task RecordingImports_GetBySessionIds_Translates() =>
+        AssertTranslatesAsync(c => new SessionRecordingImportRepository(c).GetBySessionIdsAsync([SomeId, Guid.NewGuid()], CancellationToken.None));
+
+    [Fact]
+    public Task RecordingImports_GetExistingSessionIds_Translates() =>
+        AssertTranslatesAsync(c => new SessionRecordingImportRepository(c).GetExistingSessionIdsAsync([SomeId, Guid.NewGuid()], CancellationToken.None));
+
+    [Fact]
+    public Task RecordingImports_GetDueIds_Translates() =>
+        AssertTranslatesAsync(c => new SessionRecordingImportRepository(c).GetDueIdsAsync(Now, 5, CancellationToken.None));
+
+    [Fact]
+    public Task InstructorGoogleAccounts_GetRecordingCandidateInstructorIds_Translates() =>
+        AssertTranslatesAsync(c => new InstructorGoogleAccountRepository(c).GetRecordingCandidateInstructorIdsAsync(CancellationToken.None));
+
+    [Fact]
+    public Task InstructorGoogleAccounts_RecordValidation_TranslatesAsASetBasedUpdate() =>
+        AssertTranslatesAsync(c => new InstructorGoogleAccountRepository(c).RecordValidationAsync(
+            INSTRUCTOR_GOOGLE_ACCOUNT.Connect(SomeId, "sub", "t@school.example.test", "ciphertext", "scope", new FakeClock(Now), "school.example.test"),
+            Now,
+            CancellationToken.None));
+
+    [Fact]
+    public Task CatalogAttacher_ListEnded_Translates() =>
+        AssertTranslatesAsync(c => new Siri.Modules.Catalog.Infrastructure.Contracts.LiveRecordingAttacher(c, null!).ListEndedAsync(Now.AddHours(-48), Now, 200, CancellationToken.None));
+
+    [Fact]
+    public Task CatalogAttacher_ListEndedByInstructors_Translates_WithTheFilterInsideTheQuery() =>
+        AssertTranslatesAsync(c => new Siri.Modules.Catalog.Infrastructure.Contracts.LiveRecordingAttacher(c, null!)
+            .ListEndedByInstructorsAsync([SomeId, Guid.NewGuid()], Now.AddHours(-48), Now, 200, CancellationToken.None));
+
+    [Fact]
+    public async Task CatalogAttacher_ListEndedByInstructors_AnEmptySetOrRangeNeverTouchesTheDatabase()
+    {
+        using var context = Context();
+        var attacher = new Siri.Modules.Catalog.Infrastructure.Contracts.LiveRecordingAttacher(context, null!);
+
+        Assert.Empty(await attacher.ListEndedByInstructorsAsync([], Now.AddHours(-48), Now, 200, CancellationToken.None));
+        Assert.Empty(await attacher.ListEndedByInstructorsAsync([SomeId], Now, Now.AddHours(-1), 200, CancellationToken.None));
+        Assert.Empty(await attacher.ListEndedByInstructorsAsync([SomeId], Now.AddHours(-48), Now, 0, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task RecordingImports_GetBySessionId_FindsARowAddedInTheSameUnitOfWork_WithoutTouchingTheDatabase()
+    {
+        using var context = Context();
+        var repository = new SessionRecordingImportRepository(context);
+        var import = Siri.Modules.Live.Domain.SESSION_RECORDING_IMPORT.Create(SomeId, Guid.NewGuid(), Guid.NewGuid(), Now, Now.AddHours(12));
+        repository.Add(import);
+
+        Assert.Same(import, await repository.GetBySessionIdAsync(SomeId, CancellationToken.None));
+    }
 
     [Fact]
     public async Task SessionMeetings_GetBySessionId_FindsAMeetingStagedInTheSameUnitOfWork_WithoutTouchingTheDatabase()

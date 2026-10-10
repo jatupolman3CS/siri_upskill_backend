@@ -14,7 +14,9 @@ public sealed record GoogleTokenSet(string AccessToken, DateTime ExpiresAtUtc, s
 /// <param name="Subject">Google's stable account id (<c>sub</c>).</param>
 /// <param name="Email">The account's e-mail address (shown to the instructor; never logged).</param>
 /// <param name="EmailVerified">Whether Google has verified <paramref name="Email"/>.</param>
-public sealed record GoogleUserInfo(string Subject, string Email, bool EmailVerified);
+/// <param name="HostedDomain">The <c>hd</c> claim: the Google Workspace domain the account belongs to. <c>null</c> for a personal
+/// (consumer) Google account — that is how P11-13 tells a Workspace account from a personal one. Not a secret.</param>
+public sealed record GoogleUserInfo(string Subject, string Email, bool EmailVerified, string? HostedDomain = null);
 
 /// <summary>
 /// Google OAuth 2.0 authorization-code + PKCE client (P11-03 contract section 5, FROZEN). Every failure is a typed
@@ -33,6 +35,13 @@ public interface IGoogleOAuthService
     /// <see cref="IsConfigured"/> is false — check it first (the Live service answers 503 <c>live.google_not_configured</c>).
     /// </summary>
     string BuildAuthorizationUrl(string state, string codeChallenge);
+
+    /// <summary>
+    /// The consent-screen URL for the second, optional consent step (P11-13): the same as <see cref="BuildAuthorizationUrl"/> but the
+    /// scope list is the configured scopes plus <see cref="GoogleScopes.RecordingScopes"/> and <c>include_granted_scopes=true</c>, so the
+    /// resulting grant covers calendar and recording access together. Only offered to Workspace accounts.
+    /// </summary>
+    string BuildRecordingAccessAuthorizationUrl(string state, string codeChallenge) => throw new NotSupportedException();
 
     /// <summary>Exchanges the callback <c>code</c> (with the PKCE verifier) for tokens.</summary>
     Task<Result<GoogleTokenSet>> ExchangeCodeAsync(string code, string codeVerifier, CancellationToken ct);

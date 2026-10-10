@@ -26,15 +26,18 @@ internal sealed class BunnyVideoResponse
 }
 
 /// <summary>
-/// Bunny Stream video processing status codes (from API documentation).
+/// Bunny Stream <c>VideoModelStatus</c> codes (from the "Get Video" API reference). Codes 7/8 (JIT
+/// segmenting/playlists) are not listed here — they fall into the "still processing" default.
 /// </summary>
 internal static class BunnyVideoStatus
 {
-    /// <summary>Video has been created but not yet uploaded.</summary>
+    /// <summary>Video object exists but no bytes have been received yet.</summary>
     public const int Created = 0;
 
-    /// <summary>Video is currently being uploaded.</summary>
-    public const int Uploading = 1;
+    /// <summary>The upload has FINISHED (Bunny calls it "Uploaded") and the video waits for the encoder.
+    /// It is not "uploading": treating it as such made the upload-complete step answer 409 for a video
+    /// whose bytes had all arrived.</summary>
+    public const int Uploaded = 1;
 
     /// <summary>Video is being processed/transcoded.</summary>
     public const int Processing = 2;

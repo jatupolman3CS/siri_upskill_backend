@@ -18,16 +18,19 @@ public static class RecurringJobIds
     public const string LiveMeetingSync = "live-meeting-sync";
     public const string LiveInviteReconcile = "live-invite-reconcile";
     public const string LiveSessionReminders = "live-session-reminders";
+    public const string LiveRecordingImport = "live-recording-import";
     public const string CourseEnrollmentRecount = "course-enrollment-recount";
     public const string CourseSearchReindex = "course-search-reindex";
 
-    /// <summary>The jobs the Live system depends on to work end to end, plus the two that feed it (the e-mail outbox that carries every invite and
-    /// reminder, and the enrollment recount that keeps the catalog's counters honest) — what the admin Live status reports on.</summary>
+    /// <summary>The jobs the Live system depends on to work end to end - the room sync, the invite reconcile, the reminders and the P11-13 recording import tick (a no-op while
+    /// the feature is off, but registered and scheduled all the same) - plus the two that feed it (the e-mail outbox that carries every invite and reminder, and the
+    /// enrollment recount that keeps the catalog's counters honest) - what the admin Live status reports on.</summary>
     public static readonly IReadOnlyList<string> LiveDiagnostics =
     [
         LiveMeetingSync,
         LiveInviteReconcile,
         LiveSessionReminders,
+        LiveRecordingImport,
         EmailOutboxSend,
         CourseEnrollmentRecount,
     ];
@@ -46,6 +49,7 @@ public static class RecurringJobIds
         LiveMeetingSync,
         LiveInviteReconcile,
         LiveSessionReminders,
+        LiveRecordingImport,
         CourseEnrollmentRecount,
         CourseSearchReindex,
     ];

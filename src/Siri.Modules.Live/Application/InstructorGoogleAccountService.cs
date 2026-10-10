@@ -72,17 +72,27 @@ public sealed class InstructorGoogleAccountService(
     {
         var configured = IsFeatureAvailable;
         var account = await accounts.GetByInstructorUserIdAsync(userId, cancellationToken).ConfigureAwait(false);
+        var autoImportEnabled = AutoImportEnabled;
 
         if (account is null)
         {
-            return new GoogleConnectionStatusResponse(configured, false, false, null, null, null, null, 0);
+            return new GoogleConnectionStatusResponse(
+                configured, false, false, null, null, null, null, 0, AccountKind: null, HostedDomain: null,
+                RecordingCapabilityCalculator.ToInfo(autoImportEnabled, liveOptions.Value.Provider, account: null));
         }
 
         var deliberatelyDisconnected = account.REVOKED_REASON == GoogleAccountRevokedReason.UserDisconnected;
         var needsReconnect = !account.IsActive && !deliberatelyDisconnected;
         var affected = await CountFutureSessionsWithoutRoomAsync(userId, BlockedStatuses, cancellationToken).ConfigureAwait(false);
 
-        // After a deliberate disconnect the account is forgotten: no e-mail/dates are shown.
+        // A row connected before the account-kind check existed is filled in here, once, best effort (needs a working token; nothing happens when it fails) -
+        // and only while the automatic import is switched on: with it off the kind drives nothing, so a status read makes no outbound call for it.
+        if (configured)
+        {
+            await TryResolveAccountKindAsync(account, cancellationToken).ConfigureAwait(false);
+        }
+
+        // After a deliberate disconnect the account is forgotten: no e-mail/dates/kind are shown. A revoked-but-not-forgotten account keeps showing what it was.
         return new GoogleConnectionStatusResponse(
             configured,
             account.IsActive,
@@ -91,12 +101,101 @@ public sealed class InstructorGoogleAccountService(
             deliberatelyDisconnected ? null : account.CONNECTED_AT_UTC,
             deliberatelyDisconnected ? null : account.LAST_VALIDATED_AT_UTC,
             account.REVOKED_REASON,
-            affected);
+            affected,
+            account.IsActive ? account.AccountKind : null,
+            account.IsActive && account.AccountKind == GoogleAccountKind.Workspace ? account.HOSTED_DOMAIN : null,
+            RecordingCapabilityCalculator.ToInfo(autoImportEnabled, liveOptions.Value.Provider, account));
+    }
+
+    /// <summary>User ids of the instructors worth asking Catalog about for automatic import (active Workspace account with both recording scopes — a generous
+    /// pre-filter; <see cref="RecordingCapabilityCalculator"/> makes the exact call).</summary>
+    public Task<IReadOnlyList<Guid>> GetRecordingCandidateInstructorIdsAsync(CancellationToken cancellationToken) =>
+        accounts.GetRecordingCandidateInstructorIdsAsync(cancellationToken);
+
+    /// <summary>The master switch of the automatic recording import (<c>Live:Recording:AutoImport:Enabled</c>).</summary>
+    public bool AutoImportEnabled => liveOptions.Value.Recording.AutoImport.Enabled;
+
+    /// <summary>
+    /// Fills in <see cref="INSTRUCTOR_GOOGLE_ACCOUNT.AccountKind"/> for an active account whose kind was never read (a row connected before P11-13): asks Google's
+    /// userinfo with a fresh access token and stores the <c>hd</c> claim. <b>Best effort and silent</b> — a missing token, a Google error or a database hiccup
+    /// leaves the account <c>Unknown</c> and is tried again on the next status read / import pass. Returns the kind afterwards.
+    /// </summary>
+    public async Task<GoogleAccountKind> TryResolveAccountKindAsync(INSTRUCTOR_GOOGLE_ACCOUNT account, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+
+        // With the feature off the kind is not needed for anything, so no outbound call is made on its account (no token refresh, no userinfo): the stored
+        // value - or Unknown for a row never looked at - is returned as it is.
+        if (!AutoImportEnabled || account.AccountKind != GoogleAccountKind.Unknown || !account.IsActive)
+        {
+            return account.AccountKind;
+        }
+
+        try
+        {
+            var token = await TryGetAccessTokenAsync(account.INSTRUCTOR_USER_ID, cancellationToken).ConfigureAwait(false);
+            if (token.IsFailure)
+            {
+                return account.AccountKind;
+            }
+
+            var userInfo = await oauth.GetUserInfoAsync(token.Value, cancellationToken).ConfigureAwait(false);
+            if (userInfo.IsFailure)
+            {
+                logger.LogInformation("Reading the Google account kind did not succeed ({ErrorCode}); it stays unknown for now.", userInfo.Error.Code);
+                return account.AccountKind;
+            }
+
+            account.ResolveAccountKind(userInfo.Value.HostedDomain, clock);
+            await accounts.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning("Reading the Google account kind failed unexpectedly ({ExceptionType}); it stays unknown for now.", ex.GetType().Name);
+        }
+
+        return account.AccountKind;
     }
 
     // ---- Connect ----------------------------------------------------------------------------------
 
-    public async Task<Result<GoogleConnectResponse>> BeginConnectAsync(Guid userId, string? returnPath, CancellationToken cancellationToken)
+    public Task<Result<GoogleConnectResponse>> BeginConnectAsync(Guid userId, string? returnPath, CancellationToken cancellationToken) =>
+        BeginAsync(userId, returnPath, GoogleOAuthPurpose.Calendar, cancellationToken);
+
+    /// <summary>
+    /// The second, optional consent (P11-13): asks Google for the two recording scopes <em>on top of</em> the calendar ones. Only for a connected,
+    /// active <b>Workspace</b> account while <c>Live:Recording:AutoImport:Enabled</c> is on; otherwise <c>409 live.recording_not_available</c> (503 when Google
+    /// is not configured at all, as for the calendar connect). An account whose kind was never read is looked up first. The same callback finishes it
+    /// (<see cref="CompleteConnectAsync"/> requires both recording scopes for this purpose).
+    /// </summary>
+    public async Task<Result<GoogleConnectResponse>> BeginRecordingAccessConnectAsync(Guid userId, string? returnPath, CancellationToken cancellationToken)
+    {
+        if (!IsFeatureAvailable)
+        {
+            return Result.Failure<GoogleConnectResponse>(NotConfigured());
+        }
+
+        if (!AutoImportEnabled)
+        {
+            return Result.Failure<GoogleConnectResponse>(LiveErrors.RecordingNotAvailable);
+        }
+
+        var account = await accounts.GetByInstructorUserIdAsync(userId, cancellationToken).ConfigureAwait(false);
+        if (account is not { IsActive: true })
+        {
+            return Result.Failure<GoogleConnectResponse>(LiveErrors.RecordingNotAvailable);
+        }
+
+        if ((await TryResolveAccountKindAsync(account, cancellationToken).ConfigureAwait(false)) != GoogleAccountKind.Workspace)
+        {
+            return Result.Failure<GoogleConnectResponse>(LiveErrors.RecordingNotAvailable);
+        }
+
+        return await BeginAsync(userId, returnPath, GoogleOAuthPurpose.RecordingAccess, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<Result<GoogleConnectResponse>> BeginAsync(
+        Guid userId, string? returnPath, GoogleOAuthPurpose purpose, CancellationToken cancellationToken)
     {
         if (!IsFeatureAvailable)
         {
@@ -110,8 +209,9 @@ public sealed class InstructorGoogleAccountService(
         var state = GoogleOAuthPkce.GenerateState();
         var codeVerifier = GoogleOAuthPkce.GenerateCodeVerifier();
 
+        // The state is recorded BEFORE the browser can be sent anywhere (fail closed: no recorded state, no redirect).
         var stored = await stateStore
-            .TrySaveAsync(state, new GoogleOAuthState(userId, codeVerifier, safeReturnPath), StateLifetime, cancellationToken)
+            .TrySaveAsync(state, new GoogleOAuthState(userId, codeVerifier, safeReturnPath, purpose), StateLifetime, cancellationToken)
             .ConfigureAwait(false);
         if (!stored)
         {
@@ -119,8 +219,21 @@ public sealed class InstructorGoogleAccountService(
                 DomainError.Unavailable("ไม่สามารถเริ่มการเชื่อมต่อ Google ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"));
         }
 
-        var url = oauth.BuildAuthorizationUrl(state, GoogleOAuthPkce.ComputeCodeChallenge(codeVerifier));
-        return new GoogleConnectResponse(url);
+        var codeChallenge = GoogleOAuthPkce.ComputeCodeChallenge(codeVerifier);
+        try
+        {
+            var url = purpose == GoogleOAuthPurpose.RecordingAccess
+                ? oauth.BuildRecordingAccessAuthorizationUrl(state, codeChallenge)
+                : oauth.BuildAuthorizationUrl(state, codeChallenge);
+            return new GoogleConnectResponse(url);
+        }
+        catch (NotSupportedException)
+        {
+            // An IGoogleOAuthService that predates P11-13 and cannot ask for the recording scopes: the feature is simply not available there.
+            // The state that was just recorded is of no use to anybody — discard it.
+            await stateStore.TryConsumeAsync(state, cancellationToken).ConfigureAwait(false);
+            return Result.Failure<GoogleConnectResponse>(LiveErrors.RecordingNotAvailable);
+        }
     }
 
     /// <summary>
@@ -195,6 +308,14 @@ public sealed class InstructorGoogleAccountService(
             return Failure(returnPath, GoogleConnectErrorReasons.ScopeMissing);
         }
 
+        // The recording-access consent must come back with BOTH recording scopes. The grant is one the instructor already holds (the request carried the
+        // calendar scopes with include_granted_scopes), so the token Google just issued belongs to the same grant as the one already stored: it is NOT revoked
+        // here (revoking it would take the working calendar connection down with it). Nothing is stored; the instructor simply stays as they were.
+        if (payload.Purpose == GoogleOAuthPurpose.RecordingAccess && !GoogleScopes.HasRecordingScopes(tokens.GrantedScopes))
+        {
+            return Failure(returnPath, GoogleConnectErrorReasons.RecordingScopeMissing);
+        }
+
         if (string.IsNullOrEmpty(tokens.RefreshToken))
         {
             await RevokeQuietlyAsync(tokens.AccessToken, cancellationToken).ConfigureAwait(false);
@@ -212,20 +333,23 @@ public sealed class InstructorGoogleAccountService(
         var encryptedRefreshToken = protector.Encrypt(tokens.RefreshToken);
 
         var existing = await accounts.GetByInstructorUserIdAsync(payload.UserId, cancellationToken).ConfigureAwait(false);
+        // The hosted domain is stored at EVERY connect/reconnect (the userinfo was read in this very round trip): that is what keeps the account kind current.
         if (existing is null)
         {
             accounts.Add(INSTRUCTOR_GOOGLE_ACCOUNT.Connect(
-                payload.UserId, userInfo.Value.Subject, userInfo.Value.Email, encryptedRefreshToken, tokens.GrantedScopes, clock));
+                payload.UserId, userInfo.Value.Subject, userInfo.Value.Email, encryptedRefreshToken, tokens.GrantedScopes, clock, userInfo.Value.HostedDomain));
         }
         else
         {
-            // Replacing a still-working credential: the old token is retired at Google, best effort.
-            if (existing.IsActive)
+            // Replacing a still-working credential: the old token is retired at Google, best effort. NOT for the recording-access consent: that request
+            // carried include_granted_scopes, so the new token extends the very grant the old one belongs to, and revoking the old token at Google would
+            // revoke that shared grant — and with it the token we are about to store.
+            if (existing.IsActive && payload.Purpose != GoogleOAuthPurpose.RecordingAccess)
             {
                 await RevokeQuietlyAsync(DecryptOrNull(existing.REFRESH_TOKEN_ENCRYPTED), cancellationToken).ConfigureAwait(false);
             }
 
-            existing.Reconnect(userInfo.Value.Subject, userInfo.Value.Email, encryptedRefreshToken, tokens.GrantedScopes, clock);
+            existing.Reconnect(userInfo.Value.Subject, userInfo.Value.Email, encryptedRefreshToken, tokens.GrantedScopes, clock, userInfo.Value.HostedDomain);
         }
 
         // Rooms that were waiting on this instructor's Google account get another go.
@@ -327,7 +451,7 @@ public sealed class InstructorGoogleAccountService(
         var refreshed = await oauth.RefreshAccessTokenAsync(refreshToken, cancellationToken).ConfigureAwait(false);
         if (refreshed.IsSuccess)
         {
-            account.MarkValidated(clock);
+            await RecordValidationAsync(account, cancellationToken).ConfigureAwait(false);
             return Remember(instructorUserId, Result.Success(refreshed.Value.AccessToken), refreshed.Value.ExpiresAtUtc);
         }
 
@@ -350,6 +474,24 @@ public sealed class InstructorGoogleAccountService(
         }
 
         return Remember(instructorUserId, Result.Failure<string>(error), expiresAtUtc: null);
+    }
+
+    /// <summary>
+    /// Stamps <c>LAST_VALIDATED_AT_UTC</c> after a successful refresh - <b>immediately and set-based</b> (see <see cref="IInstructorGoogleAccountRepository.RecordValidationAsync"/>),
+    /// never as a tracked edit left for the next <c>SaveChanges</c> of the shared context: that edit would be flushed by an unrelated save (Media's upload, a meeting row)
+    /// with a stale row version and fail with a concurrency exception whenever a parallel job refreshed the same instructor's token. Best effort: the stamp is bookkeeping,
+    /// so a database hiccup is logged (by type) and the freshly obtained token is still returned.
+    /// </summary>
+    private async Task RecordValidationAsync(INSTRUCTOR_GOOGLE_ACCOUNT account, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await accounts.RecordValidationAsync(account, clock.UtcNow, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning("Recording the Google token validation time failed ({ExceptionType}); the access token is still used.", ex.GetType().Name);
+        }
     }
 
     /// <summary>

@@ -13,6 +13,7 @@ public class PaymentServiceTests
 {
     private readonly FakePaymentRepository _paymentRepo = new();
     private readonly FakeOrderRepository _orderRepo = new();
+    private readonly FakeAmountOverrideRepository _overrideRepo = new();
     private readonly FakePaymentMethod _paymentMethod = new();
     private readonly FakeClock _clock = new(new DateTime(2026, 8, 21, 10, 0, 0, DateTimeKind.Utc));
     private readonly PaymentOptions _paymentOptions = new();
@@ -20,6 +21,7 @@ public class PaymentServiceTests
     private PaymentService CreateService(StripeOptions? stripeOptions = null) => new(
         _paymentRepo,
         _orderRepo,
+        _overrideRepo,
         _paymentMethod,
         _clock,
         new FakeUserContactReader(),
@@ -201,6 +203,81 @@ public class PaymentServiceTests
         Assert.Null(_paymentMethod.LastRequest); // Provider never called — fail-fast before the Stripe call
     }
 
+    private PAYMENT_AMOUNT_OVERRIDE AmountOverride(bool enabled, decimal amount) =>
+        PAYMENT_AMOUNT_OVERRIDE.Create(enabled, amount, "smoke test", Guid.NewGuid(), _clock);
+
+    [Fact]
+    public async Task CreateAsync_OverrideEnabled_SendsOverrideAmountToStripeAndRecordsOriginalAmount()
+    {
+        var userId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-OVR", userId, 1890m, 0m, 0m, 1890m);
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+        _overrideRepo.Current = AmountOverride(true, 20m);
+
+        var result = await CreateService().CreateAsync(userId, new CreatePaymentCommand(order.ORDER_ID, PaymentMethod.PromptPay), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(20m, _paymentMethod.LastRequest!.Amount); // what Stripe is asked to charge
+        Assert.Equal(20m, result.Value.Amount);
+        Assert.Equal(1890m, result.Value.OriginalAmount);
+        Assert.Contains("override", _paymentMethod.LastRequest.Description, StringComparison.OrdinalIgnoreCase);
+
+        var saved = await _paymentRepo.GetByIdAsync(result.Value.Id, CancellationToken.None);
+        Assert.Equal(20m, saved!.AMOUNT);
+        Assert.Equal(1890m, saved.ORIGINAL_AMOUNT);
+        Assert.True(saved.IsAmountOverridden);
+        Assert.Equal(1890m, order.TOTAL_AMOUNT); // the order itself is never rewritten
+    }
+
+    [Fact]
+    public async Task CreateAsync_OverrideDisabled_ChargesFullOrderTotal()
+    {
+        var userId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-OVR-OFF", userId, 1890m, 0m, 0m, 1890m);
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+        _overrideRepo.Current = AmountOverride(false, 20m);
+
+        var result = await CreateService().CreateAsync(userId, new CreatePaymentCommand(order.ORDER_ID, PaymentMethod.PromptPay), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1890m, _paymentMethod.LastRequest!.Amount);
+        Assert.Null(result.Value.OriginalAmount);
+        Assert.Null(_paymentMethod.LastRequest.Description);
+        var saved = await _paymentRepo.GetByIdAsync(result.Value.Id, CancellationToken.None);
+        Assert.Null(saved!.ORIGINAL_AMOUNT);
+    }
+
+    [Fact]
+    public async Task CreateAsync_OverrideHigherThanOrderTotal_NeverOverchargesAndIsNotMarkedOverridden()
+    {
+        var userId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-OVR-HIGH", userId, 500m, 0m, 0m, 500m);
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+        _overrideRepo.Current = AmountOverride(true, 1000m);
+
+        var result = await CreateService().CreateAsync(userId, new CreatePaymentCommand(order.ORDER_ID, PaymentMethod.PromptPay), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(500m, _paymentMethod.LastRequest!.Amount);
+        Assert.Null(result.Value.OriginalAmount);
+    }
+
+    [Fact]
+    public async Task CreateAsync_OverrideEnabledWithCardMethod_AlsoUsesOverrideAmount()
+    {
+        _paymentOptions.EnabledMethods = [PaymentMethod.PromptPay, PaymentMethod.Card];
+        var userId = Guid.NewGuid();
+        var order = ORDER.Create("ORD-OVR-CARD", userId, 1890m, 0m, 0m, 1890m);
+        await _orderRepo.AddAsync(order, CancellationToken.None);
+        _overrideRepo.Current = AmountOverride(true, 35.50m);
+
+        var result = await CreateService().CreateAsync(userId, new CreatePaymentCommand(order.ORDER_ID, PaymentMethod.Card), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(PaymentMethodType.Card, _paymentMethod.LastRequest!.Method);
+        Assert.Equal(35.50m, _paymentMethod.LastRequest.Amount);
+    }
+
     [Fact]
     public void GetConfig_ReturnsPublishableKeyAndEnabledMethods()
     {
@@ -230,6 +307,24 @@ public class PaymentServiceTests
         if (!string.IsNullOrWhiteSpace(publishableKey))
         {
             Assert.DoesNotContain(publishableKey, result.Error.Message, StringComparison.Ordinal);
+        }
+    }
+
+    private sealed class FakeAmountOverrideRepository : IPaymentAmountOverrideRepository
+    {
+        public PAYMENT_AMOUNT_OVERRIDE? Current { get; set; }
+
+        public Task<PAYMENT_AMOUNT_OVERRIDE?> GetCurrentAsync(CancellationToken cancellationToken) => Task.FromResult(Current);
+
+        public Task<int> CountAsync(CancellationToken cancellationToken) => Task.FromResult(Current is null ? 0 : 1);
+
+        public Task<IReadOnlyList<PAYMENT_AMOUNT_OVERRIDE>> ListAsync(int page, int pageSize, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<PAYMENT_AMOUNT_OVERRIDE>>(Current is null ? [] : [Current]);
+
+        public Task AddAsync(PAYMENT_AMOUNT_OVERRIDE entry, CancellationToken cancellationToken)
+        {
+            Current = entry;
+            return Task.CompletedTask;
         }
     }
 

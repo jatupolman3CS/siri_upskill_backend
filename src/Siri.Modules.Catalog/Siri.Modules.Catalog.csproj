@@ -3,6 +3,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Siri.SharedKernel\Siri.SharedKernel.csproj" />
     <ProjectReference Include="..\Siri.Persistence\Siri.Persistence.csproj" />
+    <!-- P4-03c: teaching-material uploads go to private Cloudflare R2 through IFileStorage
+         (Application/TeachingMaterialStorage). Same shape as Media -> Siri.Integrations.Video. -->
+    <ProjectReference Include="..\Siri.Integrations.Storage\Siri.Integrations.Storage.csproj" />
     <!-- P1-03: ApproveInstructorApplication grants the Instructor role through Identity's
          IInstructorRoleGrantor contract (Roles/UserRoles are Identity's data). Only
          Siri.Modules.Identity.Contracts is ever referenced from here — never .Domain/.Infrastructure of

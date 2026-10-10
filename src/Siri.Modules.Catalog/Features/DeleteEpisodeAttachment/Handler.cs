@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Siri.Modules.Catalog.Application;
 using Siri.Modules.Catalog.Contracts;
 using Siri.Modules.Catalog.Infrastructure;
 using Siri.Persistence;
@@ -8,7 +9,8 @@ namespace Siri.Modules.Catalog.Features.DeleteEpisodeAttachment;
 
 public sealed class DeleteEpisodeAttachmentHandler(
     AppDbContext dbContext,
-    ICatalogPriceContract ownershipVerifier)
+    ICatalogPriceContract ownershipVerifier,
+    TeachingMaterialStorage materialStorage)
 {
     public async Task<Result> HandleAsync(
         Guid episodeId,
@@ -40,8 +42,14 @@ public sealed class DeleteEpisodeAttachmentHandler(
             }
         }
 
+        var storageKey = attachment.StorageKey;
+
         dbContext.EpisodeAttachments().Remove(attachment);
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // Row first, object second: if the object delete fails the file is merely an unreachable orphan,
+        // whereas the reverse order could leave a row whose download 404s.
+        await materialStorage.DeleteQuietlyAsync([storageKey], cancellationToken).ConfigureAwait(false);
 
         return Result.Success();
     }

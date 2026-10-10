@@ -26,6 +26,7 @@ public static class CommerceModule
         services.AddScoped<ICartRepository, CartRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<IPaymentAmountOverrideRepository, PaymentAmountOverrideRepository>();
         services.AddScoped<IPaymentOpsQueueRepository, PaymentOpsQueueRepository>();
         services.AddScoped<IStripeWebhookEventRepository, StripeWebhookEventRepository>();
         services.AddScoped<IRefundRepository, RefundRepository>();
@@ -94,6 +95,7 @@ public static class CommerceModule
         services.AddScoped<CartService>();
         services.AddScoped<OrderService>();
         services.AddScoped<PaymentService>();
+        services.AddScoped<PaymentAmountOverrideService>();
         services.AddScoped<StripeWebhookHandler>();
         services.AddScoped<RefundService>();
         services.AddScoped<PromoCodeService>();
@@ -113,6 +115,7 @@ public static class CommerceModule
         services.AddScoped<IValidator<CreateBundleCommand>, CreateBundleValidator>();
         services.AddScoped<IValidator<CreateFlashSaleCommand>, CreateFlashSaleValidator>();
         services.AddScoped<IValidator<IssueTaxInvoiceCommand>, IssueTaxInvoiceValidator>();
+        services.AddScoped<IValidator<SetPaymentAmountOverrideCommand>, SetPaymentAmountOverrideValidator>();
         services.AddScoped<IValidator<ResolvePaymentOpsRequest>, ResolvePaymentOpsValidator>();
         services.AddScoped<IValidator<DismissPaymentOpsRequest>, DismissPaymentOpsValidator>();
 

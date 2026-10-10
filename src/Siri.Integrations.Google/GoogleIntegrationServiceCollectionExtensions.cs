@@ -11,7 +11,7 @@ public static class GoogleIntegrationServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the Google integration: <see cref="GoogleOAuthOptions"/> (section <c>Integrations:Google</c>, validated on start),
-    /// the two named <see cref="HttpClient"/>s, and either the real implementations or - only when <paramref name="useLogging"/> is
+    /// the three named <see cref="HttpClient"/>s (OAuth, Calendar, Meet/Drive recordings), and either the real implementations or - only when <paramref name="useLogging"/> is
     /// true - the development-only fakes.
     /// <para>
     /// <paramref name="useLogging"/> is decided by the caller (the Live module reads <c>Live:Provider == "Logging"</c> at its own
@@ -44,16 +44,23 @@ public static class GoogleIntegrationServiceCollectionExtensions
 
         AddClient(services, GoogleOAuthService.HttpClientName);
         AddClient(services, GoogleCalendarProvider.HttpClientName);
+        AddClient(services, GoogleMeetRecordingProvider.HttpClientName);
 
         if (useLogging)
         {
             services.AddSingleton<IGoogleOAuthService, LoggingGoogleOAuthService>();
             services.AddSingleton<ICalendarProvider, LoggingCalendarProvider>();
+            services.AddSingleton<IGoogleMeetRecordingProvider, LoggingGoogleMeetRecordingProvider>();
+
+            // The file the fake recording provider serves. The Live module registers the config-backed one
+            // (Live:Recording:AutoImport:DevSampleFilePath); TryAdd keeps that one if it was registered first, and a later plain Add wins over this default.
+            services.TryAddSingleton<IMeetRecordingDevSampleSource, DefaultMeetRecordingDevSampleSource>();
         }
         else
         {
             services.AddSingleton<IGoogleOAuthService, GoogleOAuthService>();
             services.AddSingleton<ICalendarProvider, GoogleCalendarProvider>();
+            services.AddSingleton<IGoogleMeetRecordingProvider, GoogleMeetRecordingProvider>();
         }
 
         return services;

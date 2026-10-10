@@ -58,7 +58,7 @@ backend/
     Siri.Modules.Live/               # P11 (D-21): Google Meet meetings, invites, join log — Repository+Service, schema LIVE
     Siri.Integrations.Video/         # IVideoProvider + adapters (Bunny/Mux/Cloudflare)
     Siri.Integrations.Payment/       # IPaymentMethod + Stripe adapter — v1 PromptPay QR ผ่าน Stripe PaymentIntent + webhook (ดู PAYMENT.md)
-    Siri.Integrations.Storage/       # IFileStorage (Blob/S3)
+    Siri.Integrations.Storage/       # IFileStorage + R2FileStorage (Cloudflare R2, private bucket — เอกสารประกอบการสอน, P4-03c)
     Siri.Integrations.Email/
     Siri.Integrations.Google/        # P11: ICalendarProvider (Calendar API v3 + Meet via conferenceData) — ยังไม่สร้าง รอ Q10
     Siri.Integrations.Ai/            # P12: ILlmClient (Anthropic SDK) + budget guard — ยังไม่สร้าง รอ Q12
