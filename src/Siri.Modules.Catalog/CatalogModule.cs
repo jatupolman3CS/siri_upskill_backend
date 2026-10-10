@@ -256,8 +256,8 @@ public static class CatalogModule
         services.AddScoped<Features.Wishlist.RemoveFromWishlistHandler>();
 
         // Virus scanner seam (P4-03). No scanning engine is integrated yet, so this default never claims a
-        // file is clean: Attachments:VirusScan:Mode=Required (default) refuses the upload, Disabled is an
-        // explicit, logged opt-in (Production refuses to boot with it). Register a real engine over this
+        // file is clean: Attachments:VirusScan:Mode=Required (the code default) refuses the upload, Disabled is an
+        // explicit, logged opt-in - the shipped appsettings use it (owner decision 2026-10-10, Q9). Register a real engine over this
         // to replace it.
         services.AddOptions<AttachmentVirusScanOptions>()
             .Bind(configuration.GetSection(AttachmentVirusScanOptions.SectionName))

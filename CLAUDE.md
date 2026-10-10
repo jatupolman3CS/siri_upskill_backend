@@ -6,8 +6,8 @@ E-Learning marketplace (แนว SkillLane / FutureSkill): ผู้เรี�
 
 | | repo | โฟลเดอร์บนเครื่อง |
 |---|---|---|
-| **Backend (repo นี้)** | `https://gitlab.com/Jatuphon.khotsopha/siri_upskill_backend.git` | `C:\ProjectSiriUpSkill\siri_upskill_backend` |
-| Frontend | `https://gitlab.com/Jatuphon.khotsopha/siri_upskill_ui.git` | `C:\ProjectSiriUpSkill\siri_upskill_ui` |
+| **Backend (repo นี้)** | `https://github.com/jatupolman3CS/siri_upskill_backend.git` | `C:\ProjectSiriUpSkill\siri_upskill_backend` |
+| Frontend | `https://github.com/jatupolman3CS/siri_upskill_ui.git` | `C:\ProjectSiriUpSkill\siri_upskill_ui` |
 
 - โค้ด backend เดิมอยู่ใต้ `backend/` ของ monorepo **ตอนนี้ย้ายมาอยู่ที่ root ของ repo นี้แล้ว** (`src/`, `tests/`, `SiriUpSkill.sln`)
 - **`docs/*.md` เขียนขึ้นตอนยังเป็น monorepo** — path ที่เขียนว่า `backend/src/...` ให้อ่านเป็น `src/...` ใน repo นี้ และ path ที่ขึ้นต้นด้วย `frontend/` คือไฟล์ใน repo `siri_upskill_ui` ไม่ได้อยู่ที่นี่

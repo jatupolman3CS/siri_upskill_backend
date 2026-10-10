@@ -14,7 +14,7 @@ namespace Siri.Modules.Catalog.Infrastructure;
 /// upload is refused.</item>
 /// <item><see cref="AttachmentVirusScanMode.Disabled"/> — the operator explicitly accepted unscanned
 /// uploads; the call succeeds only in the sense of "not blocked", and each file is logged as NOT scanned.
-/// Production refuses to boot in this mode.</item>
+/// Allowed in Production by owner decision (2026-10-10, docs/DECISIONS.md Q9); the shipped appsettings use it.</item>
 /// </list>
 /// Plug a real engine in by registering another <see cref="IAttachmentVirusScanner"/> instead of this one;
 /// no handler changes.

@@ -26,7 +26,7 @@
    - live session: **admin · instructor เจ้าของคอร์ส · ผู้เรียนที่ enrollment Active และไม่หมดอายุ** (ไม่มี free preview — ไม่ login = 401)
    - ไม่มีสิทธิ์ = **404 ตัวเดียวกับ "ไม่มีอยู่จริง"** (กันเดา id) ยกเว้นฝั่งเขียนที่ตอบ 403 ตามธรรมเนียมเดิมของ P4-03
 6. **สิทธิ์เขียน (upload/delete):** admin หรือ instructor เจ้าของคอร์ส (เช็คผ่าน `ICatalogPriceContract.IsInstructorOwnerOf{Episode,Course}Async`) ทำ**ก่อน**อ่านหรือสแกนไบต์ใด ๆ
-7. **Virus scan (Q9 ยังไม่ปิด):** ยังไม่มี engine → `Attachments:VirusScan:Mode=Required` (default) ปฏิเสธการอัปโหลดทุกครั้งด้วย **503 `attachment.virus_scanner_not_configured`** และ Production **ไม่ยอม boot** ถ้าตั้ง `Disabled` — แปลว่า **ใน production อัปโหลดจะใช้ไม่ได้จนกว่าจะเลือก engine ตาม Q9** (dev ตั้ง `Attachments__VirusScan__Mode=Disabled` ได้) — ไม่ได้ผ่อนกฎนี้ในงานนี้
+7. **Virus scan (Q9 — เจ้าของโปรเจ็คตัดสิน 2026-10-10: ข้ามขั้นสแกนไปก่อน):** ยังไม่มี engine → `appsettings.json` ส่งมาเป็น `Attachments:VirusScan:Mode=Disabled` = รับไฟล์โดยไม่สแกนและ log เตือนทุกไฟล์ · `ProductionConfigurationGuard` ไม่บล็อกโหมดนี้แล้ว (เดิมบล็อก) · ค่า default ในโค้ดยังเป็น `Required` (ตั้ง `Attachments__VirusScan__Mode=Required` เพื่อกลับไปปฏิเสธทุกการอัปโหลดด้วย **503 `attachment.virus_scanner_not_configured`**) · เมื่อลงทะเบียน engine จริงโหมดนี้ไม่มีผลอีก · ความเสี่ยงที่เจ้าของรับไว้: ไฟล์ที่ผู้สอนอัปโหลดไม่ผ่านการสแกนมัลแวร์ ด่านที่ยังเหลือ: allow-list นามสกุล+MIME, magic bytes, ปฏิเสธ executable header, อัปโหลดได้เฉพาะเจ้าของคอร์ส/แอดมิน, bucket private, `Content-Disposition: attachment`, ลิงก์ signed อายุสั้น
 8. **Bucket ที่ไม่ได้ตั้งค่า = 503 `storage.provider_not_configured`** (ไม่มี fallback ลงดิสก์/หน่วยความจำ) และ host ยัง boot ปกติ (ไม่เพิ่มเข้า `ProductionConfigurationGuard` โดยตั้งใจ — ไฟล์แนบเป็นฟีเจอร์เสริม ไม่ควรทำให้ deploy ทั้งระบบล้ม)
 
 ## 3. Schema delta
@@ -131,7 +131,7 @@ dev → `dotnet user-secrets set "Storage:R2:AccountId" "…"` (+ `AccessKeyId`,
 1. สร้าง R2 bucket (private) + API token แล้วตั้ง 4 ค่าข้างบน
 2. **reverse proxy ต้องยอม body ≥ ขนาดไฟล์สูงสุด:** nginx `client_max_body_size 110m;` สำหรับ `/api/` (default ของ nginx = 1 MB → ผู้สอนจะเจอ 413) ; ถ้ามี Caddy ด้านหน้า ตรวจ `request_body max_size`
 3. apply migration `AddLiveSessionAttachments` (ตามด้วย migration ค้างอื่น ๆ — ดู `dotnet ef migrations list`)
-4. ปิด Q9 (virus scan engine) — ไม่งั้น production ตอบ 503 ทุกการอัปโหลด (ตั้งใจ)
+4. (ไม่บังคับแล้ว) Q9 virus scan engine — เจ้าของเลือกข้ามไปก่อน ดู §2 ข้อ 7 ; เมื่อมี engine จริงให้ลงทะเบียน `IAttachmentVirusScanner` ตัวใหม่ (ไม่ต้องแก้ handler)
 5. (ไม่บังคับ) R2 lifecycle rule: ลบ object ใน prefix `teaching-materials/` ที่ไม่มีแถวใน DB — ตอนนี้ orphan เกิดได้เฉพาะกรณี R2 ลบไม่สำเร็จหลังลบแถวแล้ว หรือ hard-delete คอร์สนอก soft-delete path
 
 ## 7. งาน Frontend (`siri_upskill_ui`)

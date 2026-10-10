@@ -143,6 +143,7 @@ Roadmap ใน `ROADMAP.md` ประเมินบนสมมติฐาน 
 ### Q9 — Virus Scanning Engine for Attachments (P4-03, 2026-08-27)
 ระบบตรวจไฟล์แนบ (`P4-03b`) วาง interface seam `IAttachmentVirusScanner` และ `NullAttachmentVirusScanner` ใน DI เรียบร้อยแล้ว แต่ยังไม่ได้ตัดสินใจเลือก scanning engine/infrastructure จริง (เช่น ClamAV daemon ภายใน VPS, AWS GuardDuty / S3 Malware Protection, หรือ Cloud Storage Anti-malware API)
 → **สถานะปัจจุบัน:** ยังไม่ตัดสินใจเลือก engine โดยตรง (ตามกฎความปลอดภัย §2 ห้ามติดตั้ง security dependency เองโดยพลการ) และใช้งาน `NullAttachmentVirusScanner` เป็น default seam เพื่อให้ business logic ใน Catalog module ทำงานได้อย่างสมบูรณ์และพร้อมสลับ implementation เมื่อทีม infra/security ตัดสินใจ
+→ **ตัดสินแล้วชั่วคราว (2026-10-10, เจ้าของโปรเจ็คยืนยันในแชทสองครั้ง): ข้ามขั้นสแกนไวรัสไปก่อน** — `Attachments:VirusScan:Mode=Disabled` ส่งมาใน `appsettings.json`, `ProductionConfigurationGuard` ไม่บล็อกโหมดนี้แล้ว, ไฟล์ที่ผ่านด่านอื่น (allow-list นามสกุล+MIME, magic bytes, ปฏิเสธ executable header, owner/admin-only, bucket private, signed URL อายุสั้น) ถูกรับโดยไม่สแกนและ log เตือนทุกไฟล์ · **ยังไม่ได้เลือก engine** — Q9 ยังเปิดอยู่เพื่อวันที่จะลงทะเบียน `IAttachmentVirusScanner` จริง (ClamAV/managed) ซึ่งจะทำให้โหมดนี้ไม่มีผล · ความเสี่ยงที่เจ้าของรับไว้: ผู้สอนอัปโหลดไฟล์ที่มีมัลแวร์ (เช่น docx/xlsx มี macro) ให้ผู้เรียนดาวน์โหลดได้
 
 
 ### ✅ Q10 — Google account model สำหรับสร้าง Meet/Calendar = **ทางเลือก B: ผู้สอนเชื่อม Google เอง** (ตัดสิน 2026-09-16)

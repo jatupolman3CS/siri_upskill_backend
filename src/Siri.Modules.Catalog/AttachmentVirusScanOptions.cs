@@ -15,8 +15,8 @@ public enum AttachmentVirusScanMode
     Required = 0,
 
     /// <summary>
-    /// The operator explicitly accepts unscanned uploads (Development only — Production refuses to boot
-    /// with it, see <c>ProductionConfigurationGuard</c>). Files are accepted and every one is logged as
+    /// The operator explicitly accepts unscanned uploads (owner decision 2026-10-10, docs/DECISIONS.md Q9: skip the scan
+    /// step for now - allowed in Production too, see <c>ProductionConfigurationGuard</c>). Files are accepted and every one is logged as
     /// NOT scanned; nothing is ever reported as scanned or clean.
     /// </summary>
     Disabled = 1,
