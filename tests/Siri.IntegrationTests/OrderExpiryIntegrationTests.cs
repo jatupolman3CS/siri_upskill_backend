@@ -1,17 +1,7 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Text.Json;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Microsoft.IdentityModel.Tokens;
-using Siri.Api.Authorization;
 using Siri.IntegrationTests.Fixtures;
 using Siri.Integrations.Payment;
 using Siri.Modules.Catalog;
@@ -22,15 +12,8 @@ using Siri.Modules.Commerce;
 using Siri.Modules.Commerce.Application;
 using Siri.Modules.Commerce.Domain;
 using Siri.Modules.Commerce.Infrastructure;
-using Siri.Modules.Identity;
-using Siri.Modules.Identity.Domain;
-using Siri.Modules.Identity.Infrastructure;
-using Siri.Modules.Learning;
-using Siri.Modules.Notification;
 using Siri.Persistence;
-using Siri.Persistence.DependencyInjection;
 using Siri.SharedKernel;
-using Xunit;
 
 namespace Siri.IntegrationTests;
 
@@ -38,18 +21,20 @@ namespace Siri.IntegrationTests;
 /// Integration tests for P3-03 and P3-06 (Order expiry & webhook race guard):
 /// Proves that OrderExpiryJob expires stale AwaitingPayment orders, reverts promo codes,
 /// cancels PaymentIntents, and properly routes late webhook payments into PAYMENT_OPS_QUEUE.
+/// <para>
+/// Boots via <see cref="SiriApiFactory"/> (the real <c>Program.cs</c> composition root, D-19) purely
+/// to get a correctly-wired DI graph for <see cref="IOrderRepository"/>/<see cref="IPaymentRepository"/>/
+/// <see cref="IPromoCodeRepository"/> against Testcontainers MSSQL — no test here ever goes over HTTP
+/// (<c>OrderExpiryJob</c> is invoked directly with fakes), so there is no Minimal-API-vs-Controller
+/// coverage gap to close in this file; the old hand-rolled host's <c>MapCommerceEndpoints()</c> etc.
+/// calls and JwtBearer/<c>HttpClient</c> wiring were already dead weight before this migration.
+/// </para>
 /// </summary>
 [Collection(ContainersCollection.Name)]
 public sealed class OrderExpiryIntegrationTests : IAsyncLifetime
 {
-    private const string KnownPassword = "Correct-Horse-Battery-Staple-9";
-    private const string TestIssuer = "https://api.siriupskill.test";
-    private const string TestAudience = "siriupskill-frontend-test";
-    private const string TestSigningKey = "order-expiry-tests-signing-key-0123456789012";
-
     private readonly ContainersFixture _containers;
-    private WebApplication _app = null!;
-    private HttpClient _client = null!;
+    private SiriApiFactory _factory = null!;
 
     public OrderExpiryIntegrationTests(ContainersFixture containers)
     {
@@ -58,82 +43,22 @@ public sealed class OrderExpiryIntegrationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseTestServer();
+        _factory = new SiriApiFactory(_containers);
 
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["ConnectionStrings:Default"] = _containers.SqlConnectionString,
-            ["Redis:ConnectionString"] = _containers.RedisConnectionString,
-            ["Seo:PublicBaseUrl"] = "https://example.test",
-            ["Identity:EmailConfirmation:ConfirmEmailUrl"] = "https://example.test/confirm-email",
-            ["Identity:PasswordReset:ResetPasswordUrl"] = "https://example.test/reset-password",
-            ["Identity:Security:MaxConcurrentSessions"] = "10",
-            ["Identity:Jwt:Issuer"] = TestIssuer,
-            ["Identity:Jwt:Audience"] = TestAudience,
-            ["Identity:Jwt:SigningKey"] = TestSigningKey,
-            ["Identity:Jwt:AccessTokenLifetimeMinutes"] = "15",
-            ["Payment:Stripe:SecretKey"] = "sk_test_placeholder",
-            ["Payment:Stripe:PublishableKey"] = "pk_test_placeholder",
-            ["Payment:Stripe:WebhookSecret"] = "whsec_test_placeholder",
-            ["Commerce:OrderExpiry:ExpiryMinutes"] = "30",
-            ["Commerce:OrderExpiry:BatchSize"] = "50",
-        });
-
-        builder.Services.AddPersistence(builder.Configuration);
-        builder.Services.AddSharedRedis(builder.Configuration);
-        builder.Services.AddHttpContextAccessor();
-        builder.Services.AddSingleton<IClock, SystemClock>();
-
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = TestIssuer,
-                    ValidAudience = TestAudience,
-                    IssuerSigningKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(TestSigningKey)),
-                };
-            });
-
-        builder.Services.AddSiriAuthorizationPolicies();
-
-        builder.Services.AddNotificationModule(builder.Configuration);
-        builder.Services.AddIdentityModule(builder.Configuration);
-        builder.Services.AddCatalogModule(builder.Configuration);
-        builder.Services.AddLearningModule();
-        builder.Services.AddCommerceModule(builder.Configuration);
-
-        _app = builder.Build();
-        _app.UseAuthentication();
-        _app.UseAuthorization();
-        _app.MapIdentityEndpoints();
-        _app.MapCatalogEndpoints();
-        _app.MapCommerceEndpoints();
-
-        await _app.StartAsync();
-
-        using var scope = _app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await db.Database.MigrateAsync();
-
-        _client = _app.GetTestClient();
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await dbContext.Database.MigrateAsync();
     }
 
     public async Task DisposeAsync()
     {
-        _client.Dispose();
-        await _app.DisposeAsync();
+        await _factory.DisposeAsync();
     }
 
     [Fact]
     public async Task OrderExpiryJob_ExpiresStaleOrder_RevertsPromoRedemption()
     {
-        using var scope = _app.Services.CreateScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var orderRepo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
         var paymentRepo = scope.ServiceProvider.GetRequiredService<IPaymentRepository>();
@@ -182,7 +107,7 @@ public sealed class OrderExpiryIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task OrderExpiryJob_ExpiresOrderOnSeatCappedCourse_ReleasesSeat()
     {
-        using var scope = _app.Services.CreateScope();
+        using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var orderRepo = scope.ServiceProvider.GetRequiredService<IOrderRepository>();
         var paymentRepo = scope.ServiceProvider.GetRequiredService<IPaymentRepository>();

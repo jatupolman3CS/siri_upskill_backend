@@ -1,44 +1,31 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
-using Siri.Api.Authorization;
 using Siri.IntegrationTests.Fixtures;
-using Siri.Modules.Catalog;
-using Siri.Modules.Catalog.Domain;
-using Siri.Modules.Catalog.Infrastructure;
-using Siri.Modules.Commerce;
 using Siri.Modules.Commerce.Application;
 using Siri.Modules.Commerce.Domain;
 using Siri.Modules.Commerce.Infrastructure;
-using Siri.Modules.Identity;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Features.Login;
 using Siri.Modules.Identity.Infrastructure;
-using Siri.Modules.Learning;
-using Siri.Modules.Notification;
 using Siri.Persistence;
-using Siri.Persistence.DependencyInjection;
 using Siri.SharedKernel;
-using Xunit;
 
 namespace Siri.IntegrationTests;
 
+/// <summary>
+/// Exercises <c>Siri.Api.Controllers.Commerce.OrdersController</c>/<c>TaxInvoicesController</c>
+/// (D-19: MVC Controllers replaced Minimal API's <c>MapCommerceEndpoints()</c>) through the real
+/// <see cref="SiriApiFactory"/> composition root, rather than a hand-rolled host wired to the now-dead
+/// <c>MapCommerceEndpoints()</c>/<c>MapCatalogEndpoints()</c> extension methods.
+/// </summary>
 [Collection(ContainersCollection.Name)]
 public sealed class OrderEndpointsTests : IAsyncLifetime
 {
     private const string KnownPassword = "Correct-Horse-Battery-Staple-9";
-    private const string TestIssuer = "https://api.siriupskill.test";
-    private const string TestAudience = "siriupskill-frontend-test";
-    private const string TestSigningKey = "order-endpoints-tests-signing-key-0123456789012";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -46,7 +33,7 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
     };
 
     private readonly ContainersFixture _containers;
-    private WebApplication _app = null!;
+    private SiriApiFactory _factory = null!;
     private HttpClient _client = null!;
 
     public OrderEndpointsTests(ContainersFixture containers)
@@ -56,72 +43,19 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseTestServer();
+        _factory = new SiriApiFactory(_containers);
 
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["ConnectionStrings:Default"] = _containers.SqlConnectionString,
-            ["Redis:ConnectionString"] = _containers.RedisConnectionString,
-            ["Seo:PublicBaseUrl"] = "https://example.test",
-            ["Identity:EmailConfirmation:ConfirmEmailUrl"] = "https://example.test/confirm-email",
-            ["Identity:PasswordReset:ResetPasswordUrl"] = "https://example.test/reset-password",
-            ["Identity:Security:MaxConcurrentSessions"] = "10",
-            ["Identity:Jwt:Issuer"] = TestIssuer,
-            ["Identity:Jwt:Audience"] = TestAudience,
-            ["Identity:Jwt:SigningKey"] = TestSigningKey,
-            ["Identity:Jwt:AccessTokenLifetimeMinutes"] = "15",
-            ["Email:Provider"] = "Log",
-            ["Stripe:SecretKey"] = "sk_test_mock",
-            ["Stripe:PublishableKey"] = "pk_test_mock",
-            ["Stripe:WebhookSecret"] = "whsec_mock",
-        });
-
-        builder.Services
-            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidIssuer = TestIssuer,
-                    ValidateAudience = true,
-                    ValidAudience = TestAudience,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestSigningKey)),
-                    ValidateLifetime = true,
-                };
-            });
-
-        builder.Services.AddSiriAuthorizationPolicies();
-        builder.Services.AddPersistence(builder.Configuration);
-        builder.Services.AddSharedRedis(builder.Configuration);
-        builder.Services.AddIdentityModule(builder.Configuration);
-        builder.Services.AddNotificationModule(builder.Configuration);
-        builder.Services.AddCatalogModule(builder.Configuration);
-        builder.Services.AddLearningModule();
-        builder.Services.AddCommerceModule(builder.Configuration);
-
-        _app = builder.Build();
-
-        _app.UseAuthentication();
-        _app.UseAuthorization();
-
-        _app.MapCatalogEndpoints();
-        _app.MapCommerceEndpoints();
-
-        await _app.StartAsync();
-        _client = _app.GetTestClient();
-
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.MigrateAsync();
+
+        _client = _factory.CreateClient();
     }
 
     public async Task DisposeAsync()
     {
         _client.Dispose();
-        await _app.DisposeAsync();
+        await _factory.DisposeAsync();
     }
 
     private static async Task<USER> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
@@ -168,12 +102,12 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task ListOrders_WhenAuthorized_ReturnsPagedOrdersForCurrentUserOnly()
     {
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
-        var user1 = await CreateUserAsync(_app.Services, dbContext, $"user1_{Guid.NewGuid():N}@test.local", KnownPassword);
-        var user2 = await CreateUserAsync(_app.Services, dbContext, $"user2_{Guid.NewGuid():N}@test.local", KnownPassword);
+        var user1 = await CreateUserAsync(_factory.Services, dbContext, $"user1_{Guid.NewGuid():N}@test.local", KnownPassword);
+        var user2 = await CreateUserAsync(_factory.Services, dbContext, $"user2_{Guid.NewGuid():N}@test.local", KnownPassword);
 
         var order1 = ORDER.Create($"SU-{Guid.NewGuid().ToString("N")[..8]}", user1.Id, 1000m, 100m, 58.88m, 900m);
         order1.AddItem(Guid.NewGuid(), "Angular Pro COURSE", 1000m, 900m);
@@ -186,7 +120,7 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
         dbContext.Orders().AddRange(order1, order2);
         await dbContext.SaveChangesAsync();
 
-        var token = await LoginAndGetAccessTokenAsync(_app.Services, user1.Email);
+        var token = await LoginAndGetAccessTokenAsync(_factory.Services, user1.Email);
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/commerce/orders?page=1&pageSize=10");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -202,17 +136,17 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task GetOrderById_WhenNotOwnOrder_Returns404NotFound()
     {
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var user1 = await CreateUserAsync(_app.Services, dbContext, $"owner_{Guid.NewGuid():N}@test.local", KnownPassword);
-        var user2 = await CreateUserAsync(_app.Services, dbContext, $"stranger_{Guid.NewGuid():N}@test.local", KnownPassword);
+        var user1 = await CreateUserAsync(_factory.Services, dbContext, $"owner_{Guid.NewGuid():N}@test.local", KnownPassword);
+        var user2 = await CreateUserAsync(_factory.Services, dbContext, $"stranger_{Guid.NewGuid():N}@test.local", KnownPassword);
 
         var order = ORDER.Create($"SU-{Guid.NewGuid().ToString("N")[..8]}", user1.Id, 1000m, 0m, 65.42m, 1000m);
         dbContext.Orders().Add(order);
         await dbContext.SaveChangesAsync();
 
-        var strangerToken = await LoginAndGetAccessTokenAsync(_app.Services, user2.Email);
+        var strangerToken = await LoginAndGetAccessTokenAsync(_factory.Services, user2.Email);
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/commerce/orders/{order.ORDER_ID}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", strangerToken);
 
@@ -223,11 +157,11 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
     [Fact]
     public async Task GetTaxInvoiceByOrder_WhenInvoiceExists_ReturnsTaxInvoice()
     {
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
 
-        var user = await CreateUserAsync(_app.Services, dbContext, $"taxuser_{Guid.NewGuid():N}@test.local", KnownPassword);
+        var user = await CreateUserAsync(_factory.Services, dbContext, $"taxuser_{Guid.NewGuid():N}@test.local", KnownPassword);
         var order = ORDER.Create($"SU-{Guid.NewGuid().ToString("N")[..8]}", user.Id, 1070m, 0m, 70m, 1070m);
         order.MarkAwaitingPayment();
         order.MarkPaid(clock);
@@ -237,7 +171,7 @@ public sealed class OrderEndpointsTests : IAsyncLifetime
         dbContext.TaxInvoices().Add(invoice);
         await dbContext.SaveChangesAsync();
 
-        var token = await LoginAndGetAccessTokenAsync(_app.Services, user.Email);
+        var token = await LoginAndGetAccessTokenAsync(_factory.Services, user.Email);
         using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/commerce/tax-invoices/by-order/{order.ORDER_ID}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 

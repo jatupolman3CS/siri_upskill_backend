@@ -79,6 +79,25 @@ public sealed class SiriApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Identity:Jwt:SigningKey", new string('k', 64));
         builder.UseSetting("Identity:Jwt:AccessTokenLifetimeMinutes", "15");
         builder.UseSetting("Email:Provider", "Log"); // never a real SMTP send
+        builder.UseSetting("Seo:PublicBaseUrl", "https://example.test");
+
+        // Commerce + Payout are unconditionally registered by Program.cs (D-17) — their
+        // ValidateOnStart()-gated Options need real-looking values for the host to boot at all,
+        // regardless of whether a given test file actually exercises Stripe/payout behavior.
+        // Values are test placeholders only, never real keys (security.md). Key names must match
+        // each Options class's SectionName exactly: StripeOptions binds "Payment:Stripe" (NOT
+        // "Stripe" — a mismatch some older hand-rolled test hosts used, harmless there only because
+        // CommerceModule.AddCommerceModule falls back to its own placeholder when the section binds
+        // empty).
+        builder.UseSetting("Payment:Stripe:SecretKey", "sk_test_placeholder_key_for_testing_purposes_only");
+        builder.UseSetting("Payment:Stripe:PublishableKey", "pk_test_placeholder_key_for_testing_purposes_only");
+        builder.UseSetting("Payment:Stripe:WebhookSecret", "whsec_test_placeholder_webhook_secret_for_tests");
+        builder.UseSetting("Commerce:OrderExpiry:ExpiryMinutes", "30");
+        builder.UseSetting("Commerce:OrderExpiry:BatchSize", "50");
+        builder.UseSetting("Payout:WithholdingTaxPercent", "3.00");
+        builder.UseSetting("Payout:PayerCompanyName", "SIRI UPSKILL CO., LTD.");
+        builder.UseSetting("Payout:PayerTaxId", "0105566000000");
+        builder.UseSetting("Payout:PayerAddress", "Bangkok, Thailand");
 
         // No background jobs in the test host: the API would otherwise run a Hangfire server (Hangfire:ServerInApi defaults to true) that starts
         // executing recurring jobs against the throwaway database on its own schedule and makes every test non-deterministic. Tests run the jobs they

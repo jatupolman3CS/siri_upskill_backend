@@ -1,48 +1,37 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
-using Siri.Api.Authorization;
 using Siri.IntegrationTests.Fixtures;
-using Siri.Modules.Catalog;
 using Siri.Modules.Catalog.Domain;
 using Siri.Modules.Catalog.Infrastructure;
-using Siri.Modules.Commerce;
 using Siri.Modules.Commerce.Application;
 using Siri.Modules.Commerce.Domain;
 using Siri.Modules.Commerce.Infrastructure;
-using Siri.Modules.Identity;
 using Siri.Modules.Identity.Domain;
 using Siri.Modules.Identity.Features.Login;
 using Siri.Modules.Identity.Infrastructure;
-using Siri.Modules.Learning;
-using Siri.Modules.Notification;
 using Siri.Persistence;
-using Siri.Persistence.DependencyInjection;
 using Siri.SharedKernel;
-using Xunit;
 
 namespace Siri.IntegrationTests;
 
 /// <summary>
 /// Integration tests for P3-09 Promo Code:
 /// Validation, Order discount calculation, PROMO_REDEMPTION persistence, and atomic SQL race-condition prevention.
+/// <para>
+/// Exercises <c>Siri.Api.Controllers.Commerce.PromoCodesController</c>/<c>OrdersController</c>
+/// (D-19: MVC Controllers replaced Minimal API's <c>MapCommerceEndpoints()</c>) through the real
+/// <see cref="SiriApiFactory"/> composition root, rather than a hand-rolled host wired to the now-dead
+/// <c>MapCommerceEndpoints()</c>/<c>MapCatalogEndpoints()</c> extension methods.
+/// </para>
 /// </summary>
 [Collection(ContainersCollection.Name)]
 public sealed class PromoCodeTests : IAsyncLifetime
 {
     private const string KnownPassword = "Correct-Horse-Battery-Staple-9";
-    private const string TestIssuer = "https://api.siriupskill.test";
-    private const string TestAudience = "siriupskill-frontend-test";
-    private const string TestSigningKey = "promo-code-tests-signing-key-0123456789012";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -50,7 +39,7 @@ public sealed class PromoCodeTests : IAsyncLifetime
     };
 
     private readonly ContainersFixture _containers;
-    private WebApplication _app = null!;
+    private SiriApiFactory _factory = null!;
     private HttpClient _client = null!;
 
     public PromoCodeTests(ContainersFixture containers)
@@ -60,72 +49,19 @@ public sealed class PromoCodeTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseTestServer();
+        _factory = new SiriApiFactory(_containers);
 
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["ConnectionStrings:Default"] = _containers.SqlConnectionString,
-            ["Redis:ConnectionString"] = _containers.RedisConnectionString,
-            ["Seo:PublicBaseUrl"] = "https://example.test",
-            ["Identity:EmailConfirmation:ConfirmEmailUrl"] = "https://example.test/confirm-email",
-            ["Identity:PasswordReset:ResetPasswordUrl"] = "https://example.test/reset-password",
-            ["Identity:Security:MaxConcurrentSessions"] = "10",
-            ["Identity:Jwt:Issuer"] = TestIssuer,
-            ["Identity:Jwt:Audience"] = TestAudience,
-            ["Identity:Jwt:SigningKey"] = TestSigningKey,
-            ["Identity:Jwt:AccessTokenLifetimeMinutes"] = "15",
-            ["Email:Provider"] = "Log",
-            ["Stripe:SecretKey"] = "sk_test_mock",
-            ["Stripe:PublishableKey"] = "pk_test_mock",
-            ["Stripe:WebhookSecret"] = "whsec_mock",
-        });
-
-        builder.Services
-            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
-            {
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidIssuer = TestIssuer,
-                    ValidateAudience = true,
-                    ValidAudience = TestAudience,
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestSigningKey)),
-                    ValidateLifetime = true,
-                };
-            });
-
-        builder.Services.AddSiriAuthorizationPolicies();
-        builder.Services.AddPersistence(builder.Configuration);
-        builder.Services.AddSharedRedis(builder.Configuration);
-        builder.Services.AddIdentityModule(builder.Configuration);
-        builder.Services.AddNotificationModule(builder.Configuration);
-        builder.Services.AddCatalogModule(builder.Configuration);
-        builder.Services.AddLearningModule();
-        builder.Services.AddCommerceModule(builder.Configuration);
-
-        _app = builder.Build();
-
-        _app.UseAuthentication();
-        _app.UseAuthorization();
-
-        _app.MapCatalogEndpoints();
-        _app.MapCommerceEndpoints();
-
-        await _app.StartAsync();
-        _client = _app.GetTestClient();
-
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await dbContext.Database.MigrateAsync();
+
+        _client = _factory.CreateClient();
     }
 
     public async Task DisposeAsync()
     {
         _client.Dispose();
-        await _app.DisposeAsync();
+        await _factory.DisposeAsync();
     }
 
     private static async Task<USER> CreateUserAsync(IServiceProvider services, AppDbContext dbContext, string email, string password)
@@ -195,7 +131,7 @@ public sealed class PromoCodeTests : IAsyncLifetime
     [Fact]
     public async Task ValidatePromoCode_ValidCode_ReturnsDiscountCalculation()
     {
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (_, token) = await CreateUserAndLoginAsync(scope.ServiceProvider, dbContext);
         var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, 1000m);
@@ -223,7 +159,7 @@ public sealed class PromoCodeTests : IAsyncLifetime
     [Fact]
     public async Task CreateOrder_WithValidPromoCode_CreatesOrderAndInsertsPromoRedemption()
     {
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (user, token) = await CreateUserAndLoginAsync(scope.ServiceProvider, dbContext);
         var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, 1000m);
@@ -262,7 +198,7 @@ public sealed class PromoCodeTests : IAsyncLifetime
     [Fact]
     public async Task CreateOrder_AtomicConcurrencyRace_OnlyOneSucceedsWhenQuotaIsOne()
     {
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (_, token1) = await CreateUserAndLoginAsync(scope.ServiceProvider, dbContext);
         var (_, token2) = await CreateUserAndLoginAsync(scope.ServiceProvider, dbContext);
@@ -302,7 +238,7 @@ public sealed class PromoCodeTests : IAsyncLifetime
     [Fact]
     public async Task CreateOrder_SingleUserConcurrencyRace_OnlyOneSucceedsWhenMaxPerUserIsOne()
     {
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (user, token) = await CreateUserAndLoginAsync(scope.ServiceProvider, dbContext);
         var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, 1000m);
@@ -341,7 +277,7 @@ public sealed class PromoCodeTests : IAsyncLifetime
     [Fact]
     public async Task CreateOrder_TransactionRollback_DoesNotLeakRedemptionOrDeductQuota()
     {
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (user, token) = await CreateUserAndLoginAsync(scope.ServiceProvider, dbContext);
         var course = await CreatePublishedCourseAsync(scope.ServiceProvider, dbContext, 1000m);
@@ -375,7 +311,7 @@ public sealed class PromoCodeTests : IAsyncLifetime
     [Fact]
     public async Task Refund_WithPromoCode_RevertsPromoRedemptionAndQuota()
     {
-        await using var scope = _app.Services.CreateAsyncScope();
+        await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
         var refundService = scope.ServiceProvider.GetRequiredService<RefundService>();
